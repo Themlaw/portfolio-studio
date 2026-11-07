@@ -179,7 +179,9 @@
    "couleurps29",
    "crop17d",
    "crop17g",
+   "icones121",
    "integ17",
+   "interaction034b",
    "langue126",
    "logo84",
    "look",
@@ -199,9 +201,12 @@
    "couleurs19b",
    "crop17d",
    "crop17g",
+   "espace129",
    "fond100",
    "fondimage41",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "langue126",
    "palogo17f",
@@ -230,6 +235,8 @@
    "partage52"
   ],
   "src/app/admin/(espace)/messages/actions.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -248,6 +255,8 @@
    "contact125",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit53",
    "partage52",
@@ -258,6 +267,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "kit53",
    "priseenmain57",
    "retours68"
@@ -296,6 +307,8 @@
    "defilement99",
    "defilement99-firefox",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -310,6 +323,7 @@
   "src/app/admin/(espace)/themes/[id]/page.tsx": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -317,6 +331,7 @@
   "src/app/admin/(espace)/themes/actions.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -343,6 +358,8 @@
    "couleurs26",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "look",
    "lot11",
    "palette",
@@ -355,6 +372,8 @@
    "crop17g",
    "editor",
    "fond100",
+   "icones121",
+   "interaction034b",
    "papiers35",
    "retours68",
    "structures108a",
@@ -372,6 +391,8 @@
    "contenu111",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "papiers35",
    "reglages105",
    "retours68",
@@ -390,6 +411,8 @@
    "editor",
    "fond32",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "lot11",
    "papiers35",
    "papiers78",
@@ -424,6 +447,8 @@
    "texte19a"
   ],
   "src/app/admin/apercu/route.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -432,6 +457,8 @@
    "palette"
   ],
   "src/app/admin/api/editeur/session/route.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -440,6 +467,8 @@
    "palette"
   ],
   "src/app/admin/api/editeur/toile/route.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -473,7 +502,6 @@
    "couleurtitres115",
    "editor",
    "entrees48",
-   "fondplanche24",
    "grille31d",
    "grille37",
    "images25",
@@ -486,6 +514,7 @@
    "popover65",
    "state",
    "textes70",
+   "titres128",
    "v013"
   ],
   "src/app/admin/forbidden.tsx": [
@@ -663,6 +692,8 @@
    "blocs27",
    "contact125",
    "crop17d-http",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -674,6 +705,8 @@
   "src/app/api/log/route.ts": [
    "admin76",
    "crop17d-http",
+   "icones121",
+   "interaction034b",
    "kithttp",
    "kitpartie122"
   ],
@@ -684,24 +717,24 @@
    "17b",
    "blocs27",
    "cadre34",
+   "cadre95",
+   "cadremotif58",
    "cartes17c",
+   "contact125",
+   "couleur110",
    "couleurps29",
    "couleurs19b",
-   "defilement99",
-   "defilement99-firefox",
    "editeurguide61",
    "fondimage41",
    "grille31d",
    "grille37",
    "kit",
-   "legendes39",
    "logo84",
    "lot1",
    "lot11",
    "medias",
    "medias-firefox",
    "palogo17f",
-   "parite99",
    "retours68",
    "visionneuse44",
    "vitesse54"
@@ -709,9 +742,6 @@
   "src/app/look.css": [
    "cadremotif58",
    "cartes17c",
-   "collections22",
-   "couches107",
-   "couches107c",
    "couleur110",
    "couleur110a",
    "couleur110b",
@@ -720,6 +750,8 @@
    "fond100",
    "fond32",
    "fondmarge43",
+   "icones121",
+   "interaction034b",
    "logo84",
    "look",
    "lot11",
@@ -730,6 +762,7 @@
    "papiers35",
    "raccord102",
    "reglages105",
+   "titres128",
    "unif75"
   ],
   "src/app/media-frame.css": [
@@ -749,11 +782,11 @@
    "grille31d",
    "grille37",
    "grille69",
+   "interaction034b",
    "legendes39",
    "mediaframe64",
    "planche113",
    "planche31",
-   "raccord102",
    "state",
    "unif75",
    "visionneuse44"
@@ -772,24 +805,24 @@
    "cadremotif58",
    "cadres62",
    "carrousel31f",
+   "couleur110",
+   "couleur110a",
+   "couleur110b",
    "couleurps29",
    "editeurguide61",
    "editor",
    "fleches33",
    "fondcontenu47",
+   "icones121",
    "images25",
+   "interaction034b",
    "langue126",
-   "logo106",
    "logo84",
-   "look",
    "lot11",
    "medias",
    "medias-firefox",
-   "medias112",
-   "popover65",
-   "raccord102",
-   "unif75",
    "video116",
+   "video127",
    "video36"
   ],
   "src/app/site-icon/[file]/route.ts": [
@@ -807,7 +840,9 @@
    "couleurps29",
    "crop17d",
    "crop17g",
+   "icones121",
    "integ17",
+   "interaction034b",
    "introuvable89",
    "palogo17f",
    "retour30",
@@ -828,6 +863,7 @@
    "v013"
   ],
   "src/blocks/CollectionTilesBlock.tsx": [
+   "espace129",
    "langue126",
    "lot1",
    "texte19a"
@@ -839,12 +875,16 @@
    "crop17d",
    "crop17g",
    "entrees48",
+   "espace129",
+   "icones121",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
    "reglages105",
    "retours68",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/ContactCta.tsx": [
    "blocs27",
@@ -854,11 +894,13 @@
    "blocs27",
    "contact125",
    "entrees48",
+   "espace129",
    "langue126",
    "legendes39",
    "lot1",
    "reglages105",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/CvBlock.tsx": [
    "blocs27",
@@ -866,14 +908,18 @@
    "crop17d",
    "crop17g",
    "entrees48",
+   "espace129",
    "fonddeborde59",
+   "icones121",
    "images25",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
    "reglages105",
    "retours68",
    "texte19a",
+   "titres128",
    "v013"
   ],
   "src/blocks/ExitBlock.tsx": [
@@ -881,27 +927,37 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "espace129",
+   "icones121",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
    "reglages105",
    "retours68",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/FeaturedProjectBlock.tsx": [
    "blocs27",
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "legendes39",
    "reglages105",
    "retours68",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/FeaturedProjectsBlock.tsx": [
    "chrome24",
    "crop17d",
    "crop17g",
+   "espace129",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot1",
    "retours68",
@@ -914,7 +970,8 @@
    "fonddeborde59",
    "grille31d",
    "grille37",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/FreeBoardBlock.tsx": [
    "17b",
@@ -925,6 +982,9 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "espace129",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot11",
    "planche113",
@@ -934,6 +994,7 @@
    "retours68",
    "texte19a",
    "video116",
+   "video127",
    "video36"
   ],
   "src/blocks/GridBlock.tsx": [
@@ -946,21 +1007,36 @@
    "crop17d-http",
    "crop17g",
    "entrees48",
+   "espace129",
    "grille31d",
    "grille37",
    "grille69",
+   "icones121",
    "images25",
+   "interaction034b",
    "legendes39",
    "legendes98",
-   "lot1",
-   "papiers35",
    "planche113",
-   "planche31",
+   "reglages105",
+   "texte19a",
+   "titres128",
+   "v013",
+   "vitesse54"
+  ],
+  "src/blocks/Head.tsx": [
+   "blocs27",
+   "editor",
+   "espace129",
+   "fonddeborde59",
+   "grille31d",
+   "grille37",
+   "interaction034b",
+   "legendes39",
+   "lot1",
    "portee119",
    "reglages105",
    "texte19a",
-   "v013",
-   "vitesse54"
+   "titres128"
   ],
   "src/blocks/HeroBlock.tsx": [
    "langue126",
@@ -975,6 +1051,7 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "espace129",
    "fonddeborde59",
    "fondimage41",
    "grille31d",
@@ -994,10 +1071,13 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "legendes39",
    "reglages105",
    "retours68",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/ProfileBlock.tsx": [
    "17b",
@@ -1012,14 +1092,14 @@
    "fondtexte21",
    "grille31d",
    "grille69",
+   "icones121",
    "images25",
+   "interaction034b",
    "langue126",
    "legendes39",
    "look",
    "lot1",
    "pied86",
-   "portee119",
-   "portee124",
    "retours68",
    "state",
    "unif75",
@@ -1039,6 +1119,7 @@
    "cadre34",
    "cartes17c",
    "crop17d-http",
+   "espace129",
    "fondimage41",
    "image40",
    "introuvable89",
@@ -1046,12 +1127,14 @@
    "legendes39",
    "mediaframe64",
    "reglages105",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/RichTextBlock.tsx": [
    "blocs27",
    "editor",
    "entrees48",
+   "espace129",
    "fonddeborde59",
    "grille31d",
    "grille37",
@@ -1059,7 +1142,8 @@
    "legendes39",
    "lot1",
    "reglages105",
-   "texte19a"
+   "texte19a",
+   "titres128"
   ],
   "src/blocks/SectionTitleBlock.tsx": [
    "blocs27",
@@ -1068,6 +1152,7 @@
    "couleurtitres115",
    "editor",
    "entrees48",
+   "espace129",
    "fleches33",
    "fonddeborde59",
    "grille31d",
@@ -1083,10 +1168,12 @@
    "state",
    "texte19a",
    "textes70",
+   "titres128",
    "v013"
   ],
   "src/blocks/VideoSingleBlock.tsx": [
    "blocs27",
+   "espace129",
    "fonddeborde59",
    "grille31d",
    "images25",
@@ -1099,6 +1186,7 @@
   "src/blocks/caption-style.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -1112,6 +1200,8 @@
   "src/blocks/contact-target.ts": [
    "blocs27",
    "contact125",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -1146,6 +1236,7 @@
    "state",
    "surface66",
    "video116",
+   "video127",
    "video36"
   ],
   "src/blocks/free-board.ts": [
@@ -1167,11 +1258,20 @@
    "reglages105",
    "state"
   ],
+  "src/blocks/head.ts": [
+   "blocs27",
+   "introuvable89",
+   "titres128"
+  ],
   "src/blocks/help-text.ts": [
    "cartes17c",
    "composants20",
    "texte19a",
    "v013"
+  ],
+  "src/blocks/optional-fields.ts": [
+   "blocs27",
+   "titres128"
   ],
   "src/blocks/refs.ts": [
    "blocs27",
@@ -1200,6 +1300,10 @@
    "composants20",
    "contact125"
   ],
+  "src/blocks/video-sound.ts": [
+   "interaction034b",
+   "video127"
+  ],
   "src/components/AnimationShowcase.tsx": [
    "17b",
    "barres38",
@@ -1208,17 +1312,16 @@
    "contact125",
    "crop17d",
    "crop17g",
-   "defilement99",
-   "defilement99-firefox",
-   "kit",
+   "espace129",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot1",
-   "parite99",
    "retours68",
    "texte19a",
    "video116",
-   "video36",
-   "visionneuse44"
+   "video127",
+   "video36"
   ],
   "src/components/BoardBox.tsx": [
    "grille31d",
@@ -1227,14 +1330,14 @@
   "src/components/BoardLayer.tsx": [
    "barres38",
    "boards",
-   "cadres62",
    "carrousel31f",
    "contenu111",
    "couleurtitres115",
-   "fonddeborde59",
    "fondplanche24",
    "grille31d",
+   "icones121",
    "images25",
+   "interaction034b",
    "legendes39",
    "legendes98",
    "panorama45",
@@ -1245,9 +1348,9 @@
    "portee119",
    "priseenmain57",
    "state",
-   "textes70",
    "unif75",
    "v013",
+   "video127",
    "video36"
   ],
   "src/components/CollectionTiles.tsx": [
@@ -1264,14 +1367,14 @@
    "fleches33",
    "grille31d",
    "grille69",
+   "icones121",
+   "interaction034b",
    "langue126",
    "legendes39",
    "logocadres49",
    "lot1",
    "lot11",
    "mediaframe64",
-   "medias",
-   "medias-firefox",
    "popover65",
    "reglages105",
    "unif75"
@@ -1282,6 +1385,8 @@
    "contact125",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "lot1",
    "retours68"
   ],
@@ -1292,6 +1397,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
@@ -1302,6 +1409,7 @@
    "state",
    "texte19a",
    "textes70",
+   "titres128",
    "v013"
   ],
   "src/components/CroppedPicture.tsx": [
@@ -1315,11 +1423,11 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
+   "interaction034b",
    "retours68"
   ],
   "src/components/EditLayer.tsx": [
-   "backup118",
-   "barreaa114",
    "cartes17c",
    "chrome24",
    "collections22",
@@ -1328,6 +1436,8 @@
    "entrees117",
    "grille31d",
    "grille37",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "medias",
    "medias-firefox",
@@ -1344,11 +1454,14 @@
    "video116"
   ],
   "src/components/EditOnly.tsx": [
+   "icones121",
+   "interaction034b",
    "logo84",
    "palogo17f",
    "retours68",
    "v013",
-   "video116"
+   "video116",
+   "video127"
   ],
   "src/components/EditThisPage.tsx": [
    "blocs27",
@@ -1357,6 +1470,8 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "logo84",
    "montheme60",
    "retours68"
@@ -1375,6 +1490,8 @@
    "crop17g",
    "defilement99",
    "defilement99-firefox",
+   "icones121",
+   "interaction034b",
    "kit",
    "langue126",
    "lot1",
@@ -1401,6 +1518,8 @@
    "crop17g",
    "essayer63",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "langue126",
    "papier28",
    "portee119",
@@ -1414,32 +1533,30 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "langue126",
    "medias",
    "medias-firefox",
    "retours68",
    "video116",
+   "video127",
    "video36"
   ],
   "src/components/MediaCaption.tsx": [
    "blocs27",
    "boards",
    "couleurtitres115",
-   "defilement99",
-   "defilement99-firefox",
    "fondtexte21",
    "legendes39",
    "legendes98",
-   "panorama45",
-   "parite99",
    "perte336",
    "portee119",
-   "public67",
-   "raccord102",
    "reglages105",
    "state",
    "texte19a",
-   "textes70"
+   "textes70",
+   "titres128"
   ],
   "src/components/MediaFrame.tsx": [
    "cadre34",
@@ -1466,6 +1583,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot1",
    "retours68"
@@ -1475,7 +1594,9 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "icones121",
    "integ17",
+   "interaction034b",
    "public67",
    "retours68"
   ],
@@ -1486,6 +1607,8 @@
    "crop17g",
    "entrees48",
    "fonddeborde59",
+   "icones121",
+   "interaction034b",
    "lot1",
    "montheme60",
    "retours68"
@@ -1495,6 +1618,7 @@
    "couleurs19b",
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "integ17",
    "montheme60",
    "palogo17f",
@@ -1517,13 +1641,13 @@
    "couleurtitres115",
    "fleches33",
    "grille69",
+   "icones121",
    "image40",
    "langue126",
    "legendes39",
    "legendes98",
    "lot1",
    "lot8",
-   "mediaframe64",
    "medias",
    "medias-firefox",
    "papiers35",
@@ -1532,7 +1656,7 @@
    "portee119",
    "priseenmain57",
    "reglages105",
-   "video36"
+   "state"
   ],
   "src/components/RailScrollbar.tsx": [
    "couleur110",
@@ -1558,7 +1682,9 @@
   "src/components/SiteFooter.tsx": [
    "blocs27",
    "contact125",
+   "espace129",
    "integ17",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
@@ -1568,6 +1694,7 @@
    "reglages105",
    "state",
    "texte19a",
+   "titres128",
    "v013"
   ],
   "src/components/SiteHeader.tsx": [
@@ -1578,10 +1705,11 @@
    "couleur110b",
    "couleurs26",
    "crop17d",
+   "crop17g",
    "editeurguide61",
    "fondtexte21",
+   "interaction034b",
    "langue126",
-   "langue87",
    "logo106",
    "logo84",
    "logocadres49",
@@ -1591,7 +1719,6 @@
    "reglages105",
    "retours68",
    "scroll123",
-   "site96",
    "state",
    "textes70",
    "v013"
@@ -1610,15 +1737,15 @@
    "crop17g",
    "editeurguide61",
    "editor",
+   "icones121",
    "integ17",
+   "interaction034b",
    "lot1",
    "menu109",
    "palogo17f",
    "papiers78",
    "pied86",
-   "planche31",
    "popover65",
-   "priseenmain57",
    "state",
    "v013"
   ],
@@ -1626,6 +1753,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "retours68"
   ],
   "src/components/StripRail.tsx": [
@@ -1638,11 +1767,10 @@
    "contact125",
    "couleurtitres115",
    "crop17d",
-   "crop17g",
    "defilement99",
    "defilement99-firefox",
-   "fleches33",
-   "integ33",
+   "icones121",
+   "interaction034b",
    "kit",
    "langue126",
    "medias",
@@ -1652,6 +1780,7 @@
    "textes70",
    "unif75",
    "video116",
+   "video127",
    "visionneuse44"
   ],
   "src/components/Video.tsx": [
@@ -1662,25 +1791,27 @@
    "chrome24",
    "crop17d",
    "crop17g",
-   "defilement99",
-   "defilement99-firefox",
-   "kit",
-   "parite99",
+   "icones121",
+   "interaction034b",
    "retours68",
    "video116",
-   "video36",
-   "visionneuse44"
+   "video127",
+   "video36"
   ],
   "src/components/VideoCard.tsx": [
    "barres38",
    "blocs27",
    "cadres62",
+   "icones121",
+   "interaction034b",
    "langue126",
    "legendes39",
    "lot1",
    "reglages105",
    "texte19a",
+   "titres128",
    "video116",
+   "video127",
    "video36"
   ],
   "src/components/VideoPlayer.tsx": [
@@ -1689,22 +1820,19 @@
    "couleurps29",
    "crop17d",
    "crop17g",
-   "defilement99",
-   "defilement99-firefox",
-   "kit",
+   "icones121",
+   "interaction034b",
    "langue126",
    "logo84",
    "look",
    "medias",
    "medias-firefox",
    "palogo17f",
-   "parite99",
    "reglages105",
    "retours68",
    "tags",
-   "video116",
-   "video36",
-   "visionneuse44"
+   "video127",
+   "video36"
   ],
   "src/components/VideoViewer.tsx": [
    "cadres62",
@@ -1713,6 +1841,8 @@
    "crop17g",
    "defilement99",
    "defilement99-firefox",
+   "icones121",
+   "interaction034b",
    "kit",
    "langue126",
    "medias",
@@ -1720,10 +1850,13 @@
    "parite99",
    "retours68",
    "video116",
+   "video127",
    "video36",
    "visionneuse44"
   ],
   "src/components/ViewerScope.tsx": [
+   "icones121",
+   "interaction034b",
    "logo84",
    "mediaframe64",
    "palogo17f",
@@ -1732,6 +1865,7 @@
    "retours68",
    "v013",
    "video116",
+   "video127",
    "visionneuse44",
    "vitesse54"
   ],
@@ -1781,7 +1915,9 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
    "integ33",
+   "interaction034b",
    "journal97",
    "langue126",
    "langue87",
@@ -1789,8 +1925,6 @@
    "papiers78",
    "partage52",
    "portee124",
-   "reglages105",
-   "retours68",
    "scroll123",
    "textes70"
   ],
@@ -1798,6 +1932,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "retours68"
   ],
   "src/components/admin/BackupPanel.tsx": [
@@ -1829,6 +1965,8 @@
    "contenu111",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "palette",
    "retours68"
   ],
@@ -1843,6 +1981,8 @@
    "crop17g",
    "editor",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit53",
    "papiers35",
    "partage52",
@@ -1854,6 +1994,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "priseenmain57",
    "retours68"
   ],
@@ -1873,6 +2015,8 @@
    "crop17d",
    "crop17g",
    "editor",
+   "icones121",
+   "interaction034b",
    "papiers35",
    "planche31",
    "retours68",
@@ -1887,6 +2031,8 @@
    "crop17d-http",
    "crop17g",
    "editeurguide61",
+   "icones121",
+   "interaction034b",
    "kit53",
    "kitpartie122",
    "retours68",
@@ -1902,6 +2048,8 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit53",
    "priseenmain57",
@@ -1917,6 +2065,8 @@
    "crop17g",
    "defilement99",
    "defilement99-firefox",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit53",
    "logo84",
@@ -1930,14 +2080,15 @@
    "retours68",
    "tags",
    "textes70",
-   "themes55",
-   "video36"
+   "themes55"
   ],
   "src/components/admin/LibraryStrip.tsx": [
    "backup85",
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "medias",
    "medias-firefox",
    "medias112",
@@ -1952,6 +2103,8 @@
    "crop17d",
    "crop17d-http",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "kit",
    "montheme60",
    "retours68",
@@ -2011,6 +2164,8 @@
    "editeurguide61",
    "editor",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "kit53",
    "palette",
@@ -2029,7 +2184,9 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
    "integ17",
+   "interaction034b",
    "look",
    "lot11",
    "palette",
@@ -2041,6 +2198,7 @@
   "src/components/admin/PaperSettings.tsx": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "kit17a",
    "palogo17f",
    "papier28",
@@ -2069,9 +2227,9 @@
    "fondplanche24",
    "fondtexte21",
    "grille31d",
+   "icones121",
    "image40",
-   "journal97",
-   "kit",
+   "interaction034b",
    "palette",
    "priseenmain57",
    "public67",
@@ -2090,6 +2248,8 @@
    "editeurguide61",
    "editor",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit53",
    "medias112",
@@ -2121,6 +2281,8 @@
    "editeurguide61",
    "fond32",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "kit53",
    "lot1",
    "papiers35",
@@ -2138,6 +2300,8 @@
    "crop17d",
    "crop17g",
    "entrees117",
+   "icones121",
+   "interaction034b",
    "medias",
    "medias-firefox",
    "retours68",
@@ -2159,8 +2323,8 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
-   "editor",
    "favicon83",
+   "icones121",
    "montheme60",
    "palogo17f",
    "priseenmain57",
@@ -2191,15 +2355,15 @@
    "defilement99",
    "defilement99-firefox",
    "essayer63",
+   "icones121",
    "integ17",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
    "langue126",
-   "lot11",
    "montheme60",
    "palogo17f",
-   "papier28",
    "themes55"
   ],
   "src/components/admin/ThemeSwatches.tsx": [
@@ -2209,6 +2373,8 @@
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "medias",
    "medias-firefox",
    "montheme60",
@@ -2222,6 +2388,7 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
+   "icones121",
    "lot11",
    "montheme60",
    "palette",
@@ -2260,6 +2427,8 @@
    "essayer63",
    "fond32",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "langue126",
    "langue87",
    "lot1",
@@ -2269,9 +2438,7 @@
    "portee124",
    "retours68",
    "scroll123",
-   "surface66",
-   "tags",
-   "textes70"
+   "tags"
   ],
   "src/components/admin/Uploader.tsx": [
    "boards",
@@ -2282,6 +2449,8 @@
    "crop17g",
    "fond32",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "logo84",
    "look",
    "medias",
@@ -2299,6 +2468,8 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
+   "interaction034b",
    "mediaframe64",
    "medias",
    "medias-firefox",
@@ -2314,6 +2485,8 @@
    "editeurguide61",
    "editor",
    "fond100",
+   "icones121",
+   "interaction034b",
    "opacite90",
    "papiers35",
    "papiers78",
@@ -2338,6 +2511,8 @@
    "crop17g",
    "editeurguide61",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit53",
    "montheme60",
    "palette",
@@ -2358,6 +2533,7 @@
    "planche31",
    "priseenmain57",
    "texte19a",
+   "titres128",
    "v013"
   ],
   "src/components/admin/editor/BoardItemPanel.tsx": [
@@ -2377,14 +2553,14 @@
    "fondtexte21",
    "grille31d",
    "grille69",
+   "icones121",
    "image40",
+   "interaction034b",
    "palogo17f",
    "papiers35",
    "parite99",
    "planche31",
-   "priseenmain57",
-   "retours68",
-   "surface66"
+   "priseenmain57"
   ],
   "src/components/admin/editor/LookPanel.tsx": [
    "boards",
@@ -2406,7 +2582,9 @@
    "couleurs26",
    "crop17d",
    "crop17g",
+   "icones121",
    "images25",
+   "interaction034b",
    "medias112",
    "planchelibre42",
    "retours68",
@@ -2424,6 +2602,8 @@
    "crop17d-http",
    "crop17g",
    "essayer63",
+   "icones121",
+   "interaction034b",
    "kit53",
    "montheme60",
    "priseenmain57",
@@ -2458,8 +2638,8 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
+   "icones121",
    "integ17",
-   "langue126",
    "logo106",
    "logo84",
    "look",
@@ -2473,6 +2653,7 @@
   "src/components/admin/editor/StrokeField.tsx": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -2492,6 +2673,8 @@
    "fond32",
    "fondtexte21",
    "grille69",
+   "icones121",
+   "interaction034b",
    "medias",
    "medias-firefox",
    "palogo17f",
@@ -2499,9 +2682,7 @@
    "papiers78",
    "priseenmain57",
    "reglages105",
-   "retours68",
-   "scroll123",
-   "surface66"
+   "retours68"
   ],
   "src/components/admin/editor/ThemePicker.tsx": [
    "admin76",
@@ -2512,6 +2693,8 @@
    "crop17d-http",
    "crop17g",
    "essayer63",
+   "icones121",
+   "interaction034b",
    "montheme60",
    "retours68"
   ],
@@ -2524,6 +2707,8 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
+   "interaction034b",
    "retours68",
    "scroll123"
   ],
@@ -2538,13 +2723,13 @@
    "couleur110a",
    "couleur110b",
    "editor",
+   "icones121",
    "image40",
    "images25",
    "logo84",
    "medias112",
    "palogo17f",
    "papiers35",
-   "papiers78",
    "partage52",
    "planche31",
    "priseenmain57",
@@ -2563,6 +2748,8 @@
    "crop17d",
    "crop17g",
    "fleches33",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "retours68",
    "texte19a",
@@ -2597,6 +2784,8 @@
    "crop17d",
    "crop17g",
    "editeurguide61",
+   "icones121",
+   "interaction034b",
    "popover65",
    "reglages105",
    "retours68",
@@ -2615,6 +2804,8 @@
    "blocs27",
    "contact125",
    "crop17d-http",
+   "icones121",
+   "interaction034b",
    "kithttp",
    "kitpartie122",
    "planche31"
@@ -2631,6 +2822,8 @@
    "crop17g",
    "editeurguide61",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "palette",
    "retours68",
    "scroll123"
@@ -2645,6 +2838,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "palogo17f",
    "papiers35",
    "retours68",
@@ -2724,6 +2919,7 @@
    "defilement99-firefox",
    "editor",
    "fleches33",
+   "icones121",
    "look",
    "palogo17f",
    "papiers78",
@@ -2754,10 +2950,10 @@
    "editeurguide61",
    "fondimage41",
    "fondplanche24",
+   "icones121",
+   "interaction034b",
    "lot1",
    "montheme60",
-   "palogo17f",
-   "papiers35",
    "unif75"
   ],
   "src/components/edit/FreeCropDialog.tsx": [
@@ -2788,21 +2984,20 @@
    "fondplanche24",
    "grille31d",
    "grille37",
+   "icones121",
    "image40",
-   "opacite90",
-   "palogo17f",
-   "parite99",
+   "interaction034b",
    "planche113",
    "planchelibre42",
    "popover65",
    "unif75",
-   "video116"
+   "video116",
+   "video127"
   ],
   "src/components/edit/GridLayer.tsx": [
    "17b",
    "barres38",
    "cadres62",
-   "carrousel31f",
    "chrome24",
    "contact125",
    "contenu111",
@@ -2811,17 +3006,18 @@
    "couleur110b",
    "crop17d",
    "crop17d-http",
-   "crop17g",
    "fondplanche24",
    "grille31d",
    "grille37",
    "grille69",
-   "image40",
+   "icones121",
+   "interaction034b",
    "papiers35",
    "planche31",
    "popover65",
    "state",
    "v013",
+   "video127",
    "video36"
   ],
   "src/components/edit/GridLayoutIcon.tsx": [
@@ -2830,6 +3026,8 @@
    "crop17g",
    "grille31d",
    "grille37",
+   "icones121",
+   "interaction034b",
    "papiers35",
    "retours68"
   ],
@@ -2855,6 +3053,8 @@
    "crop17g",
    "editeurguide61",
    "fondimage41",
+   "icones121",
+   "interaction034b",
    "opacite90",
    "popover65",
    "retours68",
@@ -2871,21 +3071,21 @@
    "editor",
    "favicon83",
    "fondtexte21",
-   "langue126",
+   "icones121",
+   "interaction034b",
    "legendes39",
    "legendes98",
    "logo84",
    "logocadres49",
    "look",
-   "lot1",
    "lot11",
    "perte336",
    "portee119",
-   "portee124",
    "reglages105",
    "retours68",
    "state",
-   "textes70"
+   "textes70",
+   "titres128"
   ],
   "src/components/edit/MenuSelect.tsx": [
    "17b",
@@ -2902,14 +3102,14 @@
    "editeurguide61",
    "editor",
    "essayer63",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "langue126",
    "langue87",
    "look",
    "lot1",
    "papier28",
-   "papiers78",
-   "portee124",
    "scroll123",
    "state"
   ],
@@ -2948,6 +3148,7 @@
    "couleur110a",
    "couleur110b",
    "editeurguide61",
+   "espace129",
    "image40",
    "opacite90",
    "portee119",
@@ -2965,6 +3166,8 @@
    "crop17d",
    "crop17g",
    "fondcontenu47",
+   "icones121",
+   "interaction034b",
    "retours68"
   ],
   "src/components/edit/SiteLookLayer.tsx": [
@@ -2986,18 +3189,10 @@
   ],
   "src/components/edit/SnapSlider.tsx": [
    "boards",
-   "couches107",
-   "couches107c",
-   "couches107d",
    "couleurps29",
    "look",
    "medias",
    "medias-firefox",
-   "structures108a",
-   "structures108b",
-   "structures108c",
-   "structures108p",
-   "structures108q",
    "tags",
    "video36"
   ],
@@ -3014,6 +3209,8 @@
    "crop17g",
    "editeurguide61",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "look",
    "lot11",
    "planche31",
@@ -3022,14 +3219,26 @@
    "scroll123",
    "tags",
    "textes70",
+   "titres128",
    "v013"
   ],
   "src/components/edit/VideoModeSeg.tsx": [
    "chrome24",
    "crop17d",
    "crop17g",
+   "icones121",
+   "interaction034b",
    "retours68",
    "video36"
+  ],
+  "src/components/edit/VideoSoundSeg.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "icones121",
+   "interaction034b",
+   "retours68",
+   "video127"
   ],
   "src/components/edit/WallpaperChoices.tsx": [
    "chrome24",
@@ -3037,7 +3246,9 @@
    "crop17g",
    "editor",
    "fond100",
+   "icones121",
    "integ33",
+   "interaction034b",
    "opacite90",
    "papiers35",
    "retours68",
@@ -3055,7 +3266,8 @@
    "planche113",
    "planchelibre42",
    "popover65",
-   "video116"
+   "video116",
+   "video127"
   ],
   "src/components/edit/grid-dom.ts": [
    "grille31d",
@@ -3082,6 +3294,8 @@
    "fond100",
    "fondimage41",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "logo84",
    "lot1",
    "montheme60",
@@ -3096,7 +3310,6 @@
    "v013"
   ],
   "src/components/edit/optimistic.ts": [
-   "17b",
    "cadre34",
    "cartes17c",
    "couleur110",
@@ -3110,6 +3323,7 @@
    "fondimage41",
    "fondmarge43",
    "fondplanche24",
+   "icones121",
    "integ17",
    "palogo17f",
    "papier28",
@@ -3149,6 +3363,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "kit",
    "lot1",
    "lot11",
@@ -3165,6 +3381,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "lot1",
    "lot11",
    "portee119",
@@ -3179,6 +3397,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot1",
    "portee119",
@@ -3193,6 +3413,7 @@
    "legendes39",
    "reglages105",
    "texte19a",
+   "titres128",
    "v013"
   ],
   "src/components/hero/ScrollHint.tsx": [
@@ -3200,6 +3421,8 @@
    "crop17d",
    "crop17g",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "langue126",
    "lot8",
    "pied86",
@@ -3212,6 +3435,7 @@
    "look",
    "reglages105",
    "texte19a",
+   "titres128",
    "v013"
   ],
   "src/components/rail-step.ts": [
@@ -3220,12 +3444,42 @@
    "kit",
    "parite99"
   ],
+  "src/components/video-fullscreen.tsx": [
+   "icones121",
+   "interaction034b",
+   "langue126",
+   "video116",
+   "video127"
+  ],
+  "src/components/video-icons.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "icones121",
+   "interaction034b",
+   "kit",
+   "parite99",
+   "popover65",
+   "retours68",
+   "video116",
+   "video127",
+   "visionneuse44"
+  ],
   "src/components/video-playback.ts": [
+   "icones121",
+   "interaction034b",
    "logo84",
    "palogo17f",
    "retours68",
    "v013",
-   "video116"
+   "video116",
+   "video127"
+  ],
+  "src/components/visitor-sound.ts": [
+   "video116",
+   "video127"
   ],
   "src/i18n/choice.ts": [
    "langue126"
@@ -3242,6 +3496,8 @@
   "src/lib/admin.ts": [
    "blocs27",
    "contact125",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3263,6 +3519,8 @@
    "state"
   ],
   "src/lib/auth/guard.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3271,6 +3529,8 @@
    "palette"
   ],
   "src/lib/auth/identity.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3284,6 +3544,8 @@
   "src/lib/auth/seed-admin.ts": [
    "admin76",
    "backup118",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3295,6 +3557,8 @@
    "state"
   ],
   "src/lib/auth/throttle.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3304,6 +3568,7 @@
   ],
   "src/lib/backup/archive.ts": [
    "backup85",
+   "icones121",
    "kit",
    "kit17a",
    "kithttp",
@@ -3314,6 +3579,8 @@
    "backup85"
   ],
   "src/lib/backup/restore.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3322,6 +3589,8 @@
    "palette"
   ],
   "src/lib/backup/settings.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3359,6 +3628,8 @@
   "src/lib/db/bootstrap.ts": [
    "admin",
    "admin23",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3368,6 +3639,8 @@
    "video36"
   ],
   "src/lib/db/index.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3378,6 +3651,8 @@
   "src/lib/db/schema.ts": [
    "blocs27",
    "contact125",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3387,6 +3662,8 @@
   ],
   "src/lib/db/seed.ts": [
    "barres38",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3410,6 +3687,8 @@
    "video36"
   ],
   "src/lib/draft-view.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3418,6 +3697,8 @@
    "palette"
   ],
   "src/lib/edit/board-layout.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3428,6 +3709,8 @@
   "src/lib/edit/boards.ts": [
    "backup118",
    "fondplanche24",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3442,6 +3725,8 @@
    "video36"
   ],
   "src/lib/edit/draft-cleanup.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3452,6 +3737,8 @@
   "src/lib/edit/drafts.ts": [
    "backup118",
    "boards",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3463,6 +3750,8 @@
    "state"
   ],
   "src/lib/edit/frame-all.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3472,6 +3761,8 @@
   ],
   "src/lib/edit/frames.ts": [
    "cadres62",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3480,6 +3771,8 @@
    "palette"
   ],
   "src/lib/edit/look-context.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3490,12 +3783,15 @@
   "src/lib/edit/media-look.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55",
    "unif75"
   ],
   "src/lib/edit/media-taken.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3505,6 +3801,8 @@
   ],
   "src/lib/edit/media.ts": [
    "backup118",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3516,6 +3814,8 @@
    "state"
   ],
   "src/lib/edit/nav.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3524,6 +3824,8 @@
    "palette"
   ],
   "src/lib/edit/onboarding.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3537,6 +3839,8 @@
    "backup118",
    "blocs27",
    "contact125",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3549,6 +3853,8 @@
   ],
   "src/lib/edit/projects.ts": [
    "backup118",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3563,6 +3869,7 @@
    "cartes17c",
    "composants20",
    "integ17",
+   "interaction034b",
    "logocadres49",
    "lot1",
    "palogo17f",
@@ -3576,6 +3883,8 @@
    "video36"
   ],
   "src/lib/edit/redirects.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3584,6 +3893,8 @@
    "palette"
   ],
   "src/lib/edit/seo.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3592,6 +3903,8 @@
    "palette"
   ],
   "src/lib/edit/site-rev.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3603,6 +3916,8 @@
    "defilement99",
    "defilement99-firefox",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3616,6 +3931,8 @@
    "v013"
   ],
   "src/lib/edit/theme-usage.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3626,6 +3943,8 @@
   "src/lib/edit/themes.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3637,6 +3956,8 @@
    "themes55"
   ],
   "src/lib/edit/trash.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3645,6 +3966,8 @@
    "palette"
   ],
   "src/lib/edit/wallpapers.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3653,6 +3976,8 @@
    "palette"
   ],
   "src/lib/edit/warnings.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3668,6 +3993,8 @@
   "src/lib/favicon-serve.ts": [
    "backup85",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kithttp",
    "kitpartie122",
    "partage52"
@@ -3675,6 +4002,8 @@
   "src/lib/favicon.ts": [
    "backup85",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3697,6 +4026,8 @@
    "admin76",
    "crop17d-http",
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3707,6 +4038,8 @@
    "partage52"
   ],
   "src/lib/fonts/recent.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3715,6 +4048,8 @@
    "palette"
   ],
   "src/lib/gallery.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3725,6 +4060,8 @@
   ],
   "src/lib/jobs/crop-warm.ts": [
    "favicon83",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3736,6 +4073,7 @@
   "src/lib/jobs/memory-gate.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -3745,6 +4083,8 @@
   ],
   "src/lib/jobs/worker.ts": [
    "backup118",
+   "icones121",
+   "interaction034b",
    "journal97",
    "kit",
    "kit17a",
@@ -3756,6 +4096,8 @@
    "state"
   ],
   "src/lib/journal/audit.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3769,6 +4111,8 @@
    "crop17d-http"
   ],
   "src/lib/journal/catalog.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3823,6 +4167,8 @@
    "editeurguide61",
    "fond100",
    "fond32",
+   "icones121",
+   "interaction034b",
    "kit",
    "kithttp",
    "kitpartie122",
@@ -3835,7 +4181,8 @@
    "raccord102",
    "restes77",
    "surface66",
-   "themes"
+   "themes",
+   "video127"
   ],
   "src/lib/kit/child.ts": [
    "kithttp"
@@ -3843,6 +4190,8 @@
   "src/lib/kit/export-job.ts": [
    "cartes17c",
    "grille69",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "kit",
    "kit17a",
@@ -3870,6 +4219,8 @@
   ],
   "src/lib/kit/import-job.ts": [
    "backup85",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3881,6 +4232,8 @@
    "kithttp"
   ],
   "src/lib/kit/logo.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3905,15 +4258,23 @@
    "cadremotif58",
    "cadres74",
    "cartes17c",
+   "defilement99",
+   "defilement99-firefox",
    "editor",
    "grille69",
+   "icones121",
+   "interaction034b",
    "introuvable89",
    "kit",
    "kit53",
    "kithttp",
    "kitpartie122",
    "palette",
-   "popover65"
+   "palogo17f",
+   "parite99",
+   "popover65",
+   "themes55",
+   "video127"
   ],
   "src/lib/kit/vignettes.ts": [
    "backup85",
@@ -3954,6 +4315,7 @@
    "fond100",
    "fondimage41",
    "fondtexte21",
+   "interaction034b",
    "logo106",
    "logo84",
    "logocadres49",
@@ -3961,11 +4323,12 @@
    "lot1",
    "lot11",
    "palogo17f",
-   "parite99",
    "portee119",
    "retours68"
   ],
   "src/lib/media.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3974,6 +4337,8 @@
    "palette"
   ],
   "src/lib/page-preview.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3982,6 +4347,8 @@
    "palette"
   ],
   "src/lib/pages-index.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3990,6 +4357,8 @@
    "palette"
   ],
   "src/lib/pages.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -3999,6 +4368,8 @@
    "palette"
   ],
   "src/lib/pdf/ingest.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4015,6 +4386,8 @@
    "popover65"
   ],
   "src/lib/random-works.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4023,6 +4396,8 @@
    "palette"
   ],
   "src/lib/references.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4045,6 +4420,8 @@
    "introuvable89"
   ],
   "src/lib/tags.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4053,6 +4430,8 @@
    "palette"
   ],
   "src/lib/theme.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4062,6 +4441,8 @@
   ],
   "src/lib/themes/transfer.ts": [
    "backup85",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4073,6 +4454,8 @@
   "src/lib/themes/versions.ts": [
    "admin",
    "admin23",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4083,6 +4466,8 @@
   "src/lib/upload/chunks.ts": [
    "admin76",
    "crop17d-http",
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4091,6 +4476,8 @@
    "palette"
   ],
   "src/lib/upload/ingest.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4101,10 +4488,14 @@
   "src/lib/upload/receive.ts": [
    "admin76",
    "crop17d-http",
+   "icones121",
+   "interaction034b",
    "kithttp",
    "kitpartie122"
   ],
   "src/lib/upload/revive.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4113,6 +4504,8 @@
    "palette"
   ],
   "src/lib/video/ingest.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4130,6 +4523,8 @@
    "vitesse54"
   ],
   "src/lib/wallpapers.ts": [
+   "icones121",
+   "interaction034b",
    "kit",
    "kit17a",
    "kit53",
@@ -4149,8 +4544,6 @@
    "admin",
    "cadre34",
    "cadre95",
-   "cadremotif58",
-   "cadres62",
    "cartes17c",
    "couleurps29",
    "couleurs19b",
@@ -4160,6 +4553,8 @@
    "fond100",
    "fondcontenu47",
    "fondimage41",
+   "icones121",
+   "interaction034b",
    "kit",
    "logo84",
    "logocadres49",
@@ -4199,6 +4594,7 @@
   ],
   "src/themes/fondcarte.ts": [
    "backup85",
+   "icones121",
    "planche31"
   ],
   "src/themes/font-stacks.ts": [
@@ -4234,6 +4630,7 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -4293,7 +4690,8 @@
    "medias",
    "medias-firefox",
    "reglages105",
-   "themes"
+   "themes",
+   "titres128"
   ],
   "src/themes/presets/registry.generated.ts": [
    "editeurguide61",
@@ -4329,6 +4727,7 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
+   "icones121",
    "mediaframe64",
    "medias",
    "medias-firefox",
@@ -4344,6 +4743,7 @@
   "src/themes/site-palette.ts": [
    "defilement99",
    "defilement99-firefox",
+   "icones121",
    "palogo17f",
    "parite99",
    "themes55"
@@ -4357,6 +4757,7 @@
    "defilement99-firefox",
    "fond100",
    "fond32",
+   "icones121",
    "palogo17f",
    "papier28",
    "papiers35",
@@ -4394,10 +4795,10 @@
    "defilement99",
    "defilement99-firefox",
    "editeurguide61",
-   "fleches33",
    "fondtexte21",
+   "icones121",
+   "interaction034b",
    "kit",
-   "legendes39",
    "logo84",
    "logocadres49",
    "lot1",

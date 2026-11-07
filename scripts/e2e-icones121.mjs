@@ -278,7 +278,9 @@ function checkSurvey(tag, rec, want) {
   const keys = ["play", "pause", "loop", "sound", "muted", "fullscreen", "exitFullscreen"];
   for (const key of keys) {
     const seen = byKey[key]?.length ?? 0;
-    // Le plein écran (bouton du lot 127) n'existe pas encore sur la base : seules les icônes présentes sont contrôlées.
+    // Intégration v0.34b (121 + 127) : le bouton plein écran des boucles et des lecteurs existe (lot 127) : « plein écran » est donc exigée partout ;
+    // « quitter le plein écran » ne se voit que pendant un plein écran (le bouton des boucles est alors hors de l'élément plein écran) : seules les occurrences présentes sont contrôlées.
+    if (key === "fullscreen") ok(`${tag} fullscreen : présente (${seen} occurrence(s), tous contextes)`, seen > 0);
     if (key === "fullscreen" || key === "exitFullscreen") {
       ok(`${tag} ${key} : ${want[key] ? "dessin du thème sur chaque occurrence" : "icône d'origine"} (${seen} vue(s))`, wrong(key).length === 0, JSON.stringify(wrong(key).slice(0, 2)));
       continue;
@@ -289,10 +291,11 @@ function checkSurvey(tag, rec, want) {
   // Par contexte : chaque contexte montre les icônes attendues (▶ puis boucle / durée…).
   for (const r of rec) {
     const k = new Set(r.idle.map((x) => x.key));
-    const need = r.mode === "loop" ? ["play", "loop", ...(r.sound ? ["muted"] : [])] : ["play"];
+    // Intégration v0.34b : depuis le lot 127 une boucle AVEC son démarre avec le son (réglage « Son au départ » = Activé par défaut ; le test autorise la lecture automatique avec son) : l'icône du repos est « son », plus « muet » ; et la boucle montre le bouton plein écran.
+    const need = r.mode === "loop" ? ["play", "loop", "fullscreen", ...(r.sound ? ["sound"] : [])] : ["play"];
     ok(`${tag} contexte « ${r.name} » : icônes ${need.join(", ")}`, need.every((n) => k.has(n)), [...k].join());
     if (r.mode === "loop") ok(`${tag} contexte « ${r.name} » : en lecture, pause + boucle`, ["pause", "loop"].every((n) => r.running.some((x) => x.key === n)), r.running.map((x) => x.key).join());
-    if (r.mode === "loop" && r.sound) ok(`${tag} contexte « ${r.name} » : bouton son = muet puis son`, r.soundBefore?.[0]?.key === "muted" && r.soundAfter?.[0]?.key === "sound", JSON.stringify([r.soundBefore?.map((x) => x.key), r.soundAfter?.map((x) => x.key)]));
+    if (r.mode === "loop" && r.sound) ok(`${tag} contexte « ${r.name} » : bouton son = son (défaut du lot 127) puis muet`, r.soundBefore?.[0]?.key === "sound" && r.soundAfter?.[0]?.key === "muted", JSON.stringify([r.soundBefore?.map((x) => x.key), r.soundAfter?.map((x) => x.key)]));
     if (r.mode === "player") ok(`${tag} contexte « ${r.name} » : lecteur ouvert = pause, muet/son, plein écran ; en pause = ▶ (gros bouton et barre)`, ["pause", "sound", "fullscreen"].every((n) => r.viewer.playingIcons.some((x) => x.key === n)) && r.viewer.pausedIcons.filter((x) => x.key === "play").length >= 2 && r.viewer.toggled.some((x) => x.key === "muted"), JSON.stringify([r.viewer.playingIcons.map((x) => x.key), r.viewer.pausedIcons.map((x) => x.key), r.viewer.toggled.map((x) => x.key)]));
   }
   ok(`${tag} toutes les icônes restent aria-hidden (le nom est sur le bouton)`, all.every((x) => x.ariaHidden));
