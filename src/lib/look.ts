@@ -531,6 +531,8 @@ export function mediaLookAttrs(look: MediaLook | undefined): MediaLookRender {
 /** Lecture d'une vidéo (Boucle / Lecteur) et mise en page d'un panorama (entier / à faire défiler) d'une place de carrousel. */
 export const SLOT_VIDEO_MODES = ["loop", "player"] as const;
 export const SLOT_PANO_MODES = ["fit", "scroll"] as const;
+/** Son au départ d'une vidéo (lot 127) : « on » (le défaut : jamais écrit) ou « off ». Module pur : src/blocks/video-sound.ts. */
+export const SLOT_VIDEO_SOUNDS = ["on", "off"] as const;
 export type SlotVideoMode = (typeof SLOT_VIDEO_MODES)[number];
 export type SlotPanoMode = (typeof SLOT_PANO_MODES)[number];
 
@@ -545,9 +547,11 @@ export const MediaLookDataSchema = z.strictObject({
   radius: z.enum(RADII).optional(),
   pano: z.enum(SLOT_PANO_MODES).optional(),
   video: z.enum(SLOT_VIDEO_MODES).optional(),
+  /** Son au départ d'une vidéo (lot 127) ; absent = activé. */
+  sound: z.enum(SLOT_VIDEO_SOUNDS).optional(),
 });
 export type MediaLookData = z.infer<typeof MediaLookDataSchema>;
-export const MEDIA_LOOK_FIELDS = ["frame", "bg", "radius", "pano", "video"] as const;
+export const MEDIA_LOOK_FIELDS = ["frame", "bg", "radius", "pano", "video", "sound"] as const;
 export type MediaLookField = (typeof MEDIA_LOOK_FIELDS)[number];
 
 /** Anciennes cartes par place (avant le lot 75) → champ de `slotLook[slug]`. */

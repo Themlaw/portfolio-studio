@@ -29,6 +29,7 @@ import ImageBgWindow from "./ImageBgMenu";
 import { clearCrop, clearItem, findItem, findZone, frameBoxOf, freeKey, freeRefOf, ITEM_SELECTOR, itemsOf, readItem, writeCrop, writeItem, zoneAspectOf, type FreeGeom, type FreeRef } from "./free-dom";
 import { sendMediaLook } from "./LookLayer";
 import VideoModeSeg from "./VideoModeSeg";
+import VideoSoundSeg from "./VideoSoundSeg";
 import { isVideoMode } from "@/blocks/video-mode";
 import { postIntent, setOverlay } from "./optimistic";
 
@@ -526,6 +527,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
     const videoNow = isVideoMode(itemEl.dataset.freeLecture) ? itemEl.dataset.freeLecture : "loop";
     const hasPoster = Boolean(itemEl.dataset.freePoster);
     const hasAudio = itemEl.dataset.freeAudio === "1";
+    const soundNow = itemEl.dataset.freeSound === "off" ? "off" : "on";
     // Sous l'image (la poignée de rotation est au-dessus) ; au-dessus seulement si le bas de l'écran est trop proche.
     const below = bb.top + bb.height + 14;
     const barTop = below + 44 > window.scrollY + window.innerHeight ? Math.max(window.scrollY + 8, bb.top - 64) : below;
@@ -616,6 +618,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
               </button>
             )}
             {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-lecture-mode" attr="data-free-lecture-set" />}
+            {isVideo && hasAudio && <VideoSoundSeg now={soundNow} onChange={(sound) => sendFreeLook(ref, sel.id, { sound })} testId="free-sound-choice" attr="data-free-sound-set" />}
             {isVideo && (
               <>
                 <button type="button" data-testid="free-poster" title="Image d'attente de la vidéo (sinon une image de la vidéo)" onClick={() => send(ref, { op: "pick", id: sel.id, poster: true })}>

@@ -3,12 +3,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
+import { soundAttrs } from "@/blocks/video-sound";
 import type { MediaLook } from "@/lib/look";
 import type { VideoView } from "@/lib/media";
 
 import MediaFrame from "./MediaFrame";
 import VideoBadge from "./VideoBadge";
+import { FullscreenButton, fullscreenElement } from "./video-fullscreen";
+import { SoundOffIcon, SoundOnIcon } from "./video-icons";
 import { MANAGED_ATTR, useEditCanvas, useSoloPlayback } from "./video-playback";
+import { setVisitorSound, startPlayback, subscribeVisitorSound, unmuteOnGesture, wantsSound } from "./visitor-sound";
 
 /** Préférence « réduire les animations », lue sans état intermédiaire. */
 export function useReducedMotion(): boolean {
@@ -29,20 +33,27 @@ export function LoopMark({ playing }: { playing: boolean }) {
 }
 
 /**
- * Bouton son d'une boucle qui a du son (lot 116) : la boucle démarre muette (règle du site) ; ce bouton remet le son et lance la
- * lecture si elle était à l'arrêt. Absent pour une boucle sans son, et sur la toile en mode édition (le clic y sert à choisir).
+ * Bouton son d'une boucle qui a du son (lots 116 et 127), en haut à droite. Il dit la vérité : « son actif » ou « muet » (vidéo en lecture :
+ * l'état réel de la vidéo ; à l'arrêt : ce que la lecture fera, réglage de l'artiste ou choix du visiteur). Un clic règle le son ET en
+ * fait le choix du visiteur (il prime sur le réglage de toutes les vidéos de la page pendant la visite), et lance la lecture si on
+ * remet le son. Absent pour une boucle sans son, et sur la toile en mode édition (le clic y sert à choisir).
  */
-export function LoopSound({ videoRef, onUnmute }: { videoRef: React.RefObject<HTMLVideoElement | null>; onUnmute: () => void }) {
+export function LoopSound({ videoRef, soundOn, onUnmute }: { videoRef: React.RefObject<HTMLVideoElement | null>; soundOn: boolean; onUnmute: () => void }) {
   const t = useTranslations("player");
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(!wantsSound(soundOn));
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const sync = () => setMuted(v.muted);
-    v.addEventListener("volumechange", sync);
+    const sync = () => setMuted(!v.paused ? v.muted : !wantsSound(soundOn));
+    const events = ["volumechange", "play", "pause"] as const;
+    for (const name of events) v.addEventListener(name, sync);
+    const off = subscribeVisitorSound(sync);
     sync();
-    return () => v.removeEventListener("volumechange", sync);
-  }, [videoRef]);
+    return () => {
+      for (const name of events) v.removeEventListener(name, sync);
+      off();
+    };
+  }, [videoRef, soundOn]);
   return (
     <button
       type="button"
@@ -55,14 +66,13 @@ export function LoopSound({ videoRef, onUnmute }: { videoRef: React.RefObject<HT
         event.stopPropagation();
         const v = videoRef.current;
         if (!v) return;
-        v.muted = !v.muted;
-        if (!v.muted) onUnmute();
+        const target = !(!v.paused ? !v.muted : wantsSound(soundOn));
+        setVisitorSound(target);
+        v.muted = !target;
+        if (target) onUnmute();
       }}
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
-        {muted ? <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" /> : <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />}
-      </svg>
+      {muted ? <SoundOffIcon /> : <SoundOnIcon />}
     </button>
   );
 }
@@ -72,12 +82,18 @@ export function LoopSound({ videoRef, onUnmute }: { videoRef: React.RefObject<HT
  * défilant) : elle montre son image d'attente. Un clic la lance, un autre la met en pause ; elle boucle tant qu'elle joue.
  * Lancée, elle se met en pause quand elle sort de l'écran et reprend quand elle revient (rien ne tourne hors champ).
  */
-export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
+export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>, video: VideoView) {
   const [wantPlay, setWantPlay] = useState(false);
   const [visible, setVisible] = useState(false);
+  const audio = video.hasAudio;
+  const soundOn = !video.soundOff;
 
-  // Une autre vidéo de la page démarre (lot 116) : cette boucle renonce, elle ne repart pas en revenant à l'écran.
-  useSoloPlayback(ref, () => setWantPlay(false));
+  // Une autre vidéo de la page démarre (lot 116) : cette boucle renonce, elle ne repart pas en revenant à l'écran. Une seule vidéo à la
+  // fois a du son (lot 127) : la boucle mise de côté est muette (jamais deux boucles sonores).
+  useSoloPlayback(ref, () => {
+    setWantPlay(false);
+    if (ref.current) ref.current.muted = true;
+  });
 
   useEffect(() => {
     const el = ref.current;
@@ -90,12 +106,57 @@ export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (wantPlay && visible) void el.play().catch((e: unknown) => {
-        // Seul un refus du navigateur remet le repère à « lecture » ; une lecture interrompue par une pause (défilement) n'est pas un refus.
-        if (e instanceof DOMException && e.name === "NotAllowedError") setWantPlay(false);
-      });
-    else el.pause();
-  }, [ref, wantPlay, visible]);
+    if (!(wantPlay && visible)) {
+      el.pause();
+      return;
+    }
+    // Son activé (lot 127) : on tente la lecture AVEC son ; le navigateur peut la refuser avant un geste du visiteur, la boucle joue alors
+    // muette et prend le son au premier geste. Le choix du visiteur (bouton son) prime sur le réglage de l'artiste.
+    let cancelled = false;
+    let off: (() => void) | undefined;
+    const withSound = audio && wantsSound(soundOn);
+    void startPlayback(el, withSound).then((result) => {
+      if (cancelled) return;
+      // Seul un refus du navigateur remet le repère à « lecture » ; une lecture interrompue par une pause (défilement) n'est pas un refus.
+      if (result === "blocked") setWantPlay(false);
+      else if (result === "muted" && withSound) off = unmuteOnGesture(el, () => wantsSound(soundOn));
+    });
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+  }, [ref, wantPlay, visible, audio, soundOn]);
+
+  // Plein écran (lot 127) : la vidéo montre ses commandes natives le temps du plein écran ; au retour, l'état (lecture ou pause) est celui
+  // où le visiteur l'a laissée.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let inside = false;
+    const onChange = () => {
+      const now = fullscreenElement() === el;
+      if (now) {
+        inside = true;
+        el.controls = true;
+      } else if (inside) {
+        inside = false;
+        el.controls = false;
+        setWantPlay(!el.paused);
+      }
+    };
+    const onIosEnd = () => {
+      el.controls = false;
+      setWantPlay(!el.paused);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    el.addEventListener("webkitendfullscreen", onIosEnd);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+      el.removeEventListener("webkitendfullscreen", onIosEnd);
+    };
+  }, [ref]);
 
   return { wantPlay, toggle: () => setWantPlay((p) => !p), play: () => setWantPlay(true) };
 }
@@ -126,7 +187,7 @@ export function LoopClick({
 }) {
   const t = useTranslations("player");
   const ref = useRef<HTMLVideoElement>(null);
-  const { wantPlay, toggle, play } = useLoopPlayback(ref);
+  const { wantPlay, toggle, play } = useLoopPlayback(ref, video);
   const canvas = useEditCanvas(edit);
   const sd = video.sources.mp4.at(-1)!;
   const action = wantPlay ? t("loopPause") : t("loopPlay");
@@ -140,12 +201,13 @@ export function LoopClick({
       tabIndex={0}
       aria-label={label ? `${action} — ${label}` : action}
       onClick={() => {
-        if (!canvas) toggle();
+        // En plein écran, les clics sont ceux des commandes natives de la vidéo : ils ne touchent pas à la boucle.
+        if (!canvas && fullscreenElement() !== ref.current) toggle();
       }}
       onKeyDown={(event) => {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
-          if (!canvas) toggle();
+          if (!canvas && fullscreenElement() !== ref.current) toggle();
         }
       }}
     >
@@ -168,7 +230,8 @@ export function LoopClick({
       </video>
       <LoopMark playing={wantPlay} />
     </div>
-    {video.hasAudio && !canvas && <LoopSound videoRef={ref} onUnmute={play} />}
+    {video.hasAudio && !canvas && <LoopSound videoRef={ref} soundOn={!video.soundOff} onUnmute={play} />}
+    {!canvas && <FullscreenButton videoRef={ref} />}
     </>
   );
 }
@@ -186,6 +249,7 @@ export default function LoopFrame({
   caption,
   texts,
   mediaLook,
+  edit = false,
 }: {
   video: VideoView;
   width: number;
@@ -195,15 +259,25 @@ export default function LoopFrame({
   caption: React.ReactNode;
   texts: { pause: string; play: string };
   mediaLook?: MediaLook;
+  /** Vue brouillon de l'éditeur : sur la toile en mode édition, pas de bouton plein écran (le clic choisit la place). */
+  edit?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const { wantPlay, toggle, play } = useLoopPlayback(ref);
+  const { wantPlay, toggle, play } = useLoopPlayback(ref, video);
+  const canvas = useEditCanvas(edit);
   const sd = video.sources.mp4.at(-1)!;
   const action = wantPlay ? texts.pause : texts.play;
 
   return (
-    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop">
-      <button type="button" onClick={toggle} aria-label={label ? `${action} — ${label}` : action} className="loop-click block w-full text-left">
+    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop" {...soundAttrs(video)}>
+      <button
+        type="button"
+        onClick={() => {
+          if (fullscreenElement() !== ref.current) toggle();
+        }}
+        aria-label={label ? `${action} — ${label}` : action}
+        className="loop-click block w-full text-left"
+      >
         <span className="strip-media">
           <MediaFrame kind="video" look={mediaLook} ratio={width / Math.max(1, height)}>
             <video
@@ -227,7 +301,8 @@ export default function LoopFrame({
         </span>
         {caption}
       </button>
-      {video.hasAudio && <LoopSound videoRef={ref} onUnmute={play} />}
+      {video.hasAudio && <LoopSound videoRef={ref} soundOn={!video.soundOff} onUnmute={play} />}
+      {!canvas && <FullscreenButton videoRef={ref} rail />}
     </div>
   );
 }

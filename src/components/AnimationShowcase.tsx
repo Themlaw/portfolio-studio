@@ -4,6 +4,8 @@ import MediaFrame from "./MediaFrame";
 import Picture from "./Picture";
 import VideoBadge from "./VideoBadge";
 import VideoViewer from "./VideoViewer";
+import { FullscreenButton } from "./video-fullscreen";
+import { PlayIcon } from "./video-icons";
 import { useEditCanvas } from "./video-playback";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -16,9 +18,9 @@ export function PlayBadge({ label }: { label: string }) {
   return (
     <span className="pointer-events-none flex items-center gap-3">
       <span className="flex h-14 w-14 items-center justify-center rounded-btn bg-surface/90 shadow-card transition-transform duration-500 ease-soft group-hover:scale-110">
-        <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" data-icon="play" className="text-primary">
-          <path d="M2 1.5 14.5 9 2 16.5Z" fill="var(--color-primary)" />
-        </svg>
+        <span className="flex text-primary">
+          <PlayIcon width={16} height={18} />
+        </span>
       </span>
       <span className="eyebrow text-on-scrim">{label}</span>
     </span>
@@ -54,6 +56,8 @@ export function Frame({
   const t = useTranslations("animation");
   // Vidéo hébergée (mode « Lecteur ») : elle s'ouvre en grand dans la visionneuse ; un plan YouTube joue sur place.
   const [open, setOpen] = useState(false);
+  // Le bouton « Plein écran » (lot 127) ouvre la même visionneuse, déjà en plein écran.
+  const [openFull, setOpenFull] = useState(false);
   // Aperçu de l'éditeur = comme un visiteur : seule la toile en mode édition garde le clic pour choisir (lot 116).
   const canvas = useEditCanvas(edit);
 
@@ -113,10 +117,30 @@ export function Frame({
                 <VideoBadge kind="player" duration={item.video?.durationLabel ?? item.duration} label={t("play")} />
               </button>
             )}
+            {!playing && item.video && !canvas && (
+              <FullscreenButton
+                onActivate={() => {
+                  setOpenFull(true);
+                  setOpen(true);
+                }}
+              />
+            )}
           </>
         )}
       </MediaFrame>
-      {open && item.video && <VideoViewer video={item.video} width={item.width} height={item.height} title={item.title || item.alt} onClose={() => setOpen(false)} />}
+      {open && item.video && (
+        <VideoViewer
+          video={item.video}
+          width={item.width}
+          height={item.height}
+          title={item.title || item.alt}
+          fullscreen={openFull}
+          onClose={() => {
+            setOpen(false);
+            setOpenFull(false);
+          }}
+        />
+      )}
     </>
   );
 }

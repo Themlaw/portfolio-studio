@@ -10,7 +10,7 @@
 import { z } from "zod";
 
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
-import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES } from "../lib/look";
+import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS } from "../lib/look";
 
 import { localizedText } from "./types";
 
@@ -48,6 +48,8 @@ export const FreeItemSchema = z.object({
   bg: ImageBgSchema.optional(),
   /** Lecture d'une VIDÉO (lot 116) : « loop » = Boucle (muette, un clic lance / met en pause), « player » = Lecteur (image d'attente + ▶, s'ouvre en grand). Absent = Boucle (le comportement d'avant : aucune ancienne planche ne change). */
   video: z.enum(SLOT_VIDEO_MODES).optional(),
+  /** Son au départ d'une VIDÉO (lot 127) : « off » = coupé ; absent = activé (le défaut, jamais écrit : aucune ancienne planche ne change). */
+  sound: z.enum(SLOT_VIDEO_SOUNDS).optional(),
   /** Image d'attente choisie pour une vidéo (identifiant de la médiathèque) ; absent = celle de la vidéo. */
   poster: z.number().int().positive().optional(),
 });

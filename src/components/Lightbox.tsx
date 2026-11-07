@@ -5,6 +5,7 @@ import Picture from "./Picture";
 import PictureMarkup from "./PictureMarkup";
 import { useReducedMotion } from "./LoopVideo";
 import VideoPlayer from "./VideoPlayer";
+import { startsMuted } from "./visitor-sound";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
@@ -236,7 +237,7 @@ export default function Lightbox({
                 height={active.height}
                 videoClassName="lightbox-image object-contain"
                 autoPlay={active.video.loop && !reduced}
-                muted={active.video.loop}
+                muted={active.video.loop || startsMuted(active.video)}
                 loop={active.video.loop}
                 label={active.title || active.alt}
               />

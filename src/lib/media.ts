@@ -40,7 +40,15 @@ export function mediaSources(row: { variants: unknown; dominantColor: string | n
 }
 
 /** `hasAudio` : la vidéo a une piste son audible (inconnu = oui : le bouton son reste proposé). */
-export type VideoView = { sources: VideoSources; duration: number; durationLabel: string; loop: boolean; hasAudio: boolean };
+export type VideoView = {
+  sources: VideoSources;
+  duration: number;
+  durationLabel: string;
+  loop: boolean;
+  hasAudio: boolean;
+  /** Lot 127 : l'artiste a réglé « Son au départ : coupé » pour CET emplacement (jamais écrit dans le média ; voir src/blocks/video-sound.ts, `withSound`). */
+  soundOff?: boolean;
+};
 
 /** Lecture d'une vidéo convertie (sources MP4, poster, durée, boucle ?), ou null. */
 export function videoView(row: { kind: string; variants: unknown; dominantColor: string | null; duration: number | null; hasAudio: boolean | null }): VideoView | null {
