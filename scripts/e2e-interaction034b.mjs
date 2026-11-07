@@ -759,7 +759,7 @@ if (run("K"))
     ok("K1 sans dessin : aucun attribut data-kit-vicon-* sur <html>, boutons au fond du thème (pas d'image)", rec0.every((r) => r.kit.length === 0) && flat(rec0, (r) => [...r.fs, ...(r.sound1 ?? [])]).every((x) => x.btn?.bg === "none"));
     ok("K1 sans dessin : le bouton plein écran porte l'icône « plein écran » (jamais « quitter » au repos)", fsIcons(rec0).every((x) => x.key === "fullscreen"));
     const lp = rec0.filter((r) => r.mode === "loop" && r.setting);
-    ok("K1 le réglage « son au départ » ne change pas la forme d'une icône : les boucles « activé » montrent l'icône son, puis muet après le clic ; les « coupé » l'inverse", lp.filter((r) => r.setting === "on").every((r) => r.sound1[0].key === "sound" && r.sound2[0].key === "muted") && lp.filter((r) => r.setting === "off").every((r) => r.sound1[0].key === "muted" && r.sound2[0].key === "sound"), JSON.stringify(lp.map((r) => [r.setting, r.sound1?.[0]?.key, r.sound2?.[0]?.key])));
+    ok("K1 le réglage « son au départ » ne change pas la forme d'une icône : les boucles « activé » montrent l'icône son, puis muet après le clic ; les « coupé » l'inverse", lp.filter((r) => r.setting === "on").every((r) => r.sound1?.[0]?.key === "sound" && r.sound2?.[0]?.key === "muted") && lp.filter((r) => r.setting === "off").every((r) => r.sound1?.[0]?.key === "muted" && r.sound2?.[0]?.key === "sound"), JSON.stringify(lp.map((r) => [r.setting, r.sound1?.[0]?.key, r.sound2?.[0]?.key])));
     const labels0 = rec0.map((r) => r.labels);
 
     /* ---- K2. Kit : 8 dessins ---- */
@@ -782,7 +782,7 @@ if (run("K"))
 
     /* ---- K3. Public : dessins sur les boutons du 127 ---- */
     const rec1 = await surveyK();
-    ok("K3 <html> porte les 8 attributs data-kit-vicon-*", rec1.every((r) => r.kit.length === 8), JSON.stringify(rec1[0].kit));
+    ok("K3 <html> porte les 8 attributs data-kit-vicon-*", rec1.every((r) => r.kit.length === 8), JSON.stringify(rec1[0]?.kit));
     const want = (key) => urlOf(vic[key === "exitFullscreen" ? "exitFullscreen" : key]);
     const wrongMask = (list, key) => list.filter((x) => x.key === key && !(maskUrl(x.mask) === want(key) && x.hidden));
     const fs1 = fsIcons(rec1);
@@ -792,9 +792,9 @@ if (run("K"))
     const masksOf = (list, key) => new Set(list.filter((x) => x.key === key).map((x) => maskUrl(x.mask)));
     ok("K3 le réglage « son au départ » ne change pas le dessin : UN seul masque par icône (son, muet, plein écran), qu'une vidéo démarre avec ou sans son", [masksOf(sn1, "sound"), masksOf(sn1, "muted"), masksOf(fs1, "fullscreen")].every((s) => s.size === 1), JSON.stringify([...masksOf(sn1, "sound"), ...masksOf(sn1, "muted"), ...masksOf(fs1, "fullscreen")]));
     const lp1 = rec1.filter((r) => r.mode === "loop" && r.setting);
-    ok("K3 boucles : « activé » → son puis muet, « coupé » → muet puis son, chacun avec SON dessin", lp1.every((r) => r.sound1[0].key === (r.setting === "on" ? "sound" : "muted") && r.sound2[0].key === (r.setting === "on" ? "muted" : "sound") && maskUrl(r.sound1[0].mask) === want(r.sound1[0].key) && maskUrl(r.sound2[0].mask) === want(r.sound2[0].key)));
+    ok("K3 boucles : « activé » → son puis muet, « coupé » → muet puis son, chacun avec SON dessin", lp1.every((r) => r.sound1?.[0]?.key === (r.setting === "on" ? "sound" : "muted") && r.sound2?.[0]?.key === (r.setting === "on" ? "muted" : "sound") && maskUrl(r.sound1?.[0]?.mask) === want(r.sound1?.[0]?.key) && maskUrl(r.sound2?.[0]?.mask) === want(r.sound2?.[0]?.key)));
     const exitRec = rec1.find((r) => r.exit);
-    ok("K3 lecteur en plein écran réel : le bouton passe à « quitter le plein écran » et c'est le dessin du kit", exitRec?.isFs === true && exitRec.exit.some((x) => x.key === "exitFullscreen" && maskUrl(x.mask) === want("exitFullscreen") && x.hidden), JSON.stringify(exitRec?.exit ?? null));
+    ok("K3 lecteur en plein écran réel : le bouton passe à « quitter le plein écran » et c'est le dessin du kit", exitRec?.isFs === true && exitRec?.exit?.some((x) => x.key === "exitFullscreen" && maskUrl(x.mask) === want("exitFullscreen") && x.hidden), JSON.stringify(exitRec?.exit ?? null));
     const badge = urlOf(vic.badge);
     const btns = flat(rec1, (r) => [...r.fs, ...(r.sound1 ?? [])]).map((x) => x.btn);
     ok("K3 fond du badge dessiné : posé aussi sur le bouton plein écran et le bouton son du 127 (les `.vid-badge`), sans l'arrondi du thème", btns.filter((b) => /vid-badge/.test(b.cls)).length > 0 && btns.filter((b) => /vid-badge/.test(b.cls)).every((b) => b.bg.includes(badge) && b.radius === "0px"), JSON.stringify(btns.slice(0, 2)));
