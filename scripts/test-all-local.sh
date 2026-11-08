@@ -281,6 +281,7 @@ E2E=(
   "contact125|node scripts/e2e-contact125.mjs|chromium|"
   "espace129|node scripts/e2e-espace129.mjs|chromium|"
   "perte336|node scripts/e2e-perte336.mjs|chromium|"
+  "compte|node scripts/e2e-compte.mjs|chromium|"
   "integ33|node scripts/e2e-integ33.mjs|chromium|"
   "raccord102|node scripts/e2e-raccord102.mjs|chromium|"
   "menu109|node scripts/e2e-menu109.mjs|chromium|"

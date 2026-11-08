@@ -73,6 +73,10 @@ export function newFormId(): string {
 }
 
 const EMAIL = /^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[^\s@<>()"',;:]{2,}$/;
+/** Adresse en ASCII imprimable seulement : ni homoglyphe (« а » cyrillique), ni signe invisible (docs/SECURITE.md §2.12). */
+const ASCII_EMAIL = /^[\x21-\x7e]+$/;
+/** Caractères de format (`\p{Cf}` : contrôles bidirectionnels U+202E…, espaces de largeur nulle) retirés des valeurs. */
+const FORMAT_CHARS = /\p{Cf}/gu;
 
 let n = 0;
 /** Identifiant d'un champ neuf. */
@@ -146,14 +150,14 @@ export function validateSubmission(form: ContactForm, input: unknown, locale: "f
   for (const f of form.fields) {
     const v = raw[f.id];
     if (v !== undefined && typeof v !== "string") return { ok: false, error: "Valeur invalide.", field: f.id };
-    const value = (v ?? "").replace(/\r\n?/g, "\n").trim();
+    const value = (v ?? "").replace(FORMAT_CHARS, "").replace(/\r\n?/g, "\n").trim();
     if (!value) {
       if (f.required) return { ok: false, error: "Champ obligatoire.", field: f.id };
       continue;
     }
     if (value.length > FIELD_MAX[f.type]) return { ok: false, error: "Texte trop long.", field: f.id };
     if (f.type !== "textarea" && value.includes("\n")) return { ok: false, error: "Valeur invalide.", field: f.id };
-    if (f.type === "email" && !EMAIL.test(value)) return { ok: false, error: "Adresse e-mail invalide.", field: f.id };
+    if (f.type === "email" && (!ASCII_EMAIL.test(value) || !EMAIL.test(value))) return { ok: false, error: "Adresse e-mail invalide.", field: f.id };
     if (f.type === "select" && !(f.options ?? []).some((o) => o.fr === value || o.en === value)) return { ok: false, error: "Choix invalide.", field: f.id };
     if (f.type === "email" && f.reply) replyTo = value;
     values.push({ id: f.id, label: f.label[locale] || f.label.fr, value });

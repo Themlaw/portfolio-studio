@@ -3,10 +3,12 @@ import PagesManager from "@/components/admin/PagesManager";
 import TrashViews from "@/components/admin/TrashViews";
 import ProjectsManager from "@/components/admin/ProjectsManager";
 import { getTrashSummary, legacyFeaturedPages, listPagesForAdmin, listProjectsForAdmin, listTrashedPages, listTrashedProjects } from "@/lib/admin";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Pages" };
 
 export default async function PagesPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
+  await requireAdmin();
   const view = (await searchParams).vue === "corbeille" ? "corbeille" : "liste";
   const trashed = listTrashedPages();
   const trashedProjects = listTrashedProjects();

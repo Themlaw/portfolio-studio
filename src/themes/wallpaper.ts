@@ -20,9 +20,12 @@ export type PagePaper = z.infer<typeof PagePaperSchema>;
 export type CardWallpaper = z.infer<typeof CardWallpaperSchema>;
 
 /** Un motif de la bibliothèque, tel que le rendu le lit (variantes WebP d'un média prêt). */
+/**
+ * Entrée de RENDU d'un motif (site public, flux RSC compris) : jamais son nom, qui vient par défaut du nom du fichier envoyé
+ * (« client-x-confidentiel.png » → « client x confidentiel ») et ne doit pas atteindre le site public (docs/SECURITE.md N9).
+ */
 export type WallpaperEntry = {
   id: number;
-  name: string;
   /** Dimensions du fichier d'origine (rapport hauteur / largeur d'une tuile). */
   w: number;
   h: number;
@@ -33,6 +36,8 @@ export type WallpaperEntry = {
   files: { w: number; url: string }[];
 };
 export type WallpaperLookup = (id: number) => WallpaperEntry | undefined;
+/** Motif tel que la toile de l'éditeur le propose (vue brouillon seulement) : avec son nom, pour la grille de choix. */
+export type WallpaperCatalogEntry = WallpaperEntry & { name: string };
 
 /** Sous 768 px (téléphone), la tuile est réduite à 60 % (jamais sous le minimum). */
 export const WALLPAPER_PHONE_RATIO = 0.6;

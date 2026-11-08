@@ -42,7 +42,33 @@ for (const a of arrays) {
     a.replace(/\s+/g, " ").slice(0, 160),
   );
 }
-ok("probe.ts : -protocol_whitelist file et -f", /"-protocol_whitelist", "file", "-f", container/.test(probe));
+// Environnement minimal (docs/SECURITE.md N10, P7) : chaque lancement passe `env: ffmpegEnv()`, jamais l'environnement du serveur.
+for (const [name, src] of [["transcode.ts", transcode], ["probe.ts", probe]]) {
+  const calls = [...src.matchAll(/spawn\("nice",[\s\S]*?\}\);/g)].map((m) => m[0]);
+  ok(`${name} : chaque spawn passe env: ffmpegEnv()`, calls.length > 0 && calls.every((c) => /env:\s*ffmpegEnv\(\)/.test(c)), calls.map((c) => c.slice(-120)).join(" | "));
+  ok(`${name} : aucune lecture de process.env transmise à l'outil`, !/env:\s*(\{\s*\.\.\.process\.env|process\.env)/.test(src));
+}
+{
+  const saved = { ...process.env };
+  Object.assign(process.env, { BETTER_AUTH_SECRET: "secret-de-test", ADMIN_PASSWORD: "mdp", OIDC_CLIENT_SECRET: "oidc", PORTFOLIO_INTERNAL_TOKEN: "jeton" });
+  const env = limits.ffmpegEnv();
+  const keys = Object.keys(env).sort();
+  ok("ffmpegEnv : liste blanche exacte (PATH, NODE_ENV, LANG, HOME, XDG_CACHE_HOME, TMPDIR)", JSON.stringify(keys) === JSON.stringify([...limits.FFMPEG_ENV_KEYS].sort()), keys.join(","));
+  ok("ffmpegEnv : aucun secret, même présent dans l'environnement du serveur", !Object.values(env).some((v) => /secret|mdp|oidc|jeton/.test(v)));
+  for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+  // ffmpeg et ffprobe fonctionnent avec cet environnement (s'ils sont installés) : la sortie de `env` le montre aussi.
+  const { spawnSync } = await import("node:child_process");
+  const shown = spawnSync("nice", ["-n", "10", "env"], { env: limits.ffmpegEnv(), encoding: "utf8" });
+  ok("environnement vu par l'outil = la liste blanche", shown.status === 0 && shown.stdout.trim().split("\n").map((l) => l.split("=")[0]).sort().join(",") === [...limits.FFMPEG_ENV_KEYS].sort().join(","), shown.stdout);
+  const ff = spawnSync("nice", ["-n", "10", "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=64x64:rate=5", "-t", "1", "-f", "null", "-"], { env: limits.ffmpegEnv(), encoding: "utf8" });
+  if (ff.error?.code === "ENOENT" || ff.status === 127) console.log("SKIP  ffmpeg absent : lancement réel non vérifié");
+  else ok("ffmpeg tourne avec l'environnement minimal", ff.status === 0, ff.stderr);
+}
+// Jeton de revalidation interne : jamais rangé dans process.env (hérité par tout processus enfant).
+const notify = read("src/lib/jobs/notify.ts");
+ok("notify.ts : le jeton interne n'est pas dans process.env", !/process\.env\.PORTFOLIO_INTERNAL_TOKEN|process\.env\[[^\]]*TOKEN/.test(notify) && /globalThis/.test(notify));
+
+ok("probe.ts : -protocol_whitelist file et -f",/"-protocol_whitelist", "file", "-f", container/.test(probe));
 ok("transcode.ts : -max_alloc", /"-max_alloc"/.test(transcode));
 
 ok("codecs vidéo acceptés", ["h264", "hevc", "vp8", "vp9", "av1", "prores", "mpeg4"].every(limits.isAllowedVideo));

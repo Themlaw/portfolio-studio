@@ -5,6 +5,8 @@
  */
 import { spawn } from "node:child_process";
 
+import { ffmpegEnv } from "./limits";
+
 export type Probe = {
   formatName: string;
   duration: number;
@@ -37,7 +39,8 @@ export function runProbe(file: string, container: "mov" | "matroska" | "mp4", ti
   return new Promise((resolve, reject) => {
     const args = ["-v", "error", "-protocol_whitelist", "file", "-f", container, "-show_format", "-show_streams", "-of", "json", "file:" + file];
     // Priorité basse dès le lancement (nice), arguments en tableau.
-    const child = spawn("nice", ["-n", "10", "ffprobe", ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    // Environnement minimal (aucun secret) : ffmpegEnv de limits.ts.
+    const child = spawn("nice", ["-n", "10", "ffprobe", ...args], { stdio: ["ignore", "pipe", "pipe"], env: ffmpegEnv() });
     let out = "";
     let err = "";
     let tooLong = false;

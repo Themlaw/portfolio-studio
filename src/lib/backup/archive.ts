@@ -4,7 +4,8 @@
  *
  * Ce qui entre dans l'archive (lot 85 : PAR EXCLUSION, pas par liste) :
  *  - portfolio.db : copie par l'API de sauvegarde de SQLite (better-sqlite3 `.backup`), jamais une copie du fichier en
- *    écriture ; prise pendant que le site tourne, sans verrou d'écriture.
+ *    écriture ; prise pendant que le site tourne, sans verrou d'écriture. Copie SANS secrets d'authentification (sessions,
+ *    jetons de vérification, compteurs, jetons OAuth : scrub.ts) ; après une restauration, on se reconnecte.
  *  - media/ : TOUT le stockage, SAUF ce qui est prouvé régénérable :
  *      · les variantes img/, vid/ et doc/ d'un média dont l'original est présent (le worker les refait : restore.ts) ;
  *      · icons-auto/ (icônes « automatiques », refaites à la première requête) ;
@@ -29,7 +30,8 @@ import Database from "better-sqlite3";
 
 import type { BackupConfig } from "./config";
 import { isRegenerableKey, mediaRefsInDb, otherCitedNames, regenerableDirs, variantKeys } from "./refs";
-import { archiveName, rotationPlan, sortArchives, type DueReason } from "./schedule";
+import { archiveName, rotationPlan, securityRetentionPlan, sortArchives, type DueReason } from "./schedule";
+import { scrubSecrets } from "./scrub";
 import { isSafeEntryName, tarChunks, type TarEntry, type TarReport } from "./tar";
 
 export const BACKUP_DIRNAME = "backup";
@@ -53,6 +55,8 @@ export type BackupResult = {
   /** Fichiers par catégorie et références /media/… manquantes (lot 85). */
   storage: StorageCounts;
   missingRefs: string[];
+  /** Les archives gardées dépassent quand même le plafond de place (les protégées, à elles seules). */
+  overCap: boolean;
 };
 
 export const backupDir = (dataDir: string) => path.join(/* turbopackIgnore: true */ dataDir, BACKUP_DIRNAME);
@@ -227,7 +231,8 @@ export async function readArchiveManifest(file: string): Promise<ArchiveManifest
 
 export type RunOptions = {
   dataDir: string;
-  config: Pick<BackupConfig, "media" | "keep"> & { keepDays?: number };
+  /** `maxDiskPct` absent : 30 % (défaut de config.ts). */
+  config: Pick<BackupConfig, "media" | "keep"> & { keepDays?: number; maxDiskPct?: number };
   reason: DueReason;
   /** Connexion en LECTURE SEULE distincte de celle du site (jamais la connexion qui écrit). */
   reader: Database.Database;
@@ -254,6 +259,8 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
   try {
     // 1. Instantané cohérent : l'API de sauvegarde lit par pages pendant que le site écrit (WAL), sans le bloquer.
     await opts.reader.backup(snapshot);
+    // 1b. Sans secrets d'authentification (audit de sécurité P2) : sur la COPIE seulement.
+    scrubSecrets(snapshot);
     const snapInfo = await stat(snapshot);
     const snap = new Database(snapshot, { readonly: true });
     let rows: MediaRow[];
@@ -367,11 +374,22 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
     tmpArchive = "";
     const bytes = (await stat(finalPath)).size;
 
-    // 5. Rotation : seulement maintenant que la nouvelle est complète.
-    const all = (await listArchives(dir)).map((a) => a.name);
-    const doomed = rotationPlan(all, opts.config.keep, opts.config.keepDays ?? 0, (opts.now?.() ?? new Date()).getTime()).filter((n) => n !== name);
+    // 5. Rotation : seulement maintenant que la nouvelle est complète (règles : securityRetentionPlan). Une archive manuelle se reconnaît à la
+    // raison de son manifest ; illisible = comptée comme automatique (la réserve la plus stricte).
+    const listed = await listArchives(dir);
+    const infos: { name: string; size: number; manual: boolean }[] = [];
+    for (const a of listed) {
+      const manual = a.name === name ? opts.reason === "manuel" : (await readArchiveManifest(path.join(/* turbopackIgnore: true */ dir, a.name)))?.reason === "manuel";
+      infos.push({ name: a.name, size: a.size, manual });
+    }
+    const maxBytes = Math.floor((Number(fs.blocks) * Number(fs.bsize) * (opts.config.maxDiskPct ?? 30)) / 100);
+    // Lot 118 (dernière sauvegarde de chaque jour) : `rotationPlan` dit ce que le lot 118 garde ; ce qu'il garde en plus des règles de
+    // sécurité reste gardé (`extraKeep`), mais le plafond de place peut encore le retirer.
+    const lot118 = new Set(rotationPlan(infos.map((a) => a.name), opts.config.keep, opts.config.keepDays ?? 0, stamp.getTime()));
+    const doomed = securityRetentionPlan(infos, { keep: opts.config.keep, now: stamp.getTime(), maxBytes, extraKeep: infos.map((a) => a.name).filter((n) => !lot118.has(n)) }).filter((n) => n !== name);
     for (const n of doomed) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
-    return { name, bytes, ms: Date.now() - started, files: entries.length, mediaCount: rows.length, kept: all.length - doomed.length, removed: doomed.length, shortfall: report.shortfall, storage: { saved, regenerable: plan.counts.regenerable }, missingRefs };
+    const keptBytes = infos.filter((a) => !doomed.includes(a.name)).reduce((n, a) => n + a.size, 0);
+    return { name, bytes, ms: Date.now() - started, files: entries.length, mediaCount: rows.length, kept: infos.length - doomed.length, removed: doomed.length, shortfall: report.shortfall, storage: { saved, regenerable: plan.counts.regenerable }, missingRefs, overCap: keptBytes > maxBytes };
   } finally {
     // Lot 118 : l'instantané est ouvert en lecture seule (mode WAL hérité de la base) : SQLite laisse `-shm` et `-wal` à côté.
     for (const suffix of ["", "-shm", "-wal", "-journal"]) await rm(snapshot + suffix, { force: true });

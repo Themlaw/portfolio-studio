@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
 import { facets, listEntries, RESULT_LABELS, TYPE_LABELS, type Entry, type Filters } from "@/lib/journal/store";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Journal" };
 export const dynamic = "force-dynamic";
@@ -114,6 +115,7 @@ function EntryRow({ e }: { e: Entry }) {
 
 /** Journal d'édition (lot 97) : qui a modifié quoi, quand, avec quel résultat. Lecture seule, filtres par un formulaire GET. */
 export default async function JournalPage({ searchParams }: { searchParams: Promise<Params> }) {
+  await requireAdmin();
   const q = await searchParams;
   const pageRaw = one(q.page);
   const type = one(q.type);

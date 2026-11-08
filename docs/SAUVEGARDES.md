@@ -10,7 +10,8 @@ Le site peut se sauvegarder tout seul dans son propre volume (`/data/backup`). E
 | `WITH_BACKUP` | absent (désactivé) | `1` ou `true` pour activer. Absent, `0` ou `false` : aucune sauvegarde, aucun fichier. |
 | `BACKUP_QUIET_MIN` | `10` | Minutes sans nouvelle modification avant de sauvegarder (fin d'une session de travail). |
 | `BACKUP_MAX_HOURS` | `6` | Au plus N heures entre deux sauvegardes tant qu'il y a des modifications, même si le travail continue. |
-| `BACKUP_KEEP` | `3` | Nombre de sauvegardes gardées (les plus récentes). |
+| `BACKUP_KEEP` | `3` | Nombre de sauvegardes AUTOMATIQUES gardées (les plus récentes). Voir « Rotation » : d'autres restent en plus. |
+| `BACKUP_MAX_DISK_PCT` | `30` | Place totale des sauvegardes, en % de la taille du volume (5 à 90). Environnement seul, jamais réglable depuis l'admin. |
 | `BACKUP_MEDIA` | `1` | `0` ou `false` : sauvegarde la base seule (voir « Poids »). |
 | `BACKUP_QUIET_SEC` | absent | Quiétude en secondes (tests ; prioritaire sur `BACKUP_QUIET_MIN`). |
 
@@ -29,7 +30,11 @@ en attente », dernière erreur, espace libre du volume), les réglages, « Sauv
   compte sans redémarrage. Pas de migration. Même l'activation peut venir de l'admin (sans `WITH_BACKUP`).
 - **Sauvegarder maintenant.** Même verrou que les sauvegardes automatiques (une seule à la fois), part tout de suite, fonctionne aussi
   quand les sauvegardes automatiques sont désactivées (le dossier `backup/` est alors créé à ce moment-là). Raison « manuel ».
-- **Télécharger.** `GET /api/admin/sauvegardes/<nom>` : session admin vérifiée en base (401 sinon), nom strict
+- **Télécharger.** `GET /api/admin/sauvegardes/<nom>` : session admin vérifiée en base (401 sinon) ET confirmation récente (403 sinon,
+  audit de sécurité P2) : connexion de moins de 10 minutes, ou mot de passe retapé dans la fenêtre « Confirmer ton mot de passe »
+  (`unlockBackupDownloadAction`, même frein que la connexion, journalisée) qui pose pour 10 minutes un cookie `pf-backup-unlock` lié à
+  CETTE session, signé par `BETTER_AUTH_SECRET`, limité au chemin `/api/admin/sauvegardes` (`src/lib/backup/unlock.ts`). Connexion par
+  Authentik seulement : se reconnecter. Nom strict
   `portfolio-AAAAMMJJ-HHMMSS[-n].tar.gz` (404 sinon), lecture en flux par blocs de 256 Ko (rien en mémoire), pièce jointe,
   `Range` (206 / 416) et `If-Range` pour reprendre un téléchargement. Pour l'artiste : « Garde une copie sur ton ordinateur de
   temps en temps ».
@@ -57,7 +62,10 @@ du conteneur juste après une session de travail n'oublie rien.
 
 - `manifest.json` : version de l'application, date, raison du déclenchement, nombre de médias, taille.
 - `portfolio.db` : instantané COHÉRENT, pris pendant que le site tourne par l'API de sauvegarde de SQLite (jamais une copie du
-  fichier en écriture), sans bloquer les écritures.
+  fichier en écriture), sans bloquer les écritures. **Sans secrets d'authentification** (audit de sécurité P2, `scrub.ts`, appliqué à la
+  copie seulement) : tables `session`, `verification` et `rate_limit` vidées, jetons OAuth de `account` (`access_token`, `refresh_token`,
+  `id_token` et leurs dates) effacés, puis `VACUUM` (rien ne reste dans les pages libres). Les comptes et l'empreinte du mot de passe
+  restent : après une restauration, il suffit de se reconnecter (mot de passe ou Authentik, qui réécrit ses jetons).
 - `media/…` : **tout le stockage, SAUF ce qui est prouvé régénérable** (lot 85, archive par exclusion : un futur dossier que personne
   n'a prévu est sauvegardé par défaut). Y entrent :
   - `originals/` : les ORIGINAUX envoyés ;
@@ -102,6 +110,61 @@ NI dans l'archive NI régénérable est signalée : au journal (`[backup] AVERTI
 (`missingRefs`) et en tête de l'écran Sauvegardes. Elle ne bloque jamais la sauvegarde. Le même contrôle se refait au premier démarrage
 après une restauration.
 
+## Rotation (audit de sécurité, P1 et P6)
+
+Après chaque sauvegarde réussie (jamais avant), `retentionPlan` (`schedule.ts`, pur) décide ce qui reste :
+
+- les `BACKUP_KEEP` (ou « Nombre de sauvegardes gardées ») sauvegardes **automatiques** les plus récentes ;
+- les **3 dernières sauvegardes manuelles** (« Sauvegarder maintenant », raison `manuel` du `manifest.json`), comptées À PART : une
+  sauvegarde manuelle ne pousse jamais dehors une sauvegarde automatique. Une archive dont le manifest est illisible compte comme automatique ;
+- **toujours**, quel que soit le réglage : la plus récente de toutes, et la plus récente de celles qui ont **plus de 48 heures** (date lue
+  dans le nom de l'archive) ;
+- **plafond de place** : si le total dépasse `BACKUP_MAX_DISK_PCT` % de la taille du volume, les plus anciennes non protégées partent
+  d'abord. Les deux archives protégées restent même si elles dépassent à elles seules (avertissement `[backup] AVERTISSEMENT : les
+  sauvegardes gardées dépassent…`).
+
+Pourquoi : avec une session admin volée, il suffisait de régler « garder 1 » puis de cliquer sur « Sauvegarder maintenant » pour effacer
+toutes les sauvegardes d'avant l'intrusion. Désormais l'archive de l'avant-veille survit, et le plafond n'est pas réglable depuis l'admin.
+Limite : un attaquant qui garde l'accès plus de 48 h finit par faire tourner aussi cette archive ; seule une copie HORS du serveur
+(ci-dessous) protège de ce cas, et de la perte du disque.
+
+## Copie hors du serveur, tirée par l'hôte (chiffrée avec `age`)
+
+Les sauvegardes sont dans le MÊME volume que le site : une application compromise peut les lire et les supprimer. La copie de sécurité
+doit donc être **tirée par l'hôte** (ou mieux, par une autre machine), jamais poussée par l'application : le conteneur n'a ni clé ni accès
+à la destination. Elle est **chiffrée** (l'archive contient la base) avec [`age`](https://age-encryption.org), vers une clé publique ;
+la clé privée n'est PAS sur le serveur (gestionnaire de mots de passe, clé USB).
+
+Une fois, sur un poste de confiance : `age-keygen -o portfolio-backup.key` (garder ce fichier hors du serveur) ; noter la ligne
+`Public key: age1…`. Sur l'hôte (hote-de-prod) : `apt install age`, puis un script lancé par cron, par exemple `/usr/local/sbin/portfolio-offsite.sh` :
+
+```sh
+#!/bin/sh
+# Copie chiffrée des sauvegardes du portfolio vers un autre disque. Lancé par l'hôte, jamais par le conteneur.
+set -eu
+SRC=/var/lib/docker/volumes/portfolio_portfolio-data/_data/backup   # adapter au nom du volume (docker volume ls)
+DST=/mnt/sauvegardes/portfolio                                      # autre disque, ou point de montage distant
+RECIPIENT=age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+umask 077
+mkdir -p "$DST"
+for f in "$SRC"/portfolio-*.tar.gz; do
+  [ -f "$f" ] || continue
+  out="$DST/$(basename "$f").age"
+  [ -e "$out" ] && continue                     # déjà copiée : une archive ne change plus une fois renommée
+  age -r "$RECIPIENT" -o "$out.part" "$f" && mv "$out.part" "$out"
+done
+# Rétention de la copie : 60 jours, indépendante de celle du site (qu'un attaquant peut régler).
+find "$DST" -name 'portfolio-*.tar.gz.age' -mtime +60 -delete
+```
+
+Crontab de root : `17 3 * * * /usr/local/sbin/portfolio-offsite.sh`. Seuls les `portfolio-*.tar.gz` sont lus (jamais les `.tmp` en
+cours d'écriture, qui ont un autre nom). Mieux encore : une AUTRE machine qui vient chercher les fichiers (`rsync` par une clé SSH en
+lecture seule sur `$SRC`), puis chiffre chez elle : un serveur compromis ne peut alors ni effacer ni modifier les copies. Un stockage
+distant (`rclone`, S3…) doit être en ajout seul (pas de droit de suppression pour la clé de l'hôte).
+
+Restaurer depuis la copie : `age -d -i portfolio-backup.key -o portfolio-….tar.gz portfolio-….tar.gz.age`, puis « Restaurer » ci-dessous.
+Vérifier de temps en temps qu'une copie se déchiffre et que `restore-backup.mjs --list` la lit.
+
 ## Cohérence base / fichiers
 
 La base est figée d'abord, les fichiers sont lus ensuite. Deux accidents sont refusés (la sauvegarde est reportée et réessayée,
@@ -131,7 +194,7 @@ la base (quelques Mo) : les médias restent protégés seulement par le volume l
 de la même façon ; les originaux manquants devront être renvoyés.
 
 **Limite à connaître :** les sauvegardes sont dans le MÊME volume que les données. Elles protègent d'une fausse manœuvre ou d'une
-mise à jour ratée, pas de la perte du disque. Copier de temps en temps `/data/backup` ailleurs.
+mise à jour ratée, pas de la perte du disque ni d'une intrusion longue : voir « Copie hors du serveur, tirée par l'hôte ».
 
 ## Journal
 
@@ -152,6 +215,11 @@ docker compose run --rm --no-deps --entrypoint /nodejs/bin/node portfolio \
   restore-backup.mjs /data/backup/portfolio-AAAAMMJJ-HHMMSS.tar.gz /data
 docker compose up -d portfolio
 ```
+
+Ainsi lancé, le script tourne en 1000:1000 (l'utilisateur du service) : ne pas le lancer en root sans nécessité. Dans tous les cas il
+ne suit JAMAIS un lien symbolique sous le dossier de données : un lien (ex. `fonts/` ou `media/originals/` remplacé par un lien vers
+`/etc`, ce qu'un site compromis pourrait préparer) fait refuser la restauration avant toute modification ; les propriétaires sont
+posés par `lchown`. Remplacer le lien par un vrai dossier, puis relancer. Le dossier de données donné en argument peut, lui, être un lien.
 
 (`--list <archive>` affiche seulement le manifest.) Le script : extrait d'abord TOUTE l'archive dans un dossier de travail (une archive
 tronquée ou abîmée est refusée avant que quoi que ce soit change), RANGE l'ancienne base (`portfolio.db`, `-wal`, `-shm`) dans
@@ -183,8 +251,9 @@ puis `chown -R 1000:1000` sur ce dossier. Le démarrage fait le reste (même `ma
 3. Copier aussi `/data/backup` ailleurs : il est dans le même volume.
 4. **Si `BETTER_AUTH_SECRET` change** : toutes les sessions tombent (se reconnecter), les jetons de réinitialisation et d'état OAuth en cours sont
    invalides, et toute URL de recadrage déjà diffusée (`/media/crop/…`, signée avec ce secret : HTML en cache, image de partage sur un
-   réseau social) répond 404 jusqu'à sa remise en cache. Le site re-signe tout seul ses propres pages. Rien d'autre (mots de passe, jetons
-   OAuth et empreintes des messages n'en dépendent pas).
+   réseau social) répond 404 jusqu'à sa remise en cache. Le site re-signe tout seul ses propres pages. Les jetons OAuth d'Authentik sont
+   chiffrés avec ce secret (`encryptOAuthTokens`) mais le site ne les relit jamais, et la sauvegarde ne les contient pas : la prochaine
+   connexion les réécrit. Rien d'autre (mots de passe et empreintes des messages n'en dépendent pas).
 5. Limites : après la restauration, les images n'apparaissent qu'à mesure que le worker refait leurs variantes (durée selon l'hôte) ; une
    image qui échoue sous des bornes plus basses reste invisible. Les octets des variantes peuvent différer si la version de `sharp` change.
    Perdus : envois par morceaux en cours, imports de kit analysés mais pas appliqués (`kit-imports/` : renvoyer le PSD, ses fiches sont gardées).

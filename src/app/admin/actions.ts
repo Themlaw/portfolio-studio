@@ -11,14 +11,18 @@ import { redirect } from "next/navigation";
 
 import { getAuth } from "@/lib/auth";
 import { assertAdmin, LOGIN_PATH } from "@/lib/auth/guard";
-import { PREVIEW_COOKIE } from "@/lib/theme";
+import { DRAFT_VIEW_COOKIE } from "@/lib/draft-view";
+import { PREVIEW_FROM_COOKIE } from "@/lib/preview";
+import { PREVIEW_BANNER_COOKIE, PREVIEW_COOKIE } from "@/lib/theme";
 import { audited } from "@/lib/journal/audit";
 
 export const signOutAction = audited("signOutAction", async function signOutAction(): Promise<void> {
   await assertAdmin();
   await getAuth().api.signOut({ headers: await headers() });
-  // Fin de l'aperçu de thème avec la session.
+  // Fin de l'aperçu de thème et de la vue brouillon avec la session ; tous les cookies de l'app sont effacés (docs/SECURITE.md N19),
+  // dont l'indicateur « portfolio-admin » du bouton « Modifier cette page » (src/components/EditThisPage.tsx, posé par le proxy).
   (await draftMode()).disable();
-  (await cookies()).delete(PREVIEW_COOKIE);
+  const jar = await cookies();
+  for (const name of [PREVIEW_COOKIE, PREVIEW_BANNER_COOKIE, PREVIEW_FROM_COOKIE, DRAFT_VIEW_COOKIE, "portfolio-admin"]) jar.delete(name);
   redirect(LOGIN_PATH);
 });

@@ -14,7 +14,7 @@ import { revalidateMedia } from "@/lib/revalidate";
 import { ingestImage } from "@/lib/upload/ingest";
 import { ingestPdf } from "@/lib/pdf/ingest";
 import { sniffPdf } from "@/lib/upload/sniff";
-import { quotaProblem } from "@/lib/upload/quota";
+import { diskProblem, quotaProblem } from "@/lib/upload/quota";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
 import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
 import { auditedRoute } from "@/lib/journal/audit";
@@ -32,6 +32,9 @@ export const POST = auditedRoute("upload", async function POST(request: Request)
   // Quota déjà atteint : refus avant de lire le fichier.
   const full = quotaProblem();
   if (full) return json(507, { ok: false, message: full });
+  // Disque presque plein (statfs) : refus avant de lire, d'après la taille annoncée du corps.
+  const disk = await diskProblem(Math.max(0, Number(request.headers.get("content-length")) || 0));
+  if (disk) return json(507, { ok: false, message: disk });
   try {
     const file = await receiveOneFile(request, uploadTmpDir());
     // Tags du fichier (champ « tags », JSON) : vérifiés avant tout enregistrement.

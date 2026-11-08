@@ -13,6 +13,29 @@ export function isSameOrigin(request: Request): boolean {
   return request.headers.get("sec-fetch-site") === "same-origin";
 }
 
+/**
+ * Un chemin qui commence par « // » (ou « /\ ») est une adresse SANS schéma : `Location: //autre-site` envoie le navigateur
+ * ailleurs. Le parseur URL en fabrique un à partir de « /.//autre-site » (docs/SECURITE.md N17) : on le refuse en sortie.
+ */
+export function sameSitePath(path: string, fallback: string): string {
+  return /^\/[/\\]/.test(path) ? fallback : path;
+}
+
+/**
+ * Chemin de retour de /api/theme-preview, strictement sur l'origine `origin` : le parseur URL normalise (`/\evil`, tabulations,
+ * CRLF…), on compare les origines, puis on refuse un résultat sans schéma (« //autre-site ») ; sinon "/".
+ */
+export function sameOriginPath(candidate: string | null | undefined, origin: string): string {
+  if (!candidate) return "/";
+  try {
+    const url = new URL(candidate, origin);
+    if (url.origin !== origin) return "/";
+    return sameSitePath(url.pathname + url.search, "/");
+  } catch {
+    return "/";
+  }
+}
+
 /** Chemin local de retour (jamais vers un autre site). */
 export function localPath(candidate: string | null | undefined, fallback: string): string {
   if (!candidate) return fallback;
@@ -21,7 +44,7 @@ export function localPath(candidate: string | null | undefined, fallback: string
     const url = new URL(candidate, base);
     // Un Referer absolu du site garde son chemin ; tout autre hôte est ignoré.
     if (url.origin !== base && url.origin !== new URL(readAuthConfig().baseURL).origin) return fallback;
-    return url.pathname + url.search;
+    return sameSitePath(url.pathname + url.search, fallback);
   } catch {
     return fallback;
   }

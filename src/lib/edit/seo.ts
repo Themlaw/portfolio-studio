@@ -1,11 +1,12 @@
 /** Écriture du partage et du référencement du site (admin, lots 52 et 83) : description, image de partage, icône de l'onglet. */
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { buildFavicons } from "@/lib/favicon";
 import { parseJson } from "@/lib/json";
 import { FaviconInputSchema } from "@/lib/favicon-spec";
-import { readSeo, SeoInputSchema, type SeoStored } from "@/lib/seo-schema";
+import { isReadyImage } from "@/lib/media-alive";
+import { readSeo, SeoInputSchema, withLiveFavicon, type SeoStored } from "@/lib/seo-schema";
 
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 
@@ -15,8 +16,10 @@ export function readStoredSeo(): SeoStored {
   return readSeo(row ? parseJson(row.value) : undefined);
 }
 
-const isReadyImage = (id: number) =>
-  Boolean(getDb().select({ id: schema.media.id }).from(schema.media).where(and(eq(schema.media.id, id), eq(schema.media.kind, "image"), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt))).get());
+/** Réglage lu pour un RENDU de l'icône (kit) : une icône dont le média a disparu n'est pas suivie (`withLiveFavicon`). */
+export function readLiveSeo(): SeoStored {
+  return withLiveFavicon(readStoredSeo(), isReadyImage);
+}
 
 function writeSeo(value: SeoStored) {
   const json = JSON.stringify(value);

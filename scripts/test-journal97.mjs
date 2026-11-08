@@ -31,7 +31,7 @@ const info = (label, v) => console.log(`INFO ${label} : ${typeof v === "string" 
 const { diffPaths, flattenValues, redact, shortValue, safeMessage } = await import("../src/lib/journal/summary.ts");
 const { describeChanges, sentence, subjectOf } = await import("../src/lib/journal/human.ts");
 const store = await import("../src/lib/journal/store.ts");
-const { audited, auditedRoute, flushAudit } = await import("../src/lib/journal/audit.ts");
+const { audited, auditedRoute, flushAudit, recordEvent, resetAuditLimits, USER_BURST, ANON_PER_HOUR } = await import("../src/lib/journal/audit.ts");
 const { noteAuditUser } = await import("../src/lib/journal/context.ts");
 const { SPECS } = await import("../src/lib/journal/catalog.ts");
 const client = await import("../src/lib/journal/client-events.ts");
@@ -71,17 +71,40 @@ store.writeEntry({ ...base, label: "récent", type: "publication", result: "conf
 ok("purge par ancienneté (30 jours)", store.purgeLog(t0) === 1 && store.listEntries().total === 1);
 ok("filtres : type, résultat, page", store.listEntries({ type: "publication" }).total === 1 && store.listEntries({ result: "ok" }).total === 0 && store.listEntries({ pageId: 2 }).total === 1 && store.listEntries({ pageId: 1 }).total === 0);
 ok("filtre de dates", store.listEntries({ from: t0 - 5000, to: t0 }).total === 1 && store.listEntries({ from: t0 + 1 }).total === 0);
-for (let i = 0; i < 300; i++) store.writeEntry({ ...base, label: `ligne ${i}` }, t0);
-ok("purge par nombre de lignes (garde les plus récentes)", store.purgeLog(t0, { rows: 100 }) === 201 && store.listEntries().total === 100 && store.listEntries({}, 1).rows[0].label === "ligne 299");
+for (let i = 0; i < 300; i++) store.writeEntry({ ...base, label: `ligne ${i}` }, t0 - 8 * 86_400_000);
+// 300 vieilles lignes + « récent » (moins de 7 jours) : la limite de 100 lignes retire 200 vieilles lignes, jamais « récent ».
+ok("purge par nombre de lignes (garde les plus récentes)", store.purgeLog(t0, { rows: 100 }) === 200 && store.listEntries().total === 101 && store.listEntries({}, 1).rows[0].label === "ligne 299" && store.listEntries({ type: "publication" }).total === 1);
+// docs/SECURITE.md P5 : une entrée de moins de 7 jours ne part JAMAIS, ni par le nombre de lignes, ni par l'ancienneté demandée.
+store.purgeLog(t0, { rows: 0 });
+for (let i = 0; i < 50; i++) store.writeEntry({ ...base, label: `trace ${i}` }, t0 - 6 * 86_400_000);
+ok("rétention : rien de moins de 7 jours n'est purgé (limite de lignes à 1, ancienneté à 1 jour)", store.purgeLog(t0, { rows: 1, days: 1 }) === 0 && store.listEntries().total === 51 && store.MIN_KEEP_DAYS === 7, String(store.listEntries().total));
+store.writeEntry({ ...base, label: "huit jours" }, t0 - 8 * 86_400_000);
+ok("rétention : au-delà de 7 jours, la limite s'applique", store.purgeLog(t0, { rows: 1, days: 1 }) === 1 && store.listEntries().total === 51);
+store.closeLog();
+rmSync(path.join(tmp, "edit-log.db"), { force: true });
+rmSync(path.join(tmp, "edit-log.db-wal"), { force: true });
+rmSync(path.join(tmp, "edit-log.db-shm"), { force: true });
+for (let i = 0; i < 100; i++) store.writeEntry({ ...base, label: `ligne ${i}` }, t0 - 8 * 86_400_000);
 ok("facettes : pages et types", store.facets().pages.length >= 1 && store.facets().types.includes("modification"));
 ok("la rétention par défaut est 30 jours / 20 000 lignes", store.MAX_DAYS === 30 && store.MAX_ROWS === 20000);
 // Purge automatique : toutes les 500 écritures, sans appel explicite (limite abaissée par l'environnement).
 process.env.EDIT_LOG_MAX_ROWS = "50";
 for (let i = 0; i < 600; i++) store.writeEntry({ ...base, label: `auto ${i}` }, Date.now());
-// 100 lignes avant, 600 écrites : sans purge il y en aurait 700 ; la purge tombe à la 500ᵉ écriture du processus et ne garde que 50 lignes + les écritures suivantes.
+// 100 vieilles lignes avant, 600 récentes écrites : sans purge il y en aurait 700 ; la purge tombe à la 500ᵉ écriture et retire les vieilles
+// lignes au-delà de la limite (50) ; les récentes (moins de 7 jours) restent toutes.
 const afterAuto = store.listEntries().total;
-ok("purge automatique pendant les écritures (limite 50 lignes, sans appel explicite)", afterAuto < 700 && afterAuto >= 50, String(afterAuto));
+ok("purge automatique pendant les écritures (limite 50 lignes, sans appel explicite ; les récentes restent)", afterAuto === 600, String(afterAuto));
 delete process.env.EDIT_LOG_MAX_ROWS;
+// Plafond dur (disque) : au-delà, les NOUVELLES entrées ne sont plus écrites ; les anciennes restent.
+process.env.EDIT_LOG_HARD_MAX = "1000";
+const errs = console.error;
+console.error = () => {};
+for (let i = 0; i < 2000; i++) store.writeEntry({ ...base, label: `plafond ${i}` }, Date.now());
+console.error = errs;
+const capped = store.listEntries().total;
+ok("plafond dur : les nouvelles entrées s'arrêtent (≤ plafond + 500), les plus anciennes restent", capped <= 1500 && capped >= 1000 && store.listEntries({}, 1, capped - 1).rows[0].label === "auto 0", String(capped));
+delete process.env.EDIT_LOG_HARD_MAX;
+store.purgeLog(Date.now() + 8 * 86_400_000, { rows: 0 });
 store.purgeLog(Date.now(), { rows: 0 });
 ok("le fichier du journal est à part (edit-log.db), portfolio.db n'est pas créé par lui", readdirSync(tmp).includes("edit-log.db") && !readdirSync(tmp).includes("portfolio.db"), readdirSync(tmp).join());
 
@@ -117,7 +140,9 @@ ok("refus : résultat « refus » avec la raison", byAction("reorderMenuAction",
 const conf = byAction("saveDraftAction", "conflit");
 ok("conflit : résultat « conflit », version avant → après", conf && conf.revFrom === 3 && conf.revTo === 7 && /refusé, la page avait été modifiée ailleurs/.test(conf.label), JSON.stringify(conf));
 ok("erreur : résultat « erreur »", rows.some((x) => x.result === "erreur" && x.action === "reorderMenuAction"));
-ok("redirection : pas une panne (ok) ; accès refusé : refus", rows.filter((x) => x.action === "reorderMenuAction").some((x) => x.result === "ok" && /redirection/.test(JSON.stringify(x.summary))) && rows.some((x) => /accès refusé/.test(x.label)));
+ok("redirection : pas une panne (ok)", rows.filter((x) => x.action === "reorderMenuAction").some((x) => x.result === "ok" && /redirection/.test(JSON.stringify(x.summary))));
+// docs/SECURITE.md §2.7 : un refus SANS session (forbidden avant toute session) n'écrit rien en base ; stdout le dit (ligne agrégée).
+ok("accès refusé sans session : aucune entrée en base, une ligne stdout « edit-anon »", !rows.some((x) => /accès refusé/.test(x.label)) && lines.some((l) => l.startsWith('{"t":"edit-anon"')), lines.filter((l) => l.includes("edit-anon")).join(" "));
 const route = byAction("route:upload");
 ok("route : résultat d'après le statut HTTP, chemin sans requête", route?.result === "refus" && /POST \/admin\/api\/upload"/.test(JSON.stringify(route.summary)) && !JSON.stringify(route.summary).includes("x=1") && /Fichier trop gros/.test(JSON.stringify(route.summary)), JSON.stringify(route));
 ok("durée mesurée (ms) sur chaque entrée", rows.every((x) => typeof x.ms === "number"));
@@ -125,7 +150,7 @@ const dump = JSON.stringify(store.listEntries({}, 1000).rows) + lines.join("\n")
 const leaks = [...SECRETS, "hunter2"].filter((s) => dump.includes(s.slice(0, 22)));
 ok("aucun secret (e-mail, jeton, mot de passe, data:) dans la table ni sur stdout", leaks.length === 0, leaks.join(" | "));
 const edit = lines.map((l) => JSON.parse(l)).filter((l) => l.t === "edit");
-ok("stdout : une ligne JSON {\"t\":\"edit\"} par écriture", edit.length === 7 && lines.every((l) => l.length < 400), `${edit.length} lignes`);
+ok("stdout : une ligne JSON {\"t\":\"edit\"} par écriture (le refus anonyme : ligne « edit-anon »)", edit.length === 6 && lines.every((l) => l.length < 400), `${edit.length} lignes`);
 ok("stdout : porte action, résultat, version, durée, coût du journal (chemin de la requête et différé)", edit.every((l) => l.a && l.r && l.v === "9.9.9-test" && typeof l.ms === "number" && typeof l.aud === "number" && typeof l.bg === "number"), lines[0]);
 // Coût : enveloppe seule (action vide), 1 000 appels. Chemin de la requête = ce que l'artiste attend ; total = avec l'écriture différée.
 console.log = () => {};
@@ -139,6 +164,54 @@ console.log = origLog;
 info("coût moyen de l'enveloppe (action vide, 1 000 appels)", `chemin de la requête ${requestPath.toFixed(3)} ms, avec l'écriture SQLite différée ${total.toFixed(3)} ms`);
 ok("coût de l'enveloppe sur le chemin de la requête < 2 ms par action (et total < 2 ms)", requestPath < 2 && total < 2, `${requestPath} / ${total} ms`);
 ok("les 1 000 entrées différées sont bien écrites", store.listEntries({ type: "modification" }, 1).total >= 1000);
+
+/* ---- sécurité : refus anonymes, débit par utilisateur, connexions et téléchargements (docs/SECURITE.md §2.7, P5) ----------------- */
+{
+  console.log = (...a) => (typeof a[0] === "string" && a[0].startsWith('{"t":') ? lines.push(a[0]) : origLog(...a));
+  resetAuditLimits();
+  const before = store.listEntries({}, 1).total;
+  const forbiddenAct = audited("reorderMenuAction", async function reorderMenuAction() { throw Object.assign(new Error("forbidden"), { digest: "NEXT_HTTP_ERROR_FALLBACK;403" }); });
+  const unauthorizedRoute = auditedRoute("upload", async function POST() { throw Object.assign(new Error("unauthorized"), { digest: "NEXT_HTTP_ERROR_FALLBACK;401" }); });
+  const t1 = performance.now();
+  for (let i = 0; i < 3000; i++) await forbiddenAct().catch(() => {});
+  for (let i = 0; i < 500; i++) await unauthorizedRoute(new Request("http://localhost/admin/api/upload", { method: "POST" })).catch(() => {});
+  await flushAudit();
+  ok("J1 3 500 appels anonymes refusés : aucune ligne en base", store.listEntries({}, 1).total === before, `${store.listEntries({}, 1).total - before} lignes, ${Math.round(performance.now() - t1)} ms`);
+
+  // Une session volée qui martèle une action : la rafale puis le débit soutenu sont détaillés, le reste est résumé.
+  const flood = audited("reorderMenuAction", async function reorderMenuAction() {
+    noteAuditUser("user-vole");
+    return { ok: true, data: null };
+  });
+  for (let i = 0; i < USER_BURST + 700; i++) await flood(i);
+  await flushAudit();
+  const own = () => store.listEntries({}, 5000).rows.filter((x) => x.user === "user-vole");
+  ok("J2 débit par utilisateur : au plus la rafale détaillée (le reste n'est pas écrit)", own().length <= USER_BURST + 5 && own().length >= USER_BURST, String(own().length));
+  // La minute suivante : une synthèse dit combien d'écritures n'ont pas été détaillées.
+  const realNow = Date.now;
+  Date.now = () => realNow() + 120_000;
+  await flood(1);
+  await flushAudit();
+  Date.now = realNow;
+  const synth = own().find((x) => x.action === "journal:debit");
+  ok("J3 synthèse : « N écritures non détaillées » écrite à la reprise", synth && /\b(6\d\d|700) écritures non détaillées/.test(synth.label), synth?.label);
+
+  recordEvent({ action: "auth:sign-in", type: "compte", user: "user-interne-1", result: "ok", label: "Connexion (mot de passe)" });
+  recordEvent({ action: "download:backup", type: "telechargement", user: "user-interne-1", result: "ok", label: "Sauvegarde téléchargée", target: "portfolio-20261104-120000.tar.gz" });
+  recordEvent({ action: "auth:change-password", type: "compte", user: "user-interne-1", result: "refus", label: "Changement de mot de passe refusé", reason: "HTTP 400" });
+  const evs = store.listEntries({}, 20).rows;
+  ok("J4 connexion, téléchargement, changement de mot de passe journalisés (type, compte interne, cible)", ["auth:sign-in", "download:backup", "auth:change-password"].every((a) => evs.some((x) => x.action === a && x.user === "user-interne-1")) && evs.some((x) => x.type === "telechargement" && x.target?.startsWith("portfolio-")));
+  // Échecs de connexion (anonymes) : ANON_PER_HOUR détaillés par heure, puis une synthèse à l'heure suivante.
+  const n0 = store.listEntries({}, 1).total;
+  for (let i = 0; i < 500; i++) recordEvent({ action: "auth:sign-in", type: "compte", user: null, result: "refus", label: "Connexion refusée (mot de passe)" });
+  ok("J5 échecs de connexion anonymes : au plus ANON_PER_HOUR lignes par heure", store.listEntries({}, 1).total - n0 === ANON_PER_HOUR, String(store.listEntries({}, 1).total - n0));
+  Date.now = () => realNow() + 3_700_000;
+  recordEvent({ action: "auth:sign-in", type: "compte", user: null, result: "refus", label: "Connexion refusée (mot de passe)" });
+  Date.now = realNow;
+  ok("J6 synthèse des échecs non détaillés à l'heure suivante", store.listEntries({}, 5).rows.some((x) => x.action === "journal:debit" && /480 échecs de connexion/.test(x.label)));
+  console.log = origLog;
+  resetAuditLimits();
+}
 
 /* ---- événements du navigateur ------------------------------------------------------------------------------------------------------ */
 console.log = (...a) => (typeof a[0] === "string" && a[0].startsWith('{"t":') ? lines.push(a[0]) : origLog(...a));
@@ -185,6 +258,32 @@ ok("chaque action et route enveloppée a une entrée au catalogue (libellé, typ
 const stale = Object.keys(SPECS).filter((n) => !wrapped.has(n) && !routes.has(n));
 ok("le catalogue ne cite aucune action disparue", stale.length === 0, stale.join(", "));
 ok("lecture : aucune lecture n'est enveloppée", [...READS].every((n) => !wrapped.has(n)));
+
+/* ---- N20 (docs/SECURITE.md) : jamais une adresse e-mail entière dans stdout ---- */
+{
+  const { maskEmail } = await import("../src/lib/auth/mask.ts");
+  ok("N20 maskEmail : k***@x.fr", maskEmail("kate@x.fr") === "k***@x.fr", maskEmail("kate@x.fr"));
+  ok("N20 maskEmail : domaine gardé, local masqué", maskEmail("artiste@example.test") === "a***@example.test");
+  ok("N20 maskEmail : saisie qui n'est pas une adresse", maskEmail("pas-une-adresse") === "p***" && maskEmail("@x.fr") === "@***" && maskEmail("") === "?" && maskEmail(null) === "?");
+  ok("N20 maskEmail : caractère hors BMP, contrôles retirés du domaine", maskEmail("\u{1F600}x@a\u202E.fr") === "\u{1F600}***@a.fr", maskEmail("\u{1F600}x@a\u202E.fr"));
+  ok("N20 maskEmail : domaine borné", maskEmail(`a@${"b".repeat(500)}`).length <= 86);
+  // Aucun console.* du serveur n'interpole une adresse sans la masquer.
+  const offenders = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(name))
+        readFileSync(full, "utf8")
+          .split("\n")
+          .forEach((line, i) => {
+            if (/console\.(log|warn|error|info)\(/.test(line) && /\$\{[^}]*\bemail\b[^}]*\}/i.test(line) && !/maskEmail\(/.test(line)) offenders.push(`${path.relative(ROOT, full)}:${i + 1}`);
+          });
+    }
+  };
+  walk(path.join(ROOT, "src"));
+  ok("N20 aucun journal du serveur n'écrit d'e-mail en clair", offenders.length === 0, offenders.join(" "));
+}
 
 store.closeLog();
 rmSync(tmp, { recursive: true, force: true });

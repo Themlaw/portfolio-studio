@@ -71,7 +71,36 @@ export function mediaUsagesByMedia(): Map<number, Usage[]> {
   // d'accueil (logo publié) ou sur la page qui tient le brouillon du site : sans cela, la corbeille et le compteur
   // de la médiathèque la diraient libre.
   for (const [mediaId, usage] of logoUsages()) index.set(mediaId, [...(index.get(mediaId) ?? []), usage]);
+  // Partage et référencement (lot 52, 83) : icône de l'onglet, image de partage du site, image de partage d'une page (publiée ou
+  // brouillon). Sans eux, l'artiste pouvait supprimer « une image inutilisée » et la purge laissait l'icône servie à vie.
+  for (const [mediaId, usages] of shareUsages()) index.set(mediaId, [...(index.get(mediaId) ?? []), ...usages]);
   return index;
+}
+
+/** Libellés des usages « partage » (affichés comme le type d'une rubrique dans « Utilisée dans… »). */
+export const FAVICON_USAGE_TYPE = "Icône de l'onglet";
+export const SHARE_USAGE_TYPE = "Image de partage du site";
+export const PAGE_SHARE_USAGE_TYPE = "Image de partage de la page";
+
+function shareUsages(): Map<number, Usage[]> {
+  const db = getDb();
+  const out = new Map<number, Usage[]>();
+  const add = (mediaId: unknown, pageId: number | undefined, type: string) => {
+    if (typeof mediaId !== "number" || !Number.isInteger(mediaId) || pageId === undefined) return;
+    const list = out.get(mediaId) ?? [];
+    if (!list.some((u) => u.kind === "block" && u.pageId === pageId && u.type === type)) out.set(mediaId, [...list, { kind: "block", blockId: -1, pageId, type, path: "media" }]);
+  };
+  // Réglages du site : rattachés à l'accueil, comme le logo.
+  const home = db.select({ id: schema.pages.id }).from(schema.pages).orderBy(schema.pages.id).get()?.id;
+  const seo = parseJson(db.select().from(schema.settings).where(inArray(schema.settings.key, ["seo"])).get()?.value) as { favicon?: { mediaId?: unknown } | null; shareImage?: unknown } | null;
+  add(seo?.favicon?.mediaId, home, FAVICON_USAGE_TYPE);
+  add(seo?.shareImage, home, SHARE_USAGE_TYPE);
+  // Image de partage d'une page : publiée (`pages.meta.image`) et brouillon (`draft.meta.image`), pages à la corbeille comprises.
+  for (const p of db.select({ id: schema.pages.id, meta: schema.pages.meta, draft: schema.pages.draft }).from(schema.pages).all()) {
+    add((p.meta as { image?: unknown } | null)?.image, p.id, PAGE_SHARE_USAGE_TYPE);
+    add((p.draft as { meta?: { image?: unknown } } | null)?.meta?.image, p.id, PAGE_SHARE_USAGE_TYPE);
+  }
+  return out;
 }
 
 /** Libellé de l'usage « logo » (affiché comme le type d'une rubrique dans « Utilisée dans… »). */

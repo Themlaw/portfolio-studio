@@ -10,7 +10,8 @@ import StripRail from "@/components/StripRail";
 import VideoSoundSeg from "@/components/edit/VideoSoundSeg";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { captionCss, captionStylesOf, type CaptionStyles } from "@/blocks/caption-style";
+import { captionCss, type CaptionStyles } from "@/blocks/caption-style";
+import type { StripProject } from "@/blocks/strip-project";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import type { MediaLookData, Space, StrokeTint } from "@/lib/look";
@@ -86,7 +87,8 @@ export default function ProjectStrip({
   scope?: string;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
-  project: LocalizedProject;
+  /** Projet réduit à ce que la planche affiche (`stripProject` : ni la suite de composants brute, ni l'en-tête masqué ; N8). */
+  project: StripProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
   deep?: boolean;
   headingLevel?: "h2" | "h3";
@@ -125,7 +127,7 @@ export default function ProjectStrip({
   });
 
   // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
-  const legacyCapStyles = captionStylesOf(project.layout);
+  const legacyCapStyles = project.captionStyles;
   const capStyles = captionStyles ?? legacyCapStyles;
   const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;

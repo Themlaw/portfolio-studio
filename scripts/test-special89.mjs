@@ -7,12 +7,21 @@
  *     « Sortie » obligatoire à la publication ; « Sortie » et « Une œuvre au hasard » refusés sur une page ordinaire.
  *  3. Le brouillon d'une page spéciale ou ordinaire refuse les mêmes choses (requête forgée).
  *  4. Exclusions : la page spéciale n'est pas au menu public ni dans les pages à lier.
+ *  5. Projet masqué (docs/SECURITE.md N4) : un projet qu'aucune page n'affiche n'entre ni dans la couverture d'une
+ *     collection, ni dans ses compteurs, ni dans la demoreel, ni dans les planches d'une collection, ni dans le
+ *     repli des projets mis en avant ; il y entre dès qu'une page publiée (ou le brouillon vu) l'affiche.
+ *  6. « Une œuvre au hasard » : la lecture en cache porte l'étiquette `project:<id>` de chaque projet publié (docs/SECURITE.md N16).
  * Usage : node --import tsx scripts/test-special89.mjs
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// Lectures de la galerie (`cached`) hors de Next : `next/cache` remplacé par un appel direct.
+const NEXT_CACHE_STUB = new URL("./lib/next-cache-stub.cjs", import.meta.url).href;
+registerHooks({ resolve: (spec, ctx, next) => (spec === "next/cache" ? { url: NEXT_CACHE_STUB, format: "commonjs", shortCircuit: true } : next(spec, ctx)) });
 
 const dir = mkdtempSync(path.join(tmpdir(), "pf-test-special89-"));
 process.env.DATA_DIR = dir;
@@ -21,7 +30,7 @@ console.log = () => {};
 const { bootstrap } = await import("../src/lib/db/bootstrap.ts");
 await bootstrap();
 const { getDb, schema } = await import("../src/lib/db/index.ts");
-const { eq, sql } = await import("drizzle-orm");
+const { and, eq, sql } = await import("drizzle-orm");
 const db = getDb();
 const specials = () => db.select().from(schema.pages).where(sql`json_extract(${schema.pages.slug}, '$.fr') = '_404'`).all();
 const first = specials();
@@ -145,10 +154,118 @@ test("la page spéciale n'est pas une page à lier ni au menu public", () => {
   assert.ok(rows.filter((r) => r.special).length === 1);
 });
 
+/* ---- Projet masqué (N4) : ni couverture, ni compteur, ni demoreel, ni planche de collection ---- */
+
+{
+  const gallery = await import("../src/lib/gallery.ts");
+  const { readDisplayedProjects } = gallery;
+  // Aucune Couverture choisie dans le seed : la couverture d'une collection est sa première œuvre (sauf une Couverture).
+  const seedCovers = db.select().from(schema.slots).all().filter((x) => x.featured).map((x) => x.id);
+  db.update(schema.slots).set({ featured: false }).run();
+  const before = {
+    count: await gallery.countCollection("characters"),
+    countAnim: await gallery.countCollection("animation"),
+    cover: (await gallery.getCollectionCover("characters", "fr"))?.slug,
+    reel: (await gallery.getReel("fr"))?.slug,
+    projects: (await gallery.getProjectsForCollection("characters", "fr")).map((p) => p.slug),
+    featured: (await gallery.getFeaturedProjects("fr", 50)).map((p) => p.slug),
+    displayed: readDisplayedProjects(),
+  };
+  test("seed : tous les projets publiés sont affichés par une page (rien ne change pour eux)", () => {
+    const all = db.select().from(schema.projects).all().filter((p) => !p.deletedAt && p.draftPageId === null);
+    assert.ok(all.length >= 2);
+    assert.deepEqual([...before.displayed].sort(), all.map((p) => p.id).sort());
+  });
+  // Projet « sous NDA » : publié, avec une Couverture (featured), une demoreel, marqué « mis en avant », mais sur aucune page.
+  const media = db.insert(schema.media).values({ key: "originals/nda0000000000000.png", sha256: "e".repeat(64), kind: "image", mime: "image/png", originalName: "client-nda.png", size: 1, status: "ready", width: 800, height: 600, alt: { fr: "NDA", en: "NDA" } }).returning({ id: schema.media.id }).get().id;
+  const position = Math.max(...db.select().from(schema.projects).all().map((p) => p.position)) + 1;
+  const hidden = db.insert(schema.projects).values({ slug: "projet-nda", title: L("Projet NDA"), context: L("Client"), description: L("Secret"), year: "2026", featured: true, position }).returning({ id: schema.projects.id }).get().id;
+  const slot = (slug, collection, extra = {}) => db.insert(schema.slots).values({ projectId: hidden, mediaId: media, position: 0, slug, collection, title: L(slug), description: L(""), year: 2026, ...extra }).run();
+  slot("nda-perso", "characters", { featured: true });
+  slot("nda-reel", "animation", { reel: true, position: 1 });
+  // L'ancienne demoreel du seed passe après : celle du projet masqué serait la première.
+  db.update(schema.slots).set({ reel: false }).where(eq(schema.slots.slug, before.reel ?? "")).run();
+
+  const after = {
+    count: await gallery.countCollection("characters"),
+    countAnim: await gallery.countCollection("animation"),
+    cover: (await gallery.getCollectionCover("characters", "fr"))?.slug,
+    reel: (await gallery.getReel("fr"))?.slug,
+    projects: (await gallery.getProjectsForCollection("characters", "fr")).map((p) => p.slug),
+    featured: (await gallery.getFeaturedProjects("fr", 50)).map((p) => p.slug),
+    collection: (await gallery.getCollection("characters", "fr")).map((a) => a.slug),
+  };
+  test("N4 projet sur aucune page : absent des projets affichés, des compteurs, de la couverture, de la demoreel", () => {
+    assert.ok(!readDisplayedProjects().has(hidden));
+    assert.equal(after.count, before.count, "compteur « N œuvres » des personnages inchangé");
+    assert.equal(after.countAnim, before.countAnim, "compteur de l'animation inchangé");
+    assert.notEqual(after.cover, "nda-perso", "sa Couverture ne devient pas celle de la tuile");
+    assert.equal(after.cover, before.cover);
+    assert.notEqual(after.reel, "nda-reel", "sa vidéo ne devient pas la demoreel");
+    assert.ok(!after.projects.includes("projet-nda"), "absent des planches de la collection");
+    assert.ok(!after.featured.includes("projet-nda"), "absent des projets mis en avant (repli compris)");
+    assert.ok(!after.collection.includes("nda-perso"), "absent de la liste de la collection");
+  });
+
+  // Une page publiée l'affiche (bloc Projet) : il entre partout.
+  const home = db.select().from(schema.pages).all().find((p) => p.slug.fr === "");
+  const block = db.insert(schema.blocks).values({ pageId: home.id, position: 999, type: "project-board", props: JSON.stringify({ project: "projet-nda" }) }).returning({ id: schema.blocks.id }).get().id;
+  const shown = {
+    displayed: readDisplayedProjects().has(hidden),
+    count: await gallery.countCollection("characters"),
+    cover: (await gallery.getCollectionCover("characters", "fr"))?.slug,
+    reel: (await gallery.getReel("fr"))?.slug,
+    projects: (await gallery.getProjectsForCollection("characters", "fr")).map((p) => p.slug),
+  };
+  db.delete(schema.blocks).where(eq(schema.blocks.id, block)).run();
+  test("N4 affiché par une page publiée : compté, couverture, demoreel et planche de collection", () => {
+    assert.ok(shown.displayed);
+    assert.ok(shown.count > before.count, `${shown.count} > ${before.count}`);
+    assert.equal(shown.cover, "nda-perso");
+    assert.equal(shown.reel, "nda-reel");
+    assert.ok(shown.projects.includes("projet-nda"));
+  });
+  test("N4 page dépubliée ou bloc seulement en brouillon : masqué ; brouillon vu (éditeur) : affiché", () => {
+    db.insert(schema.blocks).values({ pageId: home.id, position: 999, type: "project-board", props: JSON.stringify({ project: "projet-nda" }) }).run();
+    db.update(schema.pages).set({ published: false }).where(eq(schema.pages.id, home.id)).run();
+    assert.ok(!readDisplayedProjects().has(hidden), "page non publiée");
+    db.update(schema.pages).set({ published: true }).where(eq(schema.pages.id, home.id)).run();
+    db.delete(schema.blocks).where(and(eq(schema.blocks.pageId, home.id), eq(schema.blocks.position, 999))).run();
+    const other = db.select().from(schema.pages).all().find((p) => p.slug.fr !== "" && p.published && !p.deletedAt);
+    const draft = [{ type: "grid", props: { children: [{ type: "project-board", props: { project: "projet-nda" } }] } }];
+    assert.ok(readDisplayedProjects({ pageId: other.id, blocks: draft }).has(hidden), "brouillon vu : planche dans un conteneur");
+    assert.ok(!readDisplayedProjects().has(hidden), "le public ne voit pas le brouillon");
+    // Anciens blocs : « Projets mis en avant » sans choix (projets marqués), planches d'une collection.
+    assert.ok(readDisplayedProjects({ pageId: other.id, blocks: [{ type: "featured-projects", props: { limit: 2 } }] }).has(hidden));
+    assert.ok(readDisplayedProjects({ pageId: other.id, blocks: [{ type: "collection-projects", props: { collection: "animation" } }] }).has(hidden));
+    assert.ok(!readDisplayedProjects({ pageId: other.id, blocks: [{ type: "collection-projects", props: { collection: "backgrounds" } }] }).has(hidden));
+  });
+  // Remise en état pour la suite (tirage au hasard sur le seed).
+  db.delete(schema.slots).where(eq(schema.slots.projectId, hidden)).run();
+  db.delete(schema.projects).where(eq(schema.projects.id, hidden)).run();
+  db.delete(schema.media).where(eq(schema.media.id, media)).run();
+  if (before.reel) db.update(schema.slots).set({ reel: true }).where(eq(schema.slots.slug, before.reel)).run();
+  for (const id of seedCovers) db.update(schema.slots).set({ featured: true }).where(eq(schema.slots.id, id)).run();
+}
+
 /* ---- Une œuvre au hasard : ce qui peut être tiré ---- */
 
-const { readPoolWorks, selectWorks } = await import("../src/lib/random-works.ts");
+const { readPoolWorks, selectWorks, getPoolWorks } = await import("../src/lib/random-works.ts");
 const pool = readPoolWorks();
+
+{
+  globalThis.__nextCacheCalls = [];
+  const cachedPool = await getPoolWorks();
+  const call = globalThis.__nextCacheCalls.find((c) => c.key[0] === "random-works");
+  const live = db.select().from(schema.projects).all().filter((p) => !p.deletedAt && p.draftPageId === null);
+  test("N16 « Une œuvre au hasard » : la lecture en cache dépend de chaque projet publié (project:<id>)", () => {
+    assert.ok(call, "lecture en cache");
+    assert.ok(live.length >= 2);
+    for (const p of live) assert.ok(call.tags.includes(`project:${p.id}`), `project:${p.id} dans ${call.tags.join(" ")}`);
+    for (const t of ["projects", "media", "nav"]) assert.ok(call.tags.includes(t), t);
+    assert.deepEqual(cachedPool.map((w) => w.slug), pool.map((w) => w.slug), "même contenu que la lecture directe");
+  });
+}
 const slugs = () => readPoolWorks().map((w) => w.slug);
 
 test("le tirage porte sur les œuvres publiées du portfolio (seed) ; chaque œuvre a son image, son titre et sa page", () => {

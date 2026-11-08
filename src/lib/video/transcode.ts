@@ -23,7 +23,7 @@ import type { VariantFile } from "@/lib/images/variants";
 import { getStorage } from "@/lib/storage";
 
 import { pickAudioTrack } from "./audio";
-import { decoderFor, isAllowedAudio, isAllowedVideo, videoLimits } from "./limits";
+import { decoderFor, ffmpegEnv, isAllowedAudio, isAllowedVideo, videoLimits } from "./limits";
 import { runProbe } from "./probe";
 
 export type TranscodeResult = { files: VariantFile[]; duration: number; width: number; height: number; hasAudio: boolean; posterColor: string | null };
@@ -55,6 +55,7 @@ function runFfmpeg(args: string[], opts: { timeoutMs: number; durationS?: number
     // nice dès le lancement : tous les fils de ffmpeg héritent de la priorité basse.
     const child = spawn("nice", ["-n", "10", "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-max_alloc", String(MAX_ALLOC), ...args], {
       stdio: ["ignore", "pipe", "pipe"],
+      env: ffmpegEnv(),
     });
     let timedOut = false;
     let peak = 0;

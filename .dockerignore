@@ -18,9 +18,26 @@ next-env.d.ts
 # Base et médias de développement (DATA_DIR=./data)
 data
 
-# Secrets / env locaux
+# Secrets / env locaux (« **/ » : à la racine comme dans n'importe quel dossier)
 .env*
 *.pem
+**/*.pem
+**/.npmrc
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa*
+**/id_dsa*
+**/id_ecdsa*
+**/id_ed25519*
+# Bases SQLite hors de data/ (copies, bases de test)
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite
+**/*.sqlite3
+# Outils locaux (worktrees entiers, notes, réglages locaux)
+.local
 
 # Artefacts locaux (captures, logs, nohup)
 screenshots
@@ -36,15 +53,18 @@ scripts
 !scripts/copy-kit-native.mjs
 # Restauration d'une sauvegarde, copiée dans l'image (docs/SAUVEGARDES.md).
 !scripts/restore-backup.mjs
+# Réinitialisation du mot de passe, copiée dans l'image (audit de sécurité P3).
+!scripts/reset-password.mjs
 # Jeux de test (PSD de l'artiste…) : jamais utiles au build.
 tests
 test-results
 playwright-report
 
-# Docker / docs
+# Docker / docs (docs/ contient le rapport d'audit de sécurité : jamais dans le contexte, ni donc dans le cache BuildKit)
 Dockerfile
 .dockerignore
 compose*.y*ml
 docker-compose*.y*ml
 README.md
 docs/ARCHITECTURE.md
+docs

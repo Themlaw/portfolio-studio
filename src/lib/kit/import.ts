@@ -27,6 +27,7 @@ import { assembleCornerSide, framePreview, isCornerSide } from "./frame9";
 import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
+import { SVG_MAX_BYTES } from "../themes/svg-check";
 import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatchSlot, type ColorReport, type SwatchRead } from "./extras";
 import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, decorSlot, drawScale, frameOf, HERO, keepsDrawnColors, KIT_FILES, KIT_ROLES, MAX_DECOR_PLANS, roleOfSize, SLOTS, slotsOfFile, slotsOfRole, SWATCH_SLOTS, type KitRole, type Layout, type SlotSpec } from "./spec";
 
@@ -599,8 +600,10 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       const fid = await contourFidelity(img, v.svg);
       report.fidelity = rounded(fid);
       // Trait : étiré dans les deux sens (soulignement, filet, barre du rail).
-      await writeFile(path.join(outDir, `${base}.mask.svg`), slot.kind === "stroke" ? stretchableSvg(v.svg) : v.svg);
-      if (faithful(fid)) {
+      const maskSvg = slot.kind === "stroke" ? stretchableSvg(v.svg) : v.svg;
+      await writeFile(path.join(outDir, `${base}.mask.svg`), maskSvg);
+      // Au-delà de SVG_MAX_BYTES, le thème exporté ne se réimporterait plus (svg-check.ts) : masque bitmap.
+      if (faithful(fid) && Buffer.byteLength(maskSvg) <= SVG_MAX_BYTES) {
         report.chosen = "svg-mask";
         report.bytes = report.candidates.svg;
         files.push(`${base}.mask.svg`);
@@ -608,7 +611,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
         // Masque bitmap (alpha de l'AVIF / du WebP) : mask-image l'accepte aussi.
         report.chosen = "avif-mask";
         report.bytes = avif.length;
-        report.messages.push(`Contour trop simplifié par le tracé (écart ${fid.deviation.toFixed(2)} px) : masque gardé en bitmap.`);
+        report.messages.push(faithful(fid) ? "Tracé trop lourd : masque gardé en bitmap." : `Contour trop simplifié par le tracé (écart ${fid.deviation.toFixed(2)} px) : masque gardé en bitmap.`);
       }
     } else if (slot.bitmapOnly || tex.textured || translucentShare(img) > 0.2) {
       report.chosen = "avif";
@@ -623,7 +626,8 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       report.candidates.svgPaths = v.paths;
       const fid = await contourFidelity(img, v.svg);
       report.fidelity = rounded(fid);
-      const light = report.candidates.svg <= SVG_MAX_RATIO * avif.length && v.paths <= SVG_MAX_PATHS;
+      // SVG_MAX_BYTES : au-delà, le thème exporté ne se réimporterait plus (svg-check.ts).
+      const light = report.candidates.svg <= SVG_MAX_RATIO * avif.length && report.candidates.svg <= SVG_MAX_BYTES && v.paths <= SVG_MAX_PATHS;
       const svgWins = light && faithful(fid);
       if (light && !svgWins) report.messages.push(`Contour trop simplifié par le tracé (écart ${fid.deviation.toFixed(2)} px) : gardé en AVIF malgré un SVG plus léger.`);
       report.chosen = svgWins ? "svg" : "avif";

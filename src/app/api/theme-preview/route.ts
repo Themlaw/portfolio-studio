@@ -1,6 +1,7 @@
 import { draftMode } from "next/headers";
 import type { NextRequest } from "next/server";
 
+import { sameOriginPath } from "@/lib/preview";
 import { getTheme, isThemePreviewOpen, listThemes, PREVIEW_BANNER_COOKIE, PREVIEW_COOKIE } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
@@ -16,16 +17,7 @@ const BASE_HEADERS = {
  * compare les origines : tout ce qui sort du site retombe sur "/".
  */
 function backPath(request: NextRequest): string {
-  const candidate =
-    request.nextUrl.searchParams.get("redirect") ?? request.headers.get("referer");
-  if (!candidate) return "/";
-  try {
-    const url = new URL(candidate, request.nextUrl.origin);
-    if (url.origin !== request.nextUrl.origin) return "/";
-    return url.pathname + url.search;
-  } catch {
-    return "/";
-  }
+  return sameOriginPath(request.nextUrl.searchParams.get("redirect") ?? request.headers.get("referer"), request.nextUrl.origin);
 }
 
 /**

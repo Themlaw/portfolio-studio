@@ -2,9 +2,10 @@
  * Proxy (Next 16, runtime Node.js) : garde de l'admin, i18n (next-intl) et
  * pages inconnues.
  *
- * Admin : tout /admin/* sans cookie de session est redirigé vers
- * /admin/connexion. Test rapide (présence du cookie) : la session elle-même est
- * vérifiée en base par le layout de l'admin et par assertAdmin().
+ * Admin : tout /admin/* sans session VALIDE (vérifiée en base, `adminGateAllows`) est redirigé vers /admin/connexion. La seule
+ * présence d'un cookie ne suffit pas : avec un cookie inventé et `RSC: 1`, Next rendait la charge RSC des pages sans repasser
+ * par le layout qui portait la garde (docs/SECURITE.md §2.2, §5.1). Le layout, chaque page (requireAdmin) et assertAdmin()
+ * revérifient ensuite.
  *
  * Un slug inconnu ne passe pas par notFound() : dans ce projet (layout racine
  * sous [locale], rendu ISR), Next répond alors une coquille d'erreur que seul
@@ -23,12 +24,14 @@ import { getSessionCookie } from "better-auth/cookies";
 import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
 
+import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { LANG_CHOICE_COOKIE } from "./i18n/choice";
 import { routing } from "./i18n/routing";
-import { isAdminRequest } from "./lib/auth/guard";
+import { adminGateAllows, isAdminRequest } from "./lib/auth/guard";
+import { isDevMode } from "./lib/dev-mode";
 import { readRedirectConfig, redirectionFor } from "./lib/domain";
 import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
 
@@ -37,16 +40,54 @@ const intl = createMiddleware(routing);
 /** Marque les requêtes internes du proxy (secret propre au processus). */
 const INTERNAL_HEADER = "x-portfolio-internal";
 const INTERNAL_SECRET = crypto.randomUUID();
+const INTERNAL_SECRET_BYTES = Buffer.from(INTERNAL_SECRET);
+
+/** Requête interne (page 404) : secret comparé en temps constant (docs/SECURITE.md P7). */
+function isInternalRequest(request: NextRequest): boolean {
+  const value = request.headers.get(INTERNAL_HEADER);
+  if (value === null) return false;
+  const given = Buffer.from(value);
+  return given.length === INTERNAL_SECRET_BYTES.length && timingSafeEqual(given, INTERNAL_SECRET_BYTES);
+}
+
+/**
+ * En-têtes du client recopiés sur la requête interne de la page 404 : LISTE BLANCHE (docs/SECURITE.md P7, N20). Recopier tout
+ * renvoyait au rendu interne n'importe quel en-tête du client (dont un faux `x-portfolio-internal`), et `Expect: 100-continue`
+ * faisait échouer la requête interne. Ce qui reste : ce qui change le rendu (cookies d'aperçu, langue, navigation RSC, hôte public).
+ */
+const NOT_FOUND_HEADERS = [
+  // Hôte public (liens hreflang de next-intl) : il ne choisit plus le port, fixé par internalPort().
+  "host",
+  "accept",
+  "accept-language",
+  "cookie",
+  "user-agent",
+  "rsc",
+  "next-router-state-tree",
+  "next-router-prefetch",
+  "next-router-segment-prefetch",
+  "next-url",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+];
+
+/** Port du serveur, fixé au démarrage (Next le pose dans process.env.PORT) : jamais lu dans l'URL ni dans `Host` (SSRF, §2.12). */
+function internalPort(): string {
+  const port = process.env.PORT ?? "";
+  return /^\d{1,5}$/.test(port) ? port : "3000";
+}
 
 const LOCALE_PATH = new RegExp(`^/(${routing.locales.join("|")})(?:/(.*))?$`);
 
 async function notFoundResponse(request: NextRequest, locale: string): Promise<Response> {
-  const port = process.env.PORT || request.nextUrl.port || "3000";
-  const headers = new Headers(request.headers);
+  const headers = new Headers();
+  for (const name of NOT_FOUND_HEADERS) {
+    const value = request.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
   headers.set(INTERNAL_HEADER, INTERNAL_SECRET);
-  headers.delete("if-none-match");
-  headers.delete("if-modified-since");
-  const upstream = await fetch(`http://127.0.0.1:${port}/${locale}/${NOT_FOUND_SLUG}`, { headers, redirect: "manual" });
+  const upstream = await fetch(`http://127.0.0.1:${internalPort()}/${locale}/${NOT_FOUND_SLUG}`, { headers, redirect: "manual" });
   const out = new Headers();
   for (const name of ["content-type", "vary", "link"]) {
     const value = upstream.headers.get(name);
@@ -130,11 +171,11 @@ async function vignetteRequest(request: NextRequest): Promise<NextRequest | null
 /**
  * CSP complète de l'admin, avec nonce par requête : Next l'applique à ses
  * propres scripts (il lit le nonce dans l'en-tête CSP de la requête). Pas
- * d'unsafe-eval en production ; en développement, Turbopack et le HMR en ont
- * besoin (eval, WebSocket).
+ * d'unsafe-eval hors du développement EXPLICITE (PORTFOLIO_DEV=1) ; en
+ * développement, Turbopack et le HMR en ont besoin (eval, WebSocket).
  */
 function adminCsp(nonce: string): string {
-  const dev = process.env.NODE_ENV !== "production";
+  const dev = isDevMode();
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
@@ -149,10 +190,41 @@ function adminCsp(nonce: string): string {
   ].join("; ");
 }
 
-function adminGate(request: NextRequest): NextResponse {
+/**
+ * Isolement de l'admin (docs/SECURITE.md N6). `Cross-Origin-Opener-Policy: same-origin` : une fenêtre ouverte par un autre site
+ * (`window.open`) ne garde aucune prise sur l'admin (plus de `w.length` pour savoir si le visiteur est l'artiste).
+ */
+const ADMIN_COOP = "same-origin";
+
+/**
+ * URL profonde de l'admin ouverte depuis un AUTRE site (lien, `window.open`) : renvoyée vers l'accueil de l'admin, sans rendu.
+ * Une simple navigation suffisait à marquer les messages comme lus (/admin/messages) ou à ouvrir l'aperçu d'un thème. `none`
+ * (barre d'adresse, favori) et `same-origin` passent ; un navigateur sans `Sec-Fetch-Site` aussi.
+ */
+function foreignDeepLink(request: NextRequest): boolean {
+  const site = request.headers.get("sec-fetch-site");
   const { pathname } = request.nextUrl;
-  if (pathname !== ADMIN_LOGIN && !getSessionCookie(request)) {
+  return (
+    (request.method === "GET" || request.method === "HEAD") &&
+    site !== null &&
+    site !== "same-origin" &&
+    site !== "none" &&
+    pathname !== "/admin" &&
+    pathname !== ADMIN_LOGIN
+  );
+}
+
+async function adminGate(request: NextRequest): Promise<NextResponse> {
+  const { pathname } = request.nextUrl;
+  // Cookie absent : redirection sans requête en base ; cookie présent : session vérifiée en base (un cookie inventé ne suffit pas).
+  if (pathname !== ADMIN_LOGIN && (!getSessionCookie(request) || !(await adminGateAllows(request.headers)))) {
     return NextResponse.redirect(new URL(ADMIN_LOGIN, request.url));
+  }
+  if (foreignDeepLink(request)) {
+    const away = NextResponse.redirect(new URL("/admin", request.url));
+    away.headers.set("Cross-Origin-Opener-Policy", ADMIN_COOP);
+    away.headers.set("Cache-Control", "no-store");
+    return away;
   }
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
   const csp = adminCsp(nonce);
@@ -161,16 +233,22 @@ function adminGate(request: NextRequest): NextResponse {
   requestHeaders.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("Cross-Origin-Opener-Policy", ADMIN_COOP);
   // Indicateur (pas une preuve) pour le bouton « Modifier cette page » du site :
   // seuls les navigateurs qui l'ont vérifient leur session (route dédiée).
-  if (pathname !== ADMIN_LOGIN && !request.cookies.has(ADMIN_HINT_COOKIE)) {
+  // Pas sur un POST (server action) : la déconnexion efface ce cookie dans la même réponse.
+  if (request.method === "GET" && pathname !== ADMIN_LOGIN && !request.cookies.has(ADMIN_HINT_COOKIE)) {
     response.cookies.set(ADMIN_HINT_COOKIE, "1", { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30, secure: process.env.NODE_ENV === "production" });
   }
   return response;
 }
 
-/** Routes que le `matcher` d'avant le lot 88 excluait : api, médias, fichiers à extension (favicon.ico, sitemap.xml…). */
-const LEGACY_SKIP = /^\/(?:(?:api|admin\/api|media|_next|_vercel)|.*\..*)/;
+/**
+ * Routes que le `matcher` d'avant le lot 88 excluait : api, médias, polices, icône, fichiers de `public/` et fichiers à la racine.
+ * Liste FERMÉE (docs/SECURITE.md N5) : l'ancienne règle « tout chemin qui contient un point » laissait sortir /fr/a.b (rendu en
+ * 200 et gardé un an dans le cache ISR) et, testée avant /admin, tout futur /admin/….x de la garde de l'admin.
+ */
+const LEGACY_SKIP = /^\/(?:(?:api|media|fonts|site-icon|kit|themes|_next|_vercel)(?:\/|$)|(?:favicon\.ico|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
 
 /** Redirection de l'ancien domaine (REDIRECT_FROM), ou null : la requête est servie normalement. */
 function domainRedirect(request: NextRequest): NextResponse | null {
@@ -183,17 +261,19 @@ function domainRedirect(request: NextRequest): NextResponse | null {
     pathAndQuery: request.nextUrl.pathname + request.nextUrl.search,
   });
   if (!target) return null;
-  // Un an de cache pour un 301 muet : impossible de revenir en arrière. Une heure laisse le retour possible.
-  return new NextResponse(null, { status: target.status, headers: { Location: target.location, "Cache-Control": "public, max-age=3600" } });
+  // Un an de cache pour un 301 muet : impossible de revenir en arrière. Une heure laisse le retour possible. `private` : la cible
+  // dépend de X-Forwarded-Host, qu'un cache partagé placé devant ne distinguerait pas (empoisonnement, §2.12).
+  return new NextResponse(null, { status: target.status, headers: { Location: target.location, "Cache-Control": "private, max-age=3600" } });
 }
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const moved = domainRedirect(request);
   if (moved) return moved;
-  if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
+  // /admin AVANT LEGACY_SKIP : aucun chemin de l'admin (même avec un point) n'échappe à sa garde.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return adminGate(request);
-  if (request.headers.get(INTERNAL_HEADER) === INTERNAL_SECRET) return intl(request);
+  if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
+  if (isInternalRequest(request)) return intl(request);
 
   const match = LOCALE_PATH.exec(request.nextUrl.pathname);
   if (!match) {
@@ -218,7 +298,8 @@ export default async function proxy(request: NextRequest) {
       // Cadre de l'écran Thèmes (même origine) : les en-têtes « cadre » de next.config se décident sur le cookie d'aperçu du NAVIGATEUR,
       // que cette requête n'a pas ; on les pose ici, pour cette réponse seulement. Jamais en cache.
       response.headers.set("X-Frame-Options", "SAMEORIGIN");
-      response.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+      // Même CSP minimale que le site public (PUBLIC_CSP de next.config.ts).
+      response.headers.set("Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
       response.headers.set("Cache-Control", "no-store");
       return response;
     }

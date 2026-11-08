@@ -4,6 +4,7 @@ import ProjectStrip from "@/components/ProjectStrip";
 import { getProjectsForCollection } from "@/lib/gallery";
 import { claimEager } from "@/lib/eager";
 
+import { stripProject } from "./strip-project";
 import { collection, type BlockContext } from "./types";
 
 export const collectionProjectsSchema = z.object({ collection });
@@ -24,7 +25,7 @@ export default async function CollectionProjectsBlock({
   return (
     <>
       {projects.map((project, index) => (
-        <ProjectStrip key={project.slug} project={project} eager={index === 0 ? eager : 0} deep={index % 2 === 1} />
+        <ProjectStrip key={project.slug} project={stripProject(project)} eager={index === 0 ? eager : 0} deep={index % 2 === 1} />
       ))}
     </>
   );

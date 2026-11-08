@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { backupNowAction, backupStatusAction, saveBackupSettingsAction } from "@/app/admin/(espace)/sauvegardes/actions";
+import { backupNowAction, backupStatusAction, saveBackupSettingsAction, unlockBackupDownloadAction } from "@/app/admin/(espace)/sauvegardes/actions";
 import type { ArchiveRow, BackupStatus } from "@/lib/backup/service";
 
-import { SaveBar, toast } from "./editing";
+import { ConfirmDialog, SaveBar, toast } from "./editing";
 
 const REASONS: Record<string, string> = {
   premier: "Première sauvegarde",
@@ -37,6 +37,37 @@ const toForm = (s: BackupStatus): Form => ({ enabled: s.settings.enabled, media:
 export default function BackupPanel({ initial }: { initial: BackupStatus }) {
   const [status, setStatus] = useState(initial);
   const [form, setForm] = useState<Form>(() => toForm(initial));
+  // Téléchargement (audit P2) : connexion récente ou mot de passe retapé, vérifié par le serveur.
+  const [unlockFor, setUnlockFor] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const download = async (name: string, pw?: string) => {
+    setUnlocking(true);
+    const r = await unlockBackupDownloadAction(pw === undefined ? {} : { password: pw }).catch(() => null);
+    setUnlocking(false);
+    if (!r) return toast("Le téléchargement n'a pas pu être préparé. Réessaie.", "error");
+    if (r.ok) {
+      setUnlockFor(null);
+      setPassword("");
+      setUnlockError(null);
+      // Lien de téléchargement éphémère : pièce jointe, la page reste affichée.
+      const link = document.createElement("a");
+      link.href = `/api/admin/sauvegardes/${encodeURIComponent(name)}`;
+      link.download = name;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      return;
+    }
+    const why = r.fieldErrors?.reauth;
+    if (why === "password" || why === "wrong" || why === "throttled") {
+      setUnlockFor(name);
+      setUnlockError(why === "password" ? null : r.message);
+      return;
+    }
+    toast(r.message, "error");
+  };
   // Champs que l'on remet à la valeur d'origine (envoyés à null).
   const [reset, setReset] = useState<Set<Field>>(new Set());
   const [touched, setTouched] = useState<Set<Field>>(new Set());
@@ -271,9 +302,9 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
                     <td data-label="Version du site">{a.version ?? "?"}</td>
                     <td data-label="Pourquoi">{a.reason ? (REASONS[a.reason] ?? a.reason) : "?"}</td>
                     <td className="a-row-actions">
-                      <a className="a-btn a-btn-small" href={`/api/admin/sauvegardes/${a.name}`} download={a.name} data-testid="telecharger">
+                      <button type="button" className="a-btn a-btn-small" onClick={() => void download(a.name)} disabled={unlocking} data-testid="telecharger">
                         Télécharger
-                      </a>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -283,6 +314,37 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
           </>
         )}
       </section>
+
+      <ConfirmDialog
+        open={unlockFor !== null}
+        title="Confirmer ton mot de passe pour télécharger"
+        confirmLabel="Télécharger"
+        busy={unlocking}
+        confirmDisabled={!password}
+        onConfirm={() => unlockFor && void download(unlockFor, password)}
+        onClose={() => {
+          setUnlockFor(null);
+          setPassword("");
+          setUnlockError(null);
+        }}
+      >
+        <form
+          className="a-field"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (unlockFor && password) void download(unlockFor, password);
+          }}
+        >
+          <p>Une sauvegarde contient toute la base du site. Retape ton mot de passe : le téléchargement reste ouvert 10 minutes.</p>
+          <label htmlFor="sv-password">Mot de passe</label>
+          <input id="sv-password" className="a-input" type="password" autoComplete="current-password" maxLength={256} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="mot-de-passe-telechargement" autoFocus />
+          {unlockError && (
+            <span className="a-field-error" role="alert" data-testid="erreur-mot-de-passe">
+              {unlockError}
+            </span>
+          )}
+        </form>
+      </ConfirmDialog>
 
       <section className="a-section" aria-labelledby="sv-reglages">
         <h2 id="sv-reglages">Réglages</h2>
@@ -304,7 +366,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
             <label htmlFor="sv-keep">Nombre de sauvegardes gardées</label>
             <input id="sv-keep" className="a-input" type="number" min={1} max={30} step={1} value={form.keep} onChange={(e) => set("keep", e.target.value)} data-testid="reglage-garder" />
             <span className="a-help">
-              Les dernières sauvegardes (« récentes »). S&apos;y ajoute la dernière de chacun des {status.settings.keepDays} derniers jours (« du jour », réglage du serveur BACKUP_KEEP_DAYS). Le reste est supprimé à la sauvegarde suivante.
+              Les dernières sauvegardes (« récentes »). S&apos;y ajoute la dernière de chacun des {status.settings.keepDays} derniers jours (« du jour », réglage du serveur BACKUP_KEEP_DAYS). Le reste est supprimé à la sauvegarde suivante. Restent toujours, en plus : la plus récente de plus de 48 heures et les 3 dernières faites avec « Sauvegarder maintenant » (comptées à part).
             </span>
             {errors.keep && <span className="a-field-error">{errors.keep}</span>}
             {src("keep")}

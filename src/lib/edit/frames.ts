@@ -18,6 +18,8 @@ import { optimize } from "svgo/browser";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { getStorage } from "@/lib/storage";
+import { decodeProblem } from "@/lib/images/budget";
+import { svgProblem } from "@/lib/themes/svg-check";
 import { sniffImage } from "@/lib/upload/sniff";
 import {
   defaultThickness,
@@ -38,6 +40,13 @@ export const FRAME_FORMAT_HELP = "PNG ou WebP sur fond transparent, ou SVG.";
 export const FRAME_MAX_BYTES = 12 * 1024 * 1024;
 const MAX_SIDE = 2400;
 const ALPHA_EMPTY = 8;
+/** Rendu d'un SVG pour repérer son bord : plus grand côté, et borne de pixels (marge d'arrondi de la densité comprise). */
+const RASTER_SIDE = 1200;
+const RASTER_MAX_PIXELS = (RASTER_SIDE + 8) * (RASTER_SIDE + 8);
+/** Bitmap reçu : pixels au plus (en-tête lu avant tout décodage), puis budget de décodage (`decodeProblem`). */
+const BITMAP_MAX_PIXELS = 40_000_000;
+/** Délai dur d'un traitement sharp dans la requête (filtres SVG lourds, image pathologique). */
+const SHARP_TIMEOUT_S = 20;
 
 /* ---- Lecture directe (admin, sans cache) ---------------------------------------------------------------------------------------- */
 
@@ -99,21 +108,25 @@ const fallbackSlice = (w: number, h: number): [number, number, number, number] =
 
 /* ---- SVG ------------------------------------------------------------------------------------------------------------------------ */
 
-/** Refus lisibles : un cadre SVG est une image, jamais un programme ni une page qui charge autre chose. */
-function svgProblem(svg: string): string | null {
-  const bare = svg.replace(/xmlns(:\w+)?="[^"]*"/g, "");
-  if (/<script|<foreignObject|<iframe|<embed|<object/i.test(bare)) return "Ce SVG contient du code ou du contenu extérieur : il n'est pas accepté. Exporte-le comme simple dessin (sans script).";
-  if (/\son[a-z]+\s*=/i.test(bare)) return "Ce SVG contient des actions (onclick…) : il n'est pas accepté.";
-  if (/@import|(?:href|src)\s*=\s*"(?:https?:|\/\/|file:|javascript:)|url\(\s*["']?(?:https?:|\/\/|javascript:)/i.test(bare)) return "Ce SVG charge des éléments extérieurs : exporte-le avec tout son contenu à l'intérieur.";
-  return null;
+/**
+ * Refus lisibles : un cadre SVG est une image, jamais un programme ni une page qui charge autre chose. Même liste blanche que les
+ * éléments dessinés d'un thème importé (`svgProblem` de src/lib/themes/svg-check.ts : éléments de dessin seulement ; DOCTYPE et entités,
+ * <style>, <set> / <animate>, gestionnaires, liens et url() externes refusés), appliquée AVANT svgo (le fichier reçu, tel quel) et APRÈS
+ * (ce qui sera servi) : svgo ne fait que réduire, il ne sert jamais de filtre.
+ */
+function frameSvgProblem(data: Uint8Array): string | null {
+  const reason = svgProblem(data);
+  if (!reason) return null;
+  return `Ce SVG n'est pas accepté (${reason}). Exporte-le comme simple dessin : sans script, sans feuille de style, sans animation ni contenu extérieur (Illustrator : « Styles : attributs de présentation » ; Inkscape : « SVG simple »).`;
 }
 
 type Processed = { image: FrameEntry["image"]; files: { ext: string; data: Buffer }[]; slice: [number, number, number, number]; detected: boolean };
 
-async function processSvg(buf: Buffer): Promise<Processed | string> {
-  const text = buf.toString("utf8");
-  const bad = svgProblem(text);
+/** Exportée pour les tests (scripts/test-cadres62.mjs). */
+export async function processSvg(buf: Buffer): Promise<Processed | string> {
+  const bad = frameSvgProblem(buf);
   if (bad) return bad;
+  const text = buf.toString("utf8");
   let optimized: string;
   try {
     optimized = optimize(text, { multipass: true, floatPrecision: 2, plugins: ["preset-default", "removeScripts"] as never[] }).data;
@@ -134,10 +147,17 @@ async function processSvg(buf: Buffer): Promise<Processed | string> {
   if (!vb) rootFixed = rootFixed.replace(/<svg\b/i, `<svg viewBox="0 0 ${w} ${h}"`);
   rootFixed = rootFixed.replace(/<svg\b/i, `<svg width="${w}" height="${h}"`);
   svg = svg.replace(root, rootFixed);
-  // Analyse du bord sur un rendu (≤ 1200 px).
-  const scale = Math.min(1, 1200 / Math.max(w, h));
-  const raw = await sharp(Buffer.from(svg), { density: 96 * 2 })
-    .resize(Math.max(3, Math.round(w * scale)), Math.max(3, Math.round(h * scale)), { fit: "fill" })
+  const after = frameSvgProblem(Buffer.from(svg));
+  if (after) return after;
+  // Analyse du bord sur un rendu de RASTER_SIDE px au plus, dessiné directement à cette taille (densité réduite, jamais suréchantillonné :
+  // un SVG de 4096 px à 192 dpi faisait ~67 Mpx dans la requête), avec une borne de pixels explicite et un délai : rien de plus lourd qu'une
+  // vignette ne tourne dans le processus Next. Seul le bord déduit (slice) en dépend : le fichier servi reste le SVG.
+  const scale = Math.min(1, RASTER_SIDE / Math.max(w, h));
+  const tw = Math.max(3, Math.round(w * scale));
+  const th = Math.max(3, Math.round(h * scale));
+  const raw = await sharp(Buffer.from(svg), { density: 72 * scale, limitInputPixels: RASTER_MAX_PIXELS })
+    .timeout({ seconds: SHARP_TIMEOUT_S })
+    .resize(tw, th, { fit: "fill" })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
@@ -150,21 +170,31 @@ async function processSvg(buf: Buffer): Promise<Processed | string> {
 
 /* ---- Bitmap : AVIF + WebP, comme le kit --------------------------------------------------------------------------------------- */
 
-async function processBitmap(buf: Buffer): Promise<Processed | string> {
-  const meta = await sharp(buf, { limitInputPixels: 40_000_000 }).metadata().catch(() => null);
+export async function processBitmap(buf: Buffer): Promise<Processed | string> {
+  // En-tête seul (aucun pixel décodé) : dimensions, puis budget de décodage commun (un PNG entrelacé, un WebP ou un AVIF se décodent
+  // d'un bloc : refusés avant d'ouvrir s'ils dépassent le budget du conteneur).
+  const meta = await sharp(buf, { limitInputPixels: false }).metadata().catch(() => null);
   if (!meta?.width || !meta.height) return "Ce fichier n'a pas pu être lu comme une image (fichier abîmé ou incomplet ?).";
+  if (meta.width * meta.height > BITMAP_MAX_PIXELS) return `Cette image est trop grande pour un cadre (${meta.width} × ${meta.height} px, 40 millions de pixels au plus).`;
+  const heavy = decodeProblem({ ...meta, width: meta.width, height: meta.height });
+  if (heavy) return heavy;
   const rotated = (meta.orientation ?? 1) >= 5;
   const sw = rotated ? meta.height : meta.width;
   const sh = rotated ? meta.width : meta.height;
   if (sw < 3 || sh < 3) return "Cette image est trop petite pour être un cadre.";
   const k = Math.min(1, MAX_SIDE / Math.max(sw, sh));
-  const base = sharp(buf, { limitInputPixels: 40_000_000 }).rotate().ensureAlpha();
-  const { data, info } = await (k < 1 ? base.resize(Math.round(sw * k), Math.round(sh * k)) : base).raw().toBuffer({ resolveWithObject: true });
+  const base = sharp(buf, { limitInputPixels: BITMAP_MAX_PIXELS }).timeout({ seconds: SHARP_TIMEOUT_S }).rotate().ensureAlpha();
+  const decoded = await (k < 1 ? base.resize(Math.round(sw * k), Math.round(sh * k)) : base)
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+    .catch(() => null);
+  if (!decoded) return "Ce fichier n'a pas pu être lu comme une image (fichier abîmé ou trop lourd ?).";
+  const { data, info } = decoded;
   const w = info.width;
   const h = info.height;
   const found = detectSlice(data, w, h);
   const slice = found ?? fallbackSlice(w, h);
-  const img = () => sharp(data, { raw: { width: w, height: h, channels: 4 } });
+  const img = () => sharp(data, { raw: { width: w, height: h, channels: 4 } }).timeout({ seconds: SHARP_TIMEOUT_S });
   const [avif, webp] = await Promise.all([
     img().avif({ quality: 78, effort: 4, chromaSubsampling: "4:4:4" }).toBuffer(),
     img().webp({ quality: 92, alphaQuality: 100, effort: 4, smartSubsample: false }).toBuffer(),
@@ -178,7 +208,39 @@ function nameOf(original: string | null | undefined, fallback: string): string {
   return base || fallback;
 }
 
-const looksSvg = (buf: Buffer) => /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE[^>]*>\s*)?<svg[\s>]/i.test(buf.subarray(0, 2048).toString("utf8"));
+/**
+ * Le début du fichier ressemble-t-il à un SVG (prologue XML, commentaires, DOCTYPE, puis <svg) ? Lecture pas à pas par `indexOf`, en
+ * temps linéaire : l'ancienne expression régulière `(?:<!--[\s\S]*?-->\s*)*` revenait en arrière de façon exponentielle
+ * (`"<!---->".repeat(290)` bloquait le processus, donc tout le site). Un DOCTYPE est reconnu ici pour être REFUSÉ ensuite, avec un
+ * message lisible, par `frameSvgProblem`.
+ */
+export function looksSvg(buf: Uint8Array): boolean {
+  const s = Buffer.from(buf.subarray(0, 2048)).toString("utf8");
+  let i = s.charCodeAt(0) === 0xfeff ? 1 : 0;
+  const skipSpace = () => {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  };
+  skipSpace();
+  if (s.startsWith("<?xml", i)) {
+    const end = s.indexOf("?>", i);
+    if (end < 0) return false;
+    i = end + 2;
+    skipSpace();
+  }
+  while (s.startsWith("<!--", i)) {
+    const end = s.indexOf("-->", i + 4);
+    if (end < 0) return false;
+    i = end + 3;
+    skipSpace();
+  }
+  if (s.slice(i, i + 9).toUpperCase() === "<!DOCTYPE") {
+    const end = s.indexOf(">", i);
+    if (end < 0) return false;
+    i = end + 1;
+    skipSpace();
+  }
+  return /^<svg[\s>]/i.test(s.slice(i, i + 5));
+}
 
 /**
  * Ajoute un cadre à la bibliothèque d'après un fichier reçu (chemin temporaire : l'appelant le supprime). Même contenu déjà présent :

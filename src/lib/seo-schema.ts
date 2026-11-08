@@ -52,6 +52,15 @@ export function readSeo(raw: unknown): SeoStored {
 }
 
 /**
+ * Icône « image » dont le média a disparu (purgé, à la corbeille, plus prêt) : retirée du réglage LU, sans rien écrire. `planIcon`
+ * retombe alors sur l'ordre « Automatique » (calque du kit, logo du thème, sinon le monogramme) au lieu de pointer vers des fichiers
+ * supprimés. `alive` : le média existe, est une image prête et n'est pas à la corbeille.
+ */
+export function withLiveFavicon(seo: SeoStored, alive: (mediaId: number) => boolean): SeoStored {
+  return seo.favicon && !alive(seo.favicon.mediaId) ? { ...seo, favicon: null } : seo;
+}
+
+/**
  * Texte d'un onglet : « Page — Nom du site ». Le nom n'est pas répété s'il y figure déjà (titre choisi à la main),
  * et la page d'accueil, qui porte le nom du site, n'est pas dédoublée.
  */

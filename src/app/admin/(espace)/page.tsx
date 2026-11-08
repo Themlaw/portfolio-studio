@@ -4,10 +4,12 @@ import PageHeader from "@/components/admin/PageHeader";
 import ThemeSwatches from "@/components/admin/ThemeSwatches";
 import FirstSteps from "@/components/admin/FirstSteps";
 import { countUnreadMessages, getAdminCounts, getHomePageId, getOnboarding, getThemeOverview } from "@/lib/admin";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Tableau de bord" };
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  await requireAdmin();
   const counts = getAdminCounts();
   const { activeId, themes } = getThemeOverview();
   const active = themes.find((t) => t.id === activeId);

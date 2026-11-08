@@ -274,8 +274,10 @@ export const descendantCount = (block: TreeBlock | null | undefined): number => 
 export function withFreshUids<B extends TreeBlock>(block: B, newUid: () => string): B {
   const children = childrenOf(block);
   const copy = { ...block, uid: newUid() } as B;
-  // Formulaire de contact : son identifiant public suit le bloc (nouveau bloc → nouvel identifiant).
-  if (block.type === "contact-form" || (block.type === "contact" && (block.props as { form?: unknown } | undefined)?.form === true)) {
+  // Formulaire de contact : son identifiant public suit le bloc (nouveau bloc → nouvel identifiant). Dès qu'il en porte un,
+  // même formulaire désactivé (l'identifiant est gardé pour le réactiver) : sinon la copie réactivée aurait le même (N11).
+  const p = block.props as { form?: unknown; formId?: unknown } | undefined;
+  if (block.type === "contact-form" || (block.type === "contact" && (p?.form === true || (typeof p?.formId === "string" && p.formId !== "")))) {
     copy.props = { ...((block.props ?? {}) as object), formId: `f${newUid().replace(/[^a-z0-9]/g, "")}${Math.random().toString(36).slice(2, 8)}`.slice(0, 32) };
   }
   return children.length || isContainer(block.type) ? setChildren(copy, children.map((c) => withFreshUids(c, newUid))) : copy;

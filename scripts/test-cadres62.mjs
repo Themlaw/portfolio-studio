@@ -199,4 +199,157 @@ test("réglage « Cadre du thème sur toutes les photos » : non par défaut", (
   assert.equal(readThemeFrameAll(true), true);
 });
 
+/* ---- 6. Sécurité : SVG d'un cadre importé (docs/SECURITE.md §2.11, N2) ------------------------------------------- */
+
+{
+  // frames.ts importe « svgo/browser » (export ESM seul) : tsx le charge en CommonJS, on lui indique le fichier.
+  const { registerHooks } = await import("node:module");
+  const svgoBrowser = new URL("../node_modules/svgo/dist/svgo.browser.js", import.meta.url).href;
+  registerHooks({ resolve: (spec, ctx, next) => (spec === "svgo/browser" ? { url: svgoBrowser, format: "module", shortCircuit: true } : next(spec, ctx)) });
+  const { looksSvg, processSvg } = await import("../src/lib/edit/frames.ts");
+  const B = (s) => Buffer.from(s);
+  const t0 = performance.now();
+  const r = looksSvg(B("<!---->".repeat(290)));
+  const ms = performance.now() - t0;
+  assert.equal(r, false);
+  assert.ok(ms < 50, `looksSvg sur 290 commentaires vides : ${ms.toFixed(1)} ms (50 ms au plus)`);
+  passed++;
+  console.log(`PASS  looksSvg en temps linéaire : 290 commentaires vides en ${ms.toFixed(1)} ms`);
+
+  const t1 = performance.now();
+  for (const s of ["<!---->".repeat(290), "<!--".repeat(512), "<!-- -->\n".repeat(204), "<?xml " + " ".repeat(2040)]) looksSvg(B(s));
+  assert.ok(performance.now() - t1 < 50, "variantes (commentaires ouverts, prologue sans fin) en moins de 50 ms");
+  passed++;
+  console.log("PASS  looksSvg : commentaires non fermés et prologue sans fin, en temps linéaire");
+
+  test("looksSvg reconnaît les débuts de SVG habituels", () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>';
+    for (const s of [svg, `﻿${svg}`, `  \n${svg}`, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`, `<?xml version="1.0"?><!-- Generator: Adobe Illustrator -->\n<!-- 2 -->${svg}`, `<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">${svg}`, `<SVG>`]) {
+      assert.equal(looksSvg(B(s)), true, s);
+    }
+    for (const s of ["<html><svg>", "<!-- jamais fermé <svg>", "<svgx>", "texte", "<?xml version='1.0'"]) assert.equal(looksSvg(B(s)), false, s);
+  });
+
+  const frame = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><path fill-rule="evenodd" fill="rgb(30,60,200)" d="M0 0H300V300H0Z M30 30V270H270V30Z"/></svg>';
+  const good = await processSvg(B(frame));
+  assert.equal(typeof good, "object", String(good));
+  assert.ok(good.files[0].data.toString().includes("<svg") && good.detected, "cadre SVG simple accepté, bord détecté");
+  passed++;
+  console.log("PASS  cadre SVG simple (celui de l'e2e lot 74) accepté, bord détecté");
+
+  const hostile = {
+    "DOCTYPE et entité": `<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x "y">]>${frame.replace("</svg>", "<text>&x;</text></svg>")}`,
+    "<set> (animation qui réécrit un attribut)": frame.replace("</svg>", '<a><set attributeName="href" to="javascript:alert(1)"/></a></svg>'),
+    "<animate>": frame.replace("</svg>", '<animate attributeName="fill" values="red;blue" dur="1s"/></svg>'),
+    "href='javascript:…' entre apostrophes": frame.replace("<path", "<a href='javascript:alert(1)'><path").replace("</svg>", "</a></svg>"),
+    "xlink:href='javascript:…'": frame.replace("<svg ", '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ').replace("</svg>", "<use xlink:href='javascript:alert(1)'/></svg>"),
+    "<style>": frame.replace("</svg>", "<style>path{fill:url(https://x.test/a)}</style></svg>"),
+    "<script>": frame.replace("</svg>", "<script>alert(1)</script></svg>"),
+    "gestionnaire onload": frame.replace("<svg ", '<svg onload="alert(1)" '),
+    "<foreignObject>": frame.replace("</svg>", "<foreignObject><div/></foreignObject></svg>"),
+    "<image> externe": frame.replace("</svg>", '<image href="https://x.test/a.png"/></svg>'),
+  };
+  for (const [label, svg] of Object.entries(hostile)) {
+    const out = await processSvg(B(svg));
+    assert.equal(typeof out, "string", `${label} : doit être refusé`);
+    assert.ok(out.startsWith("Ce SVG n'est pas accepté"), `${label} : ${out}`);
+    passed++;
+    console.log(`PASS  SVG de cadre refusé : ${label}`);
+  }
+
+  // SVG livrés (calques des thèmes) et du seed : ils passent tous la liste blanche, avant et après svgo.
+  const { readdirSync: ls } = await import("node:fs");
+  const path = await import("node:path");
+  const root = new URL("..", import.meta.url).pathname;
+  const files = [];
+  const walk = (d) => {
+    for (const e of ls(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith(".svg")) files.push(p);
+    }
+  };
+  walk(path.join(root, "seed"));
+  walk(path.join(root, "public/themes"));
+  assert.ok(files.length >= 20, `SVG du dépôt trouvés : ${files.length}`);
+  for (const f of files) {
+    const out = await processSvg(readFileSync(f));
+    assert.equal(typeof out, "object", `${path.relative(root, f)} : ${out}`);
+  }
+  passed++;
+  console.log(`PASS  les ${files.length} SVG du seed et des thèmes livrés s'importent toujours comme cadres`);
+}
+
+/* ---- 7. Sécurité : sharp dans la requête d'import (docs/SECURITE.md §2.6) ------------------------------------------ */
+
+{
+  // frames.ts importe « svgo/browser » (export ESM seul) : tsx le charge en CommonJS, on lui indique le fichier.
+  const { registerHooks } = await import("node:module");
+  const svgoBrowser = new URL("../node_modules/svgo/dist/svgo.browser.js", import.meta.url).href;
+  registerHooks({ resolve: (spec, ctx, next) => (spec === "svgo/browser" ? { url: svgoBrowser, format: "module", shortCircuit: true } : next(spec, ctx)) });
+  const { processSvg, processBitmap } = await import("../src/lib/edit/frames.ts");
+  const { default: sharp } = await import("sharp");
+  const src = readFileSync(new URL("../src/lib/edit/frames.ts", import.meta.url), "utf8");
+
+  test("rendu d'un SVG : taille fixe (≤ 1200 px, sans suréchantillonnage), borne de pixels et délai explicites", () => {
+    assert.ok(!/density:\s*96\s*\*\s*2/.test(src), "plus de density × 2");
+    assert.match(src, /density:\s*72\s*\*\s*scale,\s*limitInputPixels:\s*RASTER_MAX_PIXELS/);
+    assert.match(src, /const RASTER_SIDE = 1200;/);
+    assert.equal((src.match(/\.timeout\(\{ seconds: SHARP_TIMEOUT_S \}\)/g) ?? []).length, 3, "délai sur le rendu SVG, le décodage et les encodeurs");
+    assert.match(src, /decodeProblem\(\{ \.\.\.meta/);
+  });
+
+  // Bord déduit : identique à l'ancien rendu (vérifié sur 35 cadres de 37 à 4096 px) ; ici quelques cas exacts.
+  const ring = (w, h, t) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><path fill-rule="evenodd" fill="#123" d="M0 0H${w}V${h}H0Z M${t} ${t}V${h - t}H${w - t}V${t}Z"/></svg>`);
+  for (const [w, h, t] of [[300, 300, 30], [4096, 4096, 300], [2400, 1600, 120], [120, 80, 12]]) {
+    const r = await processSvg(ring(w, h, t));
+    assert.equal(typeof r, "object", String(r));
+    assert.ok(r.detected && r.slice.every((s) => Math.abs(s - t) <= 1), `${w}×${h} bord ${t} : ${JSON.stringify(r.slice)}`);
+    passed++;
+    console.log(`PASS  SVG ${w}×${h} : bord ${t} px retrouvé (${JSON.stringify(r.slice)})`);
+  }
+
+  // Bitmap au-delà de 40 Mpx : refusé sur l'en-tête, sans décodage (PNG tronqué : en-tête IHDR et quelques octets de données).
+  const { crc32, deflateSync } = await import("node:zlib");
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td) >>> 0);
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(10000, 0);
+  ihdr.writeUInt32BE(5000, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const huge = Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.alloc(64))), chunk("IEND", Buffer.alloc(0))]);
+  const big = await processBitmap(huge);
+  assert.ok(typeof big === "string" && /trop grande/.test(big), String(big));
+  passed++;
+  console.log("PASS  bitmap de 50 Mpx refusé sur l'en-tête (aucun décodage)");
+
+  // Budget de décodage : un WebP (décodé d'un bloc) au-delà du budget est refusé avant d'ouvrir.
+  const rgba = Buffer.alloc(4000 * 4000 * 4, 0);
+  const webp = await sharp(rgba, { raw: { width: 4000, height: 4000, channels: 4 } }).webp({ lossless: true }).toBuffer();
+  const before = process.env.IMAGE_DECODE_BUDGET_MB;
+  process.env.IMAGE_DECODE_BUDGET_MB = "50";
+  const refused = await processBitmap(webp);
+  if (before === undefined) delete process.env.IMAGE_DECODE_BUDGET_MB;
+  else process.env.IMAGE_DECODE_BUDGET_MB = before;
+  assert.ok(typeof refused === "string" && /trop lourde à ouvrir/.test(refused), String(refused));
+  passed++;
+  console.log("PASS  bitmap au-delà du budget de décodage refusé (decodeProblem)");
+
+  // Cadre PNG ordinaire : toujours accepté, bord trouvé.
+  const w = 400;
+  const px = Buffer.alloc(w * w * 4);
+  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) if (x < 40 || y < 40 || x >= w - 40 || y >= w - 40) px.set([200, 30, 30, 255], (y * w + x) * 4);
+  const okPng = await processBitmap(await sharp(px, { raw: { width: w, height: w, channels: 4 } }).png().toBuffer());
+  assert.ok(typeof okPng === "object" && okPng.detected && okPng.slice.every((s) => s === 40), JSON.stringify(okPng.slice ?? okPng));
+  passed++;
+  console.log("PASS  cadre PNG ordinaire accepté, bord de 40 px retrouvé");
+}
+
+
 console.log(`\n${passed} test(s) réussi(s)`);

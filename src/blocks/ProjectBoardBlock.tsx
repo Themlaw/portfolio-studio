@@ -14,6 +14,7 @@ import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { captionCss, projectCaptionStyles } from "./caption-style";
+import { stripProject } from "./strip-project";
 import { isProjectStrip, itemEmpty, MAX_BOARD_ITEMS, ownLayoutOf, ownTextOf, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
@@ -193,7 +194,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     return (
       <>
         {ptext && <style dangerouslySetInnerHTML={{ __html: ptext }} />}
-        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} captionStyles={capStyles} scope={pscope} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={stripProject(project, props.header !== false)} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} captionStyles={capStyles} scope={pscope} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );
