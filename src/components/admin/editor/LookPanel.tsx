@@ -151,6 +151,8 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
           <SpaceSlider label="Espace au-dessus" testId="lp-spaceTop" value={look.spaceTop} onChange={(v) => set({ spaceTop: v })} />
           <SpaceSlider label="Espace en dessous" testId="lp-spaceBottom" value={look.spaceBottom} onChange={(v) => set({ spaceBottom: v })} />
           <SidesSlider label="Espacement intérieur sur les côtés" testId="lp-spaceSides" value={look.spaceSides} onChange={(v) => set({ spaceSides: v })} />
+          {!inCell && <SpaceSlider label="Espacement intérieur en haut" testId="lp-padTop" value={look.padTop} onChange={(v) => set({ padTop: v })} />}
+          {!inCell && <SpaceSlider label="Espacement intérieur en bas" testId="lp-padBottom" value={look.padBottom} onChange={(v) => set({ padBottom: v })} />}
         </>
       )}
       {MEDIA_TYPES.has(type) && (

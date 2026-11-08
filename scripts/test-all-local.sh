@@ -7,19 +7,44 @@
 # Continue après un échec ; code de sortie 1 si une suite a échoué.
 #
 # Usage (depuis le dépôt) :
-#   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 backup118 apercu118 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109 barreaa114 scroll123 logo106 couleur110 medias112 entrees117 planche113 tags contenu111 couleurtitres115 kitpartie122 video116 portee119 portee124 contact125 perte336 langue126
+#   scripts/test-all-local.sh [options] [suite…]      # vide = toutes
+#   ids : checks build domaine88 pdf authA authF authV authK authT authM1 v013a v013b v013c lot1 lot8 lot11 stateA stateB palette look themes kit kit17a kithttp integ17 cartes17c papier28 texte19a palogo17f couleurs19b composants20 fondtexte21 fond32 fondplanche24 papiers35 papiers78 fondmarge43 fondcontenu47 entrees48 editor boards admin admin23 medias medias-firefox 17b crop17d crop17d-http crop17g collections22 blocs27 images25 couleurs26 chrome24 couleurps29 planche31 retour30 cadre34 grille31d grille37 fleches33 video36 icones121 espace129 titres128 video116 video127 interaction034b carrousel31f barres38 legendes39 legendes98 image40 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 publication51 publication101 backup50 vitesse54 kit53 partage52 priseenmain57 cadremotif58 cadres62 cadres74 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 tags mediaframe64 cadres79 cadre95a cadre95b grille69 public67 surface66 popover65a popover65w1440a popover65w1440b popover65w1440c popover65w1024a popover65w1024b popover65w1024c popover65w390a popover65w390b popover65w390c popover65b popover65c textes70 admin76 restes77 unif75 favicon83 introuvable89 site96 backup85 backup118 apercu118 langue87 pied86 logo84 logo106 opacite90 fond100a fond100b fond100c fond100d fond100e reglages105 medias112 couches107 couches107c couches107d couleur107 barreaa114 structures108a structures108b structures108c structures108p structures108q planche113 portee119 portee124 defilement99 defilement99-firefox parite99 journal97 contact125 perte336 integ33 raccord102 menu109 scroll123 couleur110 couleur110a couleur110b entrees117 contenu111 couleurtitres115 kitpartie122 langue126  (auth = authA authF authV authK authT authM1 ; voir PARTS_OF pour les autres suites découpées)
+# Options (lot 104) :
+#   --changed <base>    MODE CIBLÉ : ne lance que les suites liées aux fichiers modifiés depuis <base>
+#                       (git diff <base>, plus l'arbre de travail), plus le socle fixe checks, state,
+#                       editor, public67, integ33. Carte fichiers → suites : scripts/batt-map.json
+#                       (régénérée par `node scripts/batt-select.mjs --regen`). Environ 10 min.
+#                       !! La batterie COMPLÈTE (sans option) reste OBLIGATOIRE avant une release.
+#   --shards N --shard k   répartit les suites entre N machines (k de 1 à N) selon les durées
+#                       mesurées (scripts/batt-durations.tsv), plus longues d'abord ; chaque machine
+#                       lance son shard (voir scripts/batt-multi.sh et la matrice CI du lot 103).
+#   --capacity a,b,c    capacités relatives des shards (défaut : égales)
+#   --list              affiche les ids retenus (avec --changed / --shards) puis s'arrête
+#   --dry-run           affiche aussi l'ordre de départ et les poids, sans rien lancer
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
-#   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
+#   BATT_SERVER=start BATT_JOBS=12 scripts/test-all-local.sh
 # En fond détaché :
 #   ssh -f vm-dev 'cd ~/wt/lot1 && setsid nohup scripts/test-all-local.sh >/root/battery.out 2>&1 </dev/null'
 # Variables :
 #   BATT_SERVER  dev (défaut : `next dev` par suite, comme la CI) | start (un seul build, puis
 #                `node .next/standalone/server.js` par suite ; les suites de BATT_DEV_ONLY restent en dev)
-#   BATT_JOBS    nombre de suites e2e simultanées (défaut 1). > 1 exige BATT_SERVER=start : deux
-#                `next dev` ne peuvent pas partager le dossier .next. Ports PORT..PORT+N-1.
-#   BATT_DEV_ONLY suites forcées en dev en mode start (défaut : voir plus bas ; ne tournent jamais en parallèle)
-#   BATT_REUSE_BUILD=1  mode start : ne reconstruit pas si .next/standalone existe déjà
+#   BATT_DEV_JOBS  suites `next dev` (BATT_DEV_ONLY) simultanées (défaut 1). > 1 : chacune a son dossier (NEXT_DIST_DIR=.next/d-<suite>), plus de
+#                chaîne unique des suites dev ; compter ~1,5 Go de mémoire par serveur dev.
+#   BATT_JOBS    nombre de « créneaux » simultanés (défaut 1). > 1 exige BATT_SERVER=start : deux
+#                `next dev` ne peuvent pas partager le dossier .next, donc les suites dev passent une à
+#                une, en parallèle des autres. Les suites lourdes (poids 2 dans batt-durations.tsv) prennent 2 créneaux.
+#   Ports : chaque suite reçoit un BLOC de BATT_PORT_BLOCK (8) ports libres pris dans
+#                BATT_PORT_MIN..BATT_PORT_MAX (défaut PORT..PORT+8*(JOBS+2)-1) par scripts/lib/port-alloc.mjs
+#                (verrous dans BATT_PORT_DIR, partagés entre batteries). Bloc : +0 serveur, +1..+4 serveurs annexes
+#                (backup85, domaine88), +5 serveur OIDC factice de auth. Plus aucune collision : BATT_JOBS peut monter à 12-16.
+#   BATT_REUSE_BUILD=1  mode start : ne reconstruit pas si .next/standalone existe ET que l'empreinte des
+#                sources (.next/standalone/.batt-stamp) est identique ; sinon reconstruit (jamais de build périmé).
+#   Empreinte du build (CI, lot 103) : `LOCK= BATT_SERVER=start bash scripts/test-all-local.sh build` construit le standalone, lance
+#                check-standalone ET écrit .next/standalone/.batt-stamp. À faire dans le job `build` de la CI, puis archiver
+#                .next/standalone EN GARDANT LES FICHIERS CACHÉS (.batt-stamp) : chaque shard lance ensuite
+#                `BATT_REUSE_BUILD=1 ... test-all-local.sh <suites>` et ne reconstruit pas (empreinte identique), sinon il reconstruit.
+#   BATT_UNIT_JOBS  étapes de `npm test` simultanées dans la suite checks (défaut min(8, cœurs))
+#   BATT_SLEEP_PROBE=1  mesure, par suite, le temps passé dans les attentes fixes (`sleep`) : $BATTERY_DIR/<suite>.sleep
 #   PORT (3121), LOCK (/root/heavy.lock ; vide = aucun verrou), LOCK_WAIT (secondes, 3600), BATTERY_DIR,
 #   BATT_PREFIX (/root/pf-batt : dossiers de travail des suites e2e, à distinguer entre batteries en parallèle).
 set -uo pipefail
@@ -32,11 +57,36 @@ LOCK=${LOCK-/root/heavy.lock}
 LOCK_WAIT=${LOCK_WAIT:-3600}
 BATT_SERVER=${BATT_SERVER:-dev}
 BATT_JOBS=${BATT_JOBS:-1}
+BATT_PORT_BLOCK=${BATT_PORT_BLOCK:-8}
 export BATTERY_DIR=${BATTERY_DIR:-/root/battery-logs/$(date +%Y-%m-%d_%H%M)}
+DURATIONS=${BATT_DURATIONS:-scripts/batt-durations.tsv}
 # Suites qui exigent `next dev` (voir docs/ARCHITECTURE.md, « Mode start »). Elles passent par /api/theme-preview, fermée (404) en production.
-BATT_DEV_ONLY=${BATT_DEV_ONLY-v013 lot11 themes papier28 planche31 retours68}
-# Suites lourdes : toujours seules (RAM, ffmpeg, navigateurs multiples).
-HEAVY_IDS=" checks build auth medias medias-firefox "
+BATT_DEV_ONLY=${BATT_DEV_ONLY-v013a v013b v013c lot11 themes papier28 planche31 retours68}
+# Serveurs `next dev` simultanés (défaut 1 : un seul dossier .next). Plus de 1 : chaque suite dev reçoit son dossier (NEXT_DIST_DIR=.next/d-<suite>).
+BATT_DEV_JOBS=${BATT_DEV_JOBS:-1}
+case "$BATT_DEV_JOBS" in '' | *[!0-9]* | 0) echo "BATT_DEV_JOBS doit être un entier >= 1" >&2; exit 2 ;; esac
+
+ORIG_ARGS=("$@")
+# Options (avant les ids de suites).
+WANT=()
+CHANGED_BASE=""
+SHARDS=""
+SHARD=""
+CAPACITY=""
+LIST_ONLY=0
+DRY_RUN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --changed) CHANGED_BASE=${2:?--changed exige une base git}; shift 2 ;;
+    --shards) SHARDS=${2:?}; shift 2 ;;
+    --shard) SHARD=${2:?}; shift 2 ;;
+    --capacity) CAPACITY=${2:?}; shift 2 ;;
+    --list) LIST_ONLY=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --*) echo "option inconnue : $1" >&2; exit 2 ;;
+    *) WANT+=("$1"); shift ;;
+  esac
+done
 
 case "$BATT_SERVER" in dev | start) ;; *) echo "BATT_SERVER doit valoir dev ou start" >&2; exit 2 ;; esac
 case "$BATT_JOBS" in '' | *[!0-9]* | 0) echo "BATT_JOBS doit être un entier >= 1" >&2; exit 2 ;; esac
@@ -44,25 +94,58 @@ if [ "$BATT_SERVER" = dev ] && [ "$BATT_JOBS" -gt 1 ]; then
   echo "BATT_JOBS > 1 exige BATT_SERVER=start (un seul next dev par dossier .next)" >&2
   exit 2
 fi
+if { [ -n "$SHARDS" ] || [ -n "$SHARD" ]; } && { [ -z "$SHARDS" ] || [ -z "$SHARD" ]; }; then
+  echo "--shards N et --shard k vont ensemble" >&2
+  exit 2
+fi
+
+# Jeu de test PSD synthétique (non commité) : généré une fois, avant la sélection (--shards/--list) et avant toute suite (lot 103 x 104).
+node --import tsx scripts/make-fixture-psd.mts --if-missing || { echo "génération du PSD de test impossible" >&2; exit 2; }
+
+# Sélection (mode ciblé, shards) : calculée par scripts/batt-select.mjs, qui lit ce script (tableau E2E) et les durées.
+if [ -n "$CHANGED_BASE" ] || [ -n "$SHARDS" ]; then
+  SEL_ARGS=(--script "$0" --durations "$DURATIONS")
+  [ -n "$CHANGED_BASE" ] && SEL_ARGS+=(--changed "$CHANGED_BASE")
+  [ -n "$SHARDS" ] && SEL_ARGS+=(--shards "$SHARDS" --shard "$SHARD")
+  [ -n "$CAPACITY" ] && SEL_ARGS+=(--capacity "$CAPACITY")
+  if [ ${#WANT[@]} -gt 0 ]; then SEL_ARGS+=(--ids "${WANT[*]}"); fi
+  SEL=$(node scripts/batt-select.mjs "${SEL_ARGS[@]}") || { echo "sélection impossible" >&2; exit 2; }
+  # shellcheck disable=SC2206
+  WANT=($SEL)
+  echo "=== sélection : ${#WANT[@]} suite(s) : ${WANT[*]}"
+fi
+if [ "$LIST_ONLY" = 1 ]; then
+  if [ ${#WANT[@]} -eq 0 ]; then node scripts/batt-select.mjs --script "$0" --durations "$DURATIONS" --all; else echo "${WANT[*]}"; fi
+  exit 0
+fi
 
 # Verrou unique pour toute la batterie (relance du script sous flock).
-if [ -n "$LOCK" ] && [ -z "${BATT_LOCKED:-}" ]; then
-  exec flock -w "$LOCK_WAIT" "$LOCK" env BATT_LOCKED=1 bash "$0" "$@"
+if [ -n "$LOCK" ] && [ -z "${BATT_LOCKED:-}" ] && [ "$DRY_RUN" = 0 ]; then
+  exec flock -w "$LOCK_WAIT" "$LOCK" env BATT_LOCKED=1 bash "$0" "${ORIG_ARGS[@]}"
 fi
 
 export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=1024}
 export NEXT_TELEMETRY_DISABLED=1
-mkdir -p "$BATTERY_DIR/.res"
-rm -f "$BATTERY_DIR/.res/"*
+export BATT_PORT_DIR=${BATT_PORT_DIR:-${TMPDIR:-/tmp}/batt-ports}
+export BATT_PORT_BLOCK
+export BATT_PORT_MIN=${BATT_PORT_MIN:-$PORT}
+export BATT_PORT_MAX=${BATT_PORT_MAX:-$((PORT + BATT_PORT_BLOCK * (BATT_JOBS + 2) - 1))}
+if [ "$DRY_RUN" = 0 ]; then
+  mkdir -p "$BATTERY_DIR/.res"
+  rm -f "$BATTERY_DIR/.res/"*
+fi
 
 # id|commande|navigateur|ONLY|variables d'environnement du serveur et de la suite (même liste que le job « plan » du workflow)
 # 17b : allocateur glibc réglé comme le conteneur (Dockerfile) : la mémoire anonyme mesurée est celle de la prod.
 E2E=(
-  "v013|node scripts/e2e-v013.mjs|chromium|"
+  "v013a|node scripts/e2e-v013.mjs|chromium|A,B,C,D,E,F,G,H,I"
+  "v013b|node scripts/e2e-v013.mjs|chromium|K,L,M,N,P|PREP_QUIET=1"
+  "v013c|node scripts/e2e-v013.mjs|chromium|Q,R|PREP_QUIET=1"
   "lot1|node scripts/e2e-lot1.mjs|chromium|"
   "lot8|node scripts/e2e-lot8.mjs|chromium|"
   "lot11|node scripts/e2e-lot11.mjs|chromium|"
-  "state|node scripts/e2e-state.mjs|chromium|"
+  "stateA|node scripts/e2e-state.mjs|chromium|A,B,C"
+  "stateB|node scripts/e2e-state.mjs|chromium|D,E,F"
   "palette|node scripts/e2e-palette.mjs|chromium|"
   "look|node scripts/e2e-look.mjs|chromium|"
   "themes|node scripts/e2e-themes.mjs|chromium|"
@@ -108,6 +191,8 @@ E2E=(
   "fleches33|node scripts/e2e-fleches33.mjs|chromium|"
   "video36|node scripts/e2e-video36.mjs|chromium|"
   "video116|node scripts/e2e-video116.mjs|chromium|"
+  "video127|node scripts/e2e-video127.mjs|chromium|"
+  "interaction034b|node scripts/e2e-interaction034b.mjs|chromium|"
   "carrousel31f|node scripts/e2e-carrousel31f.mjs|chromium|"
   "barres38|node scripts/e2e-barres38.mjs|chromium|"
   "legendes39|node scripts/e2e-legendes39.mjs|chromium|"
@@ -137,11 +222,23 @@ E2E=(
   "tags|node scripts/e2e-tags.mjs|chromium|"
   "mediaframe64|node scripts/e2e-mediaframe64.mjs|chromium|"
   "cadres79|node scripts/e2e-cadres79.mjs|chromium|"
-  "cadre95|node scripts/e2e-cadre95.mjs|chromium|"
+  "cadre95a|node scripts/e2e-cadre95.mjs|chromium||THEMES=galerie-lumineuse,carnet-d-atelier"
+  "cadre95b|node scripts/e2e-cadre95.mjs|chromium||THEMES=papier-coeurs,studio-kit-cadre PREP_QUIET=1"
   "grille69|node scripts/e2e-grille69.mjs|chromium|"
   "public67|node scripts/e2e-public67.mjs|chromium|"
   "surface66|node scripts/e2e-surface66.mjs|chromium|"
-  "popover65|node scripts/e2e-popover65.mjs|chromium|"
+  "popover65a|node scripts/e2e-popover65.mjs|chromium|B,K,R"
+  "popover65w1440a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w1440b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w1440c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65w1024a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w1024b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w1024c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65w390a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w390b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w390c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65b|node scripts/e2e-popover65.mjs|chromium|O|PREP_QUIET=1"
+  "popover65c|node scripts/e2e-popover65.mjs|chromium|D|PREP_QUIET=1"
   "textes70|node scripts/e2e-textes70.mjs|chromium|"
   "admin76|node scripts/e2e-admin76.mjs|chromium||WITH_BACKUP=1 BACKUP_QUIET_SEC=4 BACKUP_KEEP=3 BACKUP_MAX_HOURS=6"
   "restes77|node scripts/e2e-restes77.mjs|chromium|"
@@ -157,7 +254,11 @@ E2E=(
   "logo84|node scripts/e2e-logo84.mjs|chromium|"
   "logo106|node scripts/e2e-logo106.mjs|chromium|"
   "opacite90|node scripts/e2e-opacite90.mjs|chromium|"
-  "fond100|node scripts/e2e-fond100.mjs|chromium|"
+  "fond100a|node scripts/e2e-fond100.mjs|chromium|M,E,U,C,I,Y|THEMES_ONLY=carnet"
+  "fond100b|node scripts/e2e-fond100.mjs|chromium|M,E,U|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100c|node scripts/e2e-fond100.mjs|chromium|C|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100d|node scripts/e2e-fond100.mjs|chromium|I,Y,Cth,P|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100e|node scripts/e2e-fond100.mjs|chromium|M,E,U,C,I,Y|THEMES_ONLY=papier PREP_QUIET=1"
   "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
   "medias112|node scripts/e2e-medias112.mjs|chromium|"
   "couches107|node scripts/e2e-couches107.mjs|chromium|"
@@ -178,6 +279,7 @@ E2E=(
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
   "journal97|node scripts/e2e-journal97.mjs|chromium|"
   "contact125|node scripts/e2e-contact125.mjs|chromium|"
+  "espace129|node scripts/e2e-espace129.mjs|chromium|"
   "perte336|node scripts/e2e-perte336.mjs|chromium|"
   "integ33|node scripts/e2e-integ33.mjs|chromium|"
   "raccord102|node scripts/e2e-raccord102.mjs|chromium|"
@@ -190,55 +292,88 @@ E2E=(
   "contenu111|node scripts/e2e-contenu111.mjs|chromium|"
   "couleurtitres115|node scripts/e2e-couleurtitres115.mjs|chromium|"
   "kitpartie122|node scripts/e2e-kitpartie122.mjs|chromium|"
+  "icones121|node scripts/e2e-icones121.mjs|chromium|"
   "langue126|node scripts/e2e-langue126.mjs|chromium|"
+  "titres128|node scripts/e2e-titres128.mjs|chromium|"
 )
 
+# Parties de test-auth.mjs (lot 104b) : id|sections (AUTH_ONLY). Chaque partie a son dossier de données, son bloc de ports et ses serveurs.
+# Somme des PASS des parties = PASS de la suite entière (voir le rapport du lot 104b).
+AUTHS=(
+  "authA|A"
+  "authF|F,G,H"
+  "authV|V"
+  "authK|TK"
+  "authT|TAG,TM,TH,PDF,VM2"
+  "authM1|VM1"
+)
+# Suites découpées en parties (lot 104b) : suite d'origine: parties. Citer la suite d'origine (`test-all-local.sh auth`, règles de
+# batt-map.json) sélectionne toutes ses parties ; les ids des parties restent utilisables seuls.
+PARTS_OF=(
+  "auth: authA authF authV authK authT authM1"
+  "v013: v013a v013b v013c"
+  "state: stateA stateB"
+  "fond100: fond100a fond100b fond100c fond100d fond100e"
+  "cadre95: cadre95a cadre95b"
+  "popover65: popover65a popover65b popover65c popover65w1440a popover65w1440b popover65w1440c popover65w1024a popover65w1024b popover65w1024c popover65w390a popover65w390b popover65w390c"
+)
+group_of() { # suite d'origine d'une partie (vide si l'id n'est pas une partie)
+  local l
+  for l in "${PARTS_OF[@]}"; do
+    case " ${l#*: } " in *" $1 "*) echo "${l%%:*}"; return ;; esac
+  done
+}
+auth_only_of() { # sections de test-auth.mjs d'une partie authX (vide sinon)
+  local l
+  for l in "${AUTHS[@]}"; do [ "${l%%|*}" = "$1" ] && echo "${l#*|}" && return; done
+}
 
-WANT=("$@")
 want() {
   [ ${#WANT[@]} -eq 0 ] && return 0
-  local s
-  for s in "${WANT[@]}"; do [ "$s" = "$1" ] && return 0; done
+  local s g
+  g=$(group_of "$1")
+  for s in "${WANT[@]}"; do
+    [ "$s" = "$1" ] && return 0
+    [ -n "$g" ] && [ "$s" = "$g" ] && return 0
+  done
   return 1
 }
 in_list() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
-ALL_IDS=(checks build auth domaine88 pdf)
+ALL_IDS=(checks build domaine88 pdf)
+for l in "${AUTHS[@]}"; do ALL_IDS+=("${l%%|*}"); done
 for e in "${E2E[@]}"; do ALL_IDS+=("${e%%|*}"); done
 T0=$(date +%s)
 
-cooldown() {
-  sync
-  echo 3 >/proc/sys/vm/drop_caches 2>/dev/null || true
+# Durée mesurée (s) et poids (créneaux) d'une suite : scripts/batt-durations.tsv (id, secondes, poids). Défaut 120 s, poids 1.
+dur_of() { awk -F'\t' -v id="$1" '$1==id {print $2; f=1; exit} END{if(!f) print 120}' "$DURATIONS" 2>/dev/null || echo 120; }
+weight_of() {
+  local w
+  w=$(awk -F'\t' -v id="$1" '$1==id {print $3; f=1; exit} END{if(!f) print 1}' "$DURATIONS" 2>/dev/null || echo 1)
+  # Un poids supérieur au nombre de créneaux ne ferait jamais démarrer la suite.
+  [ "$w" -gt "$BATT_JOBS" ] && w=$BATT_JOBS
+  echo "$w"
 }
 
-# Libère un port avant une suite (reste d'un serveur d'une exécution interrompue).
-free_port() {
-  local pids
-  pids=$(ss -ltnp "sport = :$1" 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u)
-  if [ -n "$pids" ]; then
-    echo "port $1 occupé, arrêt de : $pids"
-    # shellcheck disable=SC2086
-    kill $pids 2>/dev/null
-    sleep 2
-  fi
-  return 0
-}
+# Bloc de ports libres pour un job (verrou partagé entre batteries ; ne tue jamais un tiers). Affiche le premier port.
+alloc_ports() { node scripts/lib/port-alloc.mjs alloc --min "$BATT_PORT_MIN" --max "$BATT_PORT_MAX" --size "$BATT_PORT_BLOCK" --dir "$BATT_PORT_DIR" --owner "$1" --wait 900; }
+free_ports() { node scripts/lib/port-alloc.mjs release "$1" --size "$BATT_PORT_BLOCK" --dir "$BATT_PORT_DIR"; }
 
 # record <id> <statut> <début> : compte les lignes PASS/FAIL du journal, mémorise le résultat
 # (un fichier par suite : sûr quand plusieurs suites tournent en parallèle).
 record() {
-  local id=$1 st=$2 t=$3 log="$BATTERY_DIR/$1.log" pass=0 fail=0 v=PASS
+  local id=$1 st=$2 t=$3 log="$BATTERY_DIR/$1.log" pass=0 fail=0 v=PASS sl=0
   if [ -f "$log" ]; then
     pass=$(grep -cE '^PASS\b' "$log" || true)
     fail=$(grep -cE '^FAIL\b' "$log" || true)
   fi
+  [ -f "$BATTERY_DIR/$id.sleep" ] && sl=$(cat "$BATTERY_DIR/$id.sleep")
   [ "$st" != 0 ] && v=FAIL
-  printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$v" "$pass" "$fail" "$(($(date +%s) - t))" >"$BATTERY_DIR/.res/$id"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$v" "$pass" "$fail" "$(($(date +%s) - t))" "$sl" >"$BATTERY_DIR/.res/$id"
   echo "=== $id : $v ($pass PASS, $fail FAIL, $(($(date +%s) - t)) s)"
 }
 
-# run_suite <id> <commande> : journal dédié, cooldown ensuite (séquentiel seulement).
+# run_suite <id> <commande> : journal dédié.
 run_suite() {
   local id=$1 cmd=$2 t st
   want "$id" || return 0
@@ -249,76 +384,72 @@ run_suite() {
   record "$id" "$st" "$t"
 }
 
-# --- checks : tsc, lint, tokens, contraste, thèmes, tests unitaires (npm test) ---
-read -r -d '' CHECKS_CMD <<'EOS'
-rc=0
-for step in "npx tsc --noEmit" "npm run lint" "npm run check:tokens" "npm run check:contrast" "npm run theme:check" "npm test" "node --import tsx scripts/test-highlight-layout.mjs"; do
-  echo "##### $step"
-  $step || { echo "FAIL checks : $step"; rc=1; }
-done
-exit $rc
-EOS
-run_suite checks "$CHECKS_CMD"
-cooldown
+# --- empreinte des sources du build : un standalone n'est réutilisé que s'il vient exactement de ces sources ---
+src_stamp() {
+  {
+    git ls-files -co --exclude-standard -z 2>/dev/null |
+      grep -zvE '^(scripts/(e2e-|test-|shot|look-|parity|admin-shots|editor-shots|medias-shots|planche-shots|rail|scrollcheck|seed-perso|shots-|mem/|batt-)|tests/|docs/|\.github/|screenshots/|README)' |
+      xargs -0 sha1sum 2>/dev/null
+    node -v
+  } | sha1sum | cut -d' ' -f1
+}
 
-# --- build de production (standalone) : test:auth, et e2e en mode start (aucun serveur dev lancé) ---
+# --- build de production (standalone) : un seul pour toute la batterie ---
 SA="$PWD/.next/standalone"
 need_e2e=0
 for e in "${E2E[@]}"; do want "${e%%|*}" && need_e2e=1; done
 NEED_BUILD=0
 want build && NEED_BUILD=1
-want auth && NEED_BUILD=1
+for l in "${AUTHS[@]}"; do want "${l%%|*}" && NEED_BUILD=1; done
 want domaine88 && NEED_BUILD=1
 [ "$BATT_SERVER" = start ] && [ $need_e2e = 1 ] && NEED_BUILD=1
 BUILD_OK=0
-if [ $NEED_BUILD = 1 ]; then
+BUILD_PID=""
+BUILD_PENDING=0
+
+do_build() { # exécuté en sous-shell (ou direct) ; code 0 = standalone prêt
+  local t st stamp
+  stamp=$(src_stamp)
   if [ "$BATT_SERVER" = start ] && [ "${BATT_REUSE_BUILD:-}" = 1 ] && [ -f "$SA/server.js" ] && ! want build; then
-    echo "=== build : standalone existant réutilisé (BATT_REUSE_BUILD=1)"
-    BUILD_OK=1
-  else
-    t=$(date +%s)
-    free_port "$PORT"
-    echo "=== build : début $(date +%T)"
-    bash -c 'npm run build:local && node scripts/check-standalone.mjs --require' >"$BATTERY_DIR/build.log" 2>&1
-    st=$?
-    [ $st = 0 ] && BUILD_OK=1
-    want build && record build "$st" "$t"
-    [ $st != 0 ] && ! want build && echo "=== build : ECHEC (voir $BATTERY_DIR/build.log)"
-    cooldown
+    if [ "$(cat "$SA/.batt-stamp" 2>/dev/null)" = "$stamp" ]; then
+      echo "=== build : standalone existant réutilisé (BATT_REUSE_BUILD=1, empreinte $stamp identique)"
+      return 0
+    fi
+    echo "=== build : BATT_REUSE_BUILD=1 mais l'empreinte des sources diffère (ou absente) : reconstruction"
   fi
-fi
+  t=$(date +%s)
+  echo "=== build : début $(date +%T)"
+  rm -f "$SA/.batt-stamp"
+  bash -c 'npm run build:local && node scripts/check-standalone.mjs --require' >"$BATTERY_DIR/build.log" 2>&1
+  st=$?
+  if [ $st = 0 ]; then echo "$stamp" >"$SA/.batt-stamp"; fi
+  want build && record build "$st" "$t"
+  [ $st != 0 ] && ! want build && echo "=== build : ECHEC (voir $BATTERY_DIR/build.log)"
+  return $st
+}
+
 # Ressources que l'image Docker copie à côté de server.js (partagées par les serveurs en lecture seule).
-if [ $BUILD_OK = 1 ]; then
+prepare_standalone() {
+  local d
   for d in drizzle seed public; do rm -rf "${SA:?}/$d"; cp -a "$d" "$SA/$d"; done
   rm -rf "$SA/.next/static"
   cp -a .next/static "$SA/.next/static"
-fi
-if want auth; then
-  if [ $BUILD_OK = 1 ]; then
-    free_port "${BATT_AUTH_PORT:-3200}"
-    free_port "$((${BATT_AUTH_PORT:-3200} + 90))"
-    run_suite auth "mkdir -p ${BATT_PREFIX:-/root/pf-batt}-auth && TEST_AUTH_TMP=${BATT_PREFIX:-/root/pf-batt}-auth npm run test:auth"
-  else
-    echo "FAIL auth : build absent ou en échec" >"$BATTERY_DIR/auth.log"
-    record auth 1 "$(date +%s)"
-  fi
-  cooldown
-fi
+}
 
-# domaine88 (lot 88) : comme auth, ses propres serveurs standalone (ports 3940 à 3944, ou BATT_DOMAINE_PORT à +4), hôtes simulés par les en-têtes.
-if want domaine88; then
-  if [ $BUILD_OK = 1 ]; then
-    DOM_P=${BATT_DOMAINE_PORT:-3940}
-    for p in $DOM_P $((DOM_P + 1)) $((DOM_P + 2)) $((DOM_P + 3)) $((DOM_P + 4)); do free_port "$p"; done
-    run_suite domaine88 "DOMAINE88_PORT=$DOM_P DOMAINE88_TMP=${BATT_PREFIX:-/root/pf-batt}-domaine88 node scripts/e2e-domaine88.mjs"
-  else
-    echo "FAIL domaine88 : build absent ou en échec" >"$BATTERY_DIR/domaine88.log"
-    record domaine88 1 "$(date +%s)"
-  fi
-  cooldown
-fi
+# --- checks : tsc, lint, tokens, contraste, thèmes, tests unitaires (npm test, en parallèle), le tout en UNE suite ---
+# check-standalone (dans npm test) est sauté quand cette batterie reconstruit : l'étape build l'exécute avec --require.
+CHECKS_SKIP=""
+[ $NEED_BUILD = 1 ] && ! { [ "${BATT_REUSE_BUILD:-}" = 1 ] && [ -f "$SA/server.js" ]; } && CHECKS_SKIP="--skip check-standalone"
+read -r -d '' CHECKS_CMD <<EOS
+rc=0
+for step in "npx tsc --noEmit" "npm run lint" "npm run check:tokens" "npm run check:contrast" "npm run theme:check" "npm run test:fast -- $CHECKS_SKIP" "node --import tsx scripts/test-highlight-layout.mjs"; do
+  echo "##### \$step"
+  \$step || { echo "FAIL checks : \$step"; rc=1; }
+done
+exit \$rc
+EOS
 
-# --- e2e : serveur et base neufs par suite (RUNNER_TEMP dédié) ---
+# --- tâches : une par suite, chacune dans son sous-shell, avec son bloc de ports ---
 # run_e2e <entrée> <port> : mode start sauf suite de BATT_DEV_ONLY ou build absent (alors échec explicite).
 run_e2e() {
   local id cmd browser only extra port=$2 mode t st rt
@@ -326,6 +457,9 @@ run_e2e() {
   mode=$BATT_SERVER
   in_list "$BATT_DEV_ONLY" "$id" && mode=dev
   rt="${BATT_PREFIX:-/root/pf-batt}-$id"
+  # Plusieurs serveurs `next dev` en parallèle (BATT_DEV_JOBS > 1) : un dossier de build par suite (next.config.ts lit NEXT_DIST_DIR).
+  local distenv=""
+  if [ "$mode" = dev ] && [ "$BATT_DEV_JOBS" -gt 1 ]; then distenv="NEXT_DIST_DIR=.next/d-$id"; rm -rf ".next/d-$id"; fi
   rm -rf "$rt"
   mkdir -p "$rt/tmp"
   t=$(date +%s)
@@ -335,82 +469,171 @@ run_e2e() {
     record "$id" 1 "$t"
     return 0
   fi
-  free_port "$port"
+  if [ "${BATT_SLEEP_PROBE:-}" = 1 ]; then cmd=${cmd/#node /node --import $PWD/scripts/lib/sleep-probe.mjs }; fi
+  # BATT_TIMES=1 : horodatage des lignes PASS/FAIL dans $BATTERY_DIR/<suite>.times (durée par section, voir scripts/lib/line-times.mjs).
+  if [ "${BATT_TIMES:-}" = 1 ]; then cmd=${cmd/#node /env BATT_TIMES_FILE=$BATTERY_DIR/$id.times node --import $PWD/scripts/lib/line-times.mjs }; fi
   # extra : variables propres à la suite (ex. MALLOC_* de 17b, CROP_* de crop17g), transmises au serveur et à la suite.
   # shellcheck disable=SC2086
-  env ${extra:-} TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
-    BATT_SERVER="$mode" bash -c "bash .github/scripts/e2e.sh $id $cmd" >"$BATTERY_DIR/$id.log" 2>&1
+  # Priorité : les suites `next dev` (compilation à la demande, délais de navigation de 30 s) passent avant les suites en
+  # production quand la machine est chargée (BATT_NICE, 8 par défaut ; 0 = désactivé) : elles dépassaient leurs délais.
+  local nicecmd=""
+  [ "$BATT_JOBS" -gt 1 ] && [ "$mode" = start ] && [ "${BATT_NICE:-8}" != 0 ] && nicecmd="nice -n ${BATT_NICE:-8}"
+  # shellcheck disable=SC2086
+  $nicecmd env ${extra:-} $distenv TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
+    BATT_SLEEP_FILE="$BATTERY_DIR/$id.sleep" BATT_SERVER="$mode" bash -c "bash .github/scripts/e2e.sh $id $cmd" >"$BATTERY_DIR/$id.log" 2>&1
   st=$?
   record "$id" "$st" "$t"
   [ -f "$rt/logs/$id-server.log" ] && cp "$rt/logs/$id-server.log" "$BATTERY_DIR/$id-server.log"
   rm -rf "$rt/data-$id"
+  # Un worker de dev peut encore écrire une seconde après l'arrêt du serveur : on retente la suppression (best effort).
+  if [ -n "$distenv" ]; then for _ in 1 2 3 4 5; do rm -rf ".next/d-$id" 2>/dev/null && break; sleep 1; done; fi
 }
 
-# Répartition : pool (légères, en parallèle si BATT_JOBS > 1) puis suites seules (lourdes ou dev).
-POOL=()
-ALONE=()
-want pdf && POOL+=("PDF")
-for entry in "${E2E[@]}"; do
-  id=${entry%%|*}
-  want "$id" || continue
-  if [ "$BATT_JOBS" -gt 1 ] && ! in_list "$HEAVY_IDS" "$id" && ! { [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; }; then
-    POOL+=("$entry")
-  else
-    ALONE+=("$entry")
-  fi
+# run_task <id> : tâche complète d'une suite (ports, exécution, libération). Exécutée en sous-shell.
+run_task() {
+  local id=$1 port="" entry e me
+  case "$id" in
+    checks | pdf) ;;
+    # Le propriétaire du verrou est CE sous-shell (BASHPID évalué ici, pas dans la substitution de commande, dont le pid meurt aussitôt).
+    *) me=$BASHPID; port=$(alloc_ports "$me") || { echo "FAIL $id : aucun bloc de ports libre" >"$BATTERY_DIR/$id.log"; record "$id" 1 "$(date +%s)"; return 0; } ;;
+  esac
+  # shellcheck disable=SC2064
+  [ -n "$port" ] && trap "free_ports $port" EXIT
+  case "$id" in
+    checks) run_suite checks "$CHECKS_CMD" ;;
+    pdf) run_suite pdf "node --import tsx scripts/test-pdf.mjs" ;;
+    auth*)
+      # lot 104b : une partie de test-auth.mjs (AUTH_ONLY = ses sections), dossier de données propre à la partie.
+      if [ $BUILD_OK = 1 ]; then
+        local ad="${BATT_PREFIX:-/root/pf-batt}-$id"
+        run_suite "$id" "mkdir -p $ad && AUTH_ONLY=$(auth_only_of "$id") TEST_AUTH_TMP=$ad BATT_AUTH_PORT=$port BATT_AUTH_MOCK_PORT=$((port + 5)) $([ "${BATT_TIMES:-}" = 1 ] && echo "BATT_TIMES_FILE=$BATTERY_DIR/$id.times node --import $PWD/scripts/lib/line-times.mjs scripts/test-auth.mjs" || echo "npm run test:auth")"
+      else
+        echo "FAIL $id : build absent ou en échec" >"$BATTERY_DIR/$id.log"
+        record "$id" 1 "$(date +%s)"
+      fi
+      ;;
+    domaine88)
+      # lot 88 : ses propres serveurs standalone (port, +1…+4), hôtes simulés par les en-têtes.
+      if [ $BUILD_OK = 1 ]; then
+        run_suite domaine88 "DOMAINE88_PORT=$port DOMAINE88_TMP=${BATT_PREFIX:-/root/pf-batt}-domaine88 node scripts/e2e-domaine88.mjs"
+      else
+        echo "FAIL domaine88 : build absent ou en échec" >"$BATTERY_DIR/domaine88.log"
+        record domaine88 1 "$(date +%s)"
+      fi
+      ;;
+    *)
+      for e in "${E2E[@]}"; do [ "${e%%|*}" = "$id" ] && entry=$e; done
+      run_e2e "$entry" "$port"
+      ;;
+  esac
+}
+
+# Suites à lancer, dans l'ordre de départ : les plus longues d'abord (durées mesurées), sauf BATT_JOBS=1 (ordre historique).
+TASKS=()
+for id in "${ALL_IDS[@]}"; do
+  [ "$id" = build ] && continue
+  want "$id" && TASKS+=("$id")
 done
-# JOBS=1 : ordre historique de la liste (pdf d'abord).
-if [ "$BATT_JOBS" -le 1 ]; then
-  ALONE=("${POOL[@]}" "${ALONE[@]}")
-  POOL=()
+if [ "$BATT_JOBS" -gt 1 ] && [ ${#TASKS[@]} -gt 1 ]; then
+  mapfile -t TASKS < <(for id in "${TASKS[@]}"; do printf '%s\t%s\n' "$(dur_of "$id")" "$id"; done | sort -t$'\t' -k1,1nr -s | cut -f2)
+fi
+if [ "$DRY_RUN" = 1 ]; then
+  echo "=== ordre de départ (BATT_JOBS=$BATT_JOBS, serveur $BATT_SERVER, ports $BATT_PORT_MIN-$BATT_PORT_MAX par blocs de $BATT_PORT_BLOCK)"
+  for id in "${TASKS[@]}"; do printf '%-22s %6s s  poids %s%s\n' "$id" "$(dur_of "$id")" "$(weight_of "$id")" "$(in_list "$BATT_DEV_ONLY" "$id" && [ "$BATT_SERVER" = start ] && echo '  (next dev, $BATT_DEV_JOBS à la fois)')"; done
+  echo "build : $([ $NEED_BUILD = 1 ] && echo oui || echo non)"
+  exit 0
 fi
 
-run_one() { # <entrée ou PDF> <port>
-  if [ "$1" = PDF ]; then
-    run_suite pdf "node --import tsx scripts/test-pdf.mjs"
-  else
-    run_e2e "$1" "$2"
-  fi
+needs_build() { # attendre la fin du build ? (checks et pdf n'ont besoin ni du standalone ni de .next ; tout le reste attend)
+  case "$1" in checks | pdf) return 1 ;; esac
+  return 0
 }
 
-if [ ${#POOL[@]} -gt 0 ]; then
-  echo "=== pool : ${#POOL[@]} suites, $BATT_JOBS en parallèle (ports $PORT-$((PORT + BATT_JOBS - 1)))"
-  declare -a SLOT_PID=()
-  for ((k = 0; k < BATT_JOBS; k++)); do SLOT_PID[k]=""; done
-  for entry in "${POOL[@]}"; do
-    slot=-1
-    while [ $slot -lt 0 ]; do
-      for ((k = 0; k < BATT_JOBS; k++)); do
-        if [ -z "${SLOT_PID[k]}" ] || ! kill -0 "${SLOT_PID[k]}" 2>/dev/null; then
-          [ -n "${SLOT_PID[k]}" ] && wait "${SLOT_PID[k]}" 2>/dev/null
-          slot=$k
-          break
-        fi
-      done
-      [ $slot -lt 0 ] && { wait -n 2>/dev/null || true; }
-    done
-    run_one "$entry" $((PORT + slot)) &
-    SLOT_PID[slot]=$!
+# Build en arrière-plan : checks et pdf (sans serveur) tournent pendant ce temps.
+if [ $NEED_BUILD = 1 ]; then
+  if [ "$BATT_JOBS" -le 1 ]; then
+    # Un seul créneau (VM modeste) : build d'abord, rien en parallèle.
+    do_build && BUILD_OK=1
+    [ $BUILD_OK = 1 ] && prepare_standalone
+  else
+    BUILD_PENDING=1
+    (do_build) &
+    BUILD_PID=$!
+  fi
+fi
+
+declare -A RUN_PID=() RUN_W=()
+USED=0
+DEV_RUNNING=0
+reap() {
+  local id
+  for id in "${!RUN_PID[@]}"; do
+    if ! kill -0 "${RUN_PID[$id]}" 2>/dev/null; then
+      wait "${RUN_PID[$id]}" 2>/dev/null
+      USED=$((USED - ${RUN_W[$id]}))
+      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=$((DEV_RUNNING - 1)); fi
+      unset 'RUN_PID[$id]' 'RUN_W[$id]'
+    fi
   done
-  wait
-  cooldown
-fi
-for entry in "${ALONE[@]}"; do
-  run_one "$entry" "$PORT"
-  cooldown
+}
+build_done() {
+  [ $BUILD_PENDING = 1 ] || return 0
+  if kill -0 "$BUILD_PID" 2>/dev/null; then return 1; fi
+  wait "$BUILD_PID" 2>/dev/null && BUILD_OK=1
+  BUILD_PENDING=0
+  [ $BUILD_OK = 1 ] && prepare_standalone
+  return 0
+}
+[ $NEED_BUILD = 0 ] && BUILD_OK=0
+
+PENDING=("${TASKS[@]}")
+echo "=== ${#PENDING[@]} suites, $BATT_JOBS créneau(x), ports $BATT_PORT_MIN-$BATT_PORT_MAX (blocs de $BATT_PORT_BLOCK)"
+while [ ${#PENDING[@]} -gt 0 ]; do
+  reap
+  build_done
+  launched=0
+  REST=()
+  for id in "${PENDING[@]}"; do
+    w=$(weight_of "$id")
+    if [ $launched = 1 ] && [ "$BATT_JOBS" -le 1 ]; then REST+=("$id"); continue; fi
+    can=1
+    needs_build "$id" && [ $BUILD_PENDING = 1 ] && can=0
+    [ $USED -gt 0 ] && [ $((USED + w)) -gt "$BATT_JOBS" ] && can=0
+    if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id" && [ "$DEV_RUNNING" -ge "$BATT_DEV_JOBS" ]; then can=0; fi
+    if [ $can = 1 ]; then
+      (run_task "$id") &
+      RUN_PID[$id]=$!
+      RUN_W[$id]=$w
+      USED=$((USED + w))
+      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=$((DEV_RUNNING + 1)); fi
+      launched=1
+    else
+      REST+=("$id")
+    fi
+  done
+  PENDING=("${REST[@]}")
+  [ ${#PENDING[@]} -gt 0 ] && sleep 1
 done
+while [ ${#RUN_PID[@]} -gt 0 ]; do reap; sleep 1; done
+[ -n "$BUILD_PID" ] && wait "$BUILD_PID" 2>/dev/null
+sync
 
 # --- récapitulatif (ordre de la liste, quel que soit l'ordre d'exécution) ---
 echo
 echo "##### Récapitulatif ($BATTERY_DIR ; serveur $BATT_SERVER, ${BATT_JOBS} job(s))"
-printf '%-16s %-5s %6s %6s %8s\n' suite verdict PASS FAIL secondes
+printf '%-16s %-5s %6s %6s %8s %8s\n' suite verdict PASS FAIL secondes attente_s
 rc=0
+tp=0
+tf=0
 for id in "${ALL_IDS[@]}"; do
   [ -f "$BATTERY_DIR/.res/$id" ] || continue
-  IFS=$'\t' read -r id v p f s <"$BATTERY_DIR/.res/$id"
-  printf '%-16s %-5s %6s %6s %8s\n' "$id" "$v" "$p" "$f" "$s"
+  IFS=$'\t' read -r id v p f s sl <"$BATTERY_DIR/.res/$id"
+  printf '%-16s %-5s %6s %6s %8s %8s\n' "$id" "$v" "$p" "$f" "$s" "${sl:-0}"
+  tp=$((tp + p))
+  tf=$((tf + f))
   [ "$v" = PASS ] || rc=1
 done
+echo "total : $tp PASS, $tf FAIL"
 echo "durée totale : $(($(date +%s) - T0)) s"
 if [ $rc = 0 ]; then echo "BATTERIE : TOUT VERT"; else echo "BATTERIE : ECHECS"; fi
 exit $rc

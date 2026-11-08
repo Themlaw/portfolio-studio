@@ -91,7 +91,7 @@ for attempt in 1 2 3; do
   echo "::warning::serveur dev non prêt (essai $attempt) : redémarrage, cache .next/dev effacé"
   tail -n 15 "$LOGS/$ID-server.log"
   stop
-  rm -rf .next/dev
+  rm -rf "${NEXT_DIST_DIR:-.next}/dev"
   [ $attempt -lt 3 ] && start_dev
 done
 if [ $ready != 1 ]; then

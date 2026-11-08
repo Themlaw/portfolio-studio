@@ -39,7 +39,7 @@ const HERO_H = 1600;
 /** Zone du titre du hero, relative au plan (le décor y reste calme). */
 export const TITLE_ZONE = { x: 240, y: 420, w: 1260, h: 560 } as const;
 
-export type SlotKind = "plan" | "signature" | "tile" | "nine" | "stroke" | "icon" | "tape" | "swatch" | "cursor" | "appicon";
+export type SlotKind = "plan" | "signature" | "tile" | "nine" | "stroke" | "icon" | "tape" | "swatch" | "cursor" | "appicon" | "vicon" | "vbadge";
 export type Frame = { x: number; y: number; w: number; h: number };
 export type Layout = "v1" | "v2" | "multi";
 
@@ -57,6 +57,14 @@ export const KIT_ROLES: KitRole[] = ["decor", "logo", "icones"];
 /** Hauteur du fichier « logo » : trait (jusqu'à 4600) + la carte de l'icône du site (4640 → 5440) + marge. */
 const ICON_CARD = { y: 4640, h: 800 } as const;
 const ICON_DOC_HEIGHT = ICON_CARD.y + ICON_CARD.h + 40;
+/**
+ * Lot 121 : le fichier « icônes » gagne un groupe « 5 · Vidéo » sous le scotch (7 icônes des vidéos + le fond du badge) : document plus haut.
+ * Le fichier d'avant (3400 × 5770) reste importé (ses cases vidéo n'existent pas : `multiOnly`).
+ */
+export const LEGACY_ICONES_DOC = { width: 3400, height: 5770 } as const;
+export const isLegacyIconesDoc = (width: number, height: number) => width === LEGACY_ICONES_DOC.width && height === LEGACY_ICONES_DOC.height;
+const VIDEO_CARD = { y: 5770, h: 2000 } as const;
+const ICONES_DOC_HEIGHT = VIDEO_CARD.y + VIDEO_CARD.h + 40;
 export const KIT_V4_VERSION = 4;
 /** Décor en grand format : 2 × le plan d'usage (2880 × 1600), sous une bande de consignes. */
 export const DECOR_SCALE = 2;
@@ -68,14 +76,14 @@ export const KIT_FILES: Record<KitRole, { file: string; label: string; doc: { wi
   decor: { file: "1-decor-accueil.psd", label: "1 · Décor d'accueil", short: "Décor d'accueil", doc: { width: DECOR_CANVAS.width, height: DECOR_HEAD + DECOR_CANVAS.height } },
   // Lot 83 : + la carte « 4 · Icône du site » (document plus haut : 3000 × 5480).
   logo: { file: "2-logo-papier.psd", label: "2 · Logo et papier", short: "Logo et papier", doc: { width: 3000, height: ICON_DOC_HEIGHT } },
-  icones: { file: "3-icones-curseurs.psd", label: "3 · Icônes et curseurs", short: "Icônes et curseurs", doc: { width: 3400, height: 5770 } },
+  icones: { file: "3-icones-curseurs.psd", label: "3 · Icônes et curseurs", short: "Icônes et curseurs", doc: { width: 3400, height: ICONES_DOC_HEIGHT } },
 };
 /** Fichier « logo » d'avant le lot 83 (sans la carte de l'icône du site) : toujours importé. */
 export const LEGACY_LOGO_DOC = { width: 3000, height: 4640 } as const;
 export const isLegacyLogoDoc = (width: number, height: number) => width === LEGACY_LOGO_DOC.width && height === LEGACY_LOGO_DOC.height;
 /** Rôle d'un document d'après sa taille (repli quand l'identifiant de rôle a été supprimé). */
 export const roleOfSize = (width: number, height: number): KitRole | null =>
-  KIT_ROLES.find((r) => KIT_FILES[r].doc.width === width && KIT_FILES[r].doc.height === height) ?? (isLegacyLogoDoc(width, height) ? "logo" : null);
+  KIT_ROLES.find((r) => KIT_FILES[r].doc.width === width && KIT_FILES[r].doc.height === height) ?? (isLegacyLogoDoc(width, height) ? "logo" : isLegacyIconesDoc(width, height) ? "icones" : null);
 
 export interface SlotSpec {
   /** Identifiant stable (rapports, assets) : « hero/plan-1 », « icones/fermer »… */
@@ -121,7 +129,7 @@ export interface SlotSpec {
   multiOnly?: boolean;
 }
 
-export type ElementId = "paysage" | "signature" | "papier" | "cadre" | "trait" | "icones" | "scotch" | "palette" | "curseur" | "siteicon";
+export type ElementId = "paysage" | "signature" | "papier" | "cadre" | "trait" | "icones" | "scotch" | "palette" | "curseur" | "siteicon" | "video";
 
 export interface ElementSpec {
   id: ElementId;
@@ -231,6 +239,16 @@ export const ELEMENTS: ElementSpec[] = [
     where: "L'icône de l'onglet du navigateur, des favoris et de l'écran d'accueil d'un téléphone.",
     rules: ["512 × 512 px.", IGNORED_RULE, KEEP_RULE],
   },
+  {
+    // Lot 121 : kit v4 seulement (fichier « icônes »), jamais dessiné dans les kits à plan de travail.
+    id: "video",
+    group: "5 · Vidéo",
+    title: "5 · Vidéo — 7 icônes et le fond du badge",
+    aliases: ["video", "videos", "icones-video"],
+    board: { x: 0, y: 0, w: 1, h: 1 },
+    where: "Les petites icônes des vidéos : lecture, pause, boucle, son, plein écran, et le fond (option) du badge.",
+    rules: ["128 × 128 px chacune, fond transparent, une seule couleur : le site la teinte.", IGNORED_RULE, KEEP_RULE],
+  },
   /* ---- Palette et curseurs (lot 4) ---- */
   {
     id: "palette",
@@ -311,6 +329,27 @@ const icon = (key: string, layer: string, aliases: string[], v1: { x: number; y:
  */
 export const keepsDrawnColors = (slot: Pick<SlotSpec, "id" | "kind">): boolean => slot.kind === "stroke" || slot.id === "icones/fleche-gauche" || slot.id === "icones/fleche-droite";
 
+/**
+ * Lot 121 : icônes des vidéos (badges, boucles, lecteur). Chaque icône est une forme d'une seule couleur (masque teinté par le thème,
+ * comme les autres icônes du kit) ; le fond du badge est un dessin en couleurs (bitmap), utilisé à la place du carré du thème.
+ * `key` = clé de `kit.vicons` ; `data-vicon` des icônes du site.
+ */
+export type VideoIconKey = "play" | "pause" | "loop" | "sound" | "muted" | "fullscreen" | "exitFullscreen" | "badge";
+export const VIDEO_ICONS: { key: VideoIconKey; id: string; layer: string; aliases: string[]; where: string }[] = [
+  { key: "play", id: "video/lecture", layer: "Lecture vidéo", aliases: ["lecture-video", "lecture-de-la-video"], where: "▶ des badges et du lecteur" },
+  { key: "pause", id: "video/pause", layer: "Pause vidéo", aliases: ["pause-video", "pause"], where: "pause du badge des boucles et du lecteur" },
+  { key: "loop", id: "video/boucle", layer: "Boucle", aliases: ["boucle-video"], where: "repère des boucles" },
+  { key: "sound", id: "video/son", layer: "Son activé", aliases: ["son", "son-active", "haut-parleur"], where: "bouton son, son actif" },
+  { key: "muted", id: "video/muet", layer: "Muet", aliases: ["son-coupe", "son-coupe-muet"], where: "bouton son, son coupé" },
+  { key: "fullscreen", id: "video/plein-ecran", layer: "Plein écran", aliases: ["passer-en-plein-ecran"], where: "bouton plein écran" },
+  { key: "exitFullscreen", id: "video/quitter-plein-ecran", layer: "Quitter le plein écran", aliases: ["quitter-plein-ecran", "sortir-du-plein-ecran"], where: "bouton plein écran, quitter" },
+  { key: "badge", id: "video/fond-badge", layer: "Fond du badge (option)", aliases: ["fond-badge", "fond-du-badge-option"], where: "fond des badges vidéo" },
+];
+const videoSlot = (v: (typeof VIDEO_ICONS)[number]): SlotSpec =>
+  v.key === "badge"
+    ? { id: v.id, element: "video", layer: v.layer, label: "Fond du badge", aliases: ["video-fond-badge", looseName(v.layer), ...v.aliases], kind: "vbadge", size: { w: 256, h: 256 }, v1: { x: 0, y: 0 }, transparent: true, mono: false, bitmapOnly: true, crop: false, multiOnly: true }
+    : { id: v.id, element: "video", layer: v.layer, label: v.layer, aliases: ["video-" + v.id.slice(6), looseName(v.layer), ...v.aliases], kind: "vicon", size: { w: 128, h: 128 }, v1: { x: 0, y: 0 }, transparent: true, mono: true, crop: false, multiOnly: true };
+
 export const SLOTS: SlotSpec[] = [
   planSlot(1, 1600, false),
   planSlot(2, 900, true),
@@ -344,6 +383,7 @@ export const SLOTS: SlotSpec[] = [
   icon("fermer", "Fermer", ["croix"], { x: 2400, y: 1880 }),
   icon("lecture", "Lecture", ["play"], { x: 2560, y: 1880 }),
   { id: "accessoires/scotch", element: "scotch", layer: "Scotch", label: "Scotch", aliases: ["scotch"], kind: "tape", size: { w: 400, h: 160 }, v1: { x: 2000, y: 2100 }, transparent: true, mono: false, crop: true },
+  ...VIDEO_ICONS.map(videoSlot),
 ];
 
 /* ---- Palette et curseurs (lot 4) : emplacements à part (pas convertis en assets) ---- */
@@ -403,7 +443,7 @@ export const isNuanceSwatch = (s: SlotSpec) => Boolean(s.paletteKey && isNuance(
  * `scale` × la taille d'usage. Les cartes (consignes, vignettes) sont posées
  * par build-multi.ts autour de ces cases (MULTI_CARDS : leurs rectangles).
  */
-const SCALE: Record<string, number> = { signature: 2, papier: 2, trait: 2, cadre: 3, "accessoires/scotch": 3, curseur: 8, icone: 4, "icone-site": 1 };
+const SCALE: Record<string, number> = { signature: 2, papier: 2, trait: 2, cadre: 3, "accessoires/scotch": 3, curseur: 8, icone: 4, "icone-site": 1, "video/fond-badge": 2 };
 const MULTI_AT: Record<string, { role: KitRole; x: number; y: number }> = {
   signature: { role: "logo", x: 60, y: 752 },
   papier: { role: "logo", x: 60, y: 1992 },
@@ -413,6 +453,15 @@ const MULTI_AT: Record<string, { role: KitRole; x: number; y: number }> = {
   "icones/fleche-droite": { role: "icones", x: 620, y: 752 },
   "icones/fermer": { role: "icones", x: 1180, y: 752 },
   "icones/lecture": { role: "icones", x: 1740, y: 752 },
+  // Lot 121 : groupe « 5 · Vidéo » (carte à y = VIDEO_CARD.y), deux rangées de quatre cases.
+  "video/lecture": { role: "icones", x: 60, y: VIDEO_CARD.y + 92 },
+  "video/pause": { role: "icones", x: 620, y: VIDEO_CARD.y + 92 },
+  "video/boucle": { role: "icones", x: 1180, y: VIDEO_CARD.y + 92 },
+  "video/son": { role: "icones", x: 1740, y: VIDEO_CARD.y + 92 },
+  "video/muet": { role: "icones", x: 60, y: VIDEO_CARD.y + 794 },
+  "video/plein-ecran": { role: "icones", x: 620, y: VIDEO_CARD.y + 794 },
+  "video/quitter-plein-ecran": { role: "icones", x: 1180, y: VIDEO_CARD.y + 794 },
+  "video/fond-badge": { role: "icones", x: 1740, y: VIDEO_CARD.y + 794 },
   "curseur/normal": { role: "icones", x: 60, y: 2092 },
   "curseur/clic": { role: "icones", x: 620, y: 2092 },
   cadre: { role: "icones", x: 60, y: 3382 },
@@ -421,7 +470,7 @@ const MULTI_AT: Record<string, { role: KitRole; x: number; y: number }> = {
 for (const s of ALL_SLOTS) {
   const at = MULTI_AT[s.id];
   if (!at) continue;
-  const k = s.kind === "icon" ? SCALE.icone : s.kind === "cursor" ? SCALE.curseur : SCALE[s.id];
+  const k = s.kind === "icon" || s.kind === "vicon" ? SCALE.icone : s.kind === "cursor" ? SCALE.curseur : SCALE[s.id];
   s.draw = { w: s.size.w * k, h: s.size.h * k };
   s.at = at;
 }
@@ -544,6 +593,24 @@ export const MULTI_CARDS: MultiCard[] = [
     margin: 32,
   },
   {
+    element: "video",
+    role: "icones",
+    group: "5 · Vidéo",
+    board: { x: 0, y: VIDEO_CARD.y, w: 3400, h: VIDEO_CARD.h },
+    title: "5 · Vidéo — 7 icônes de 512 × 512 px et le fond du badge",
+    where: "Ce que tu dessines ici remplace les petites icônes des vidéos : lecture ▶, pause, boucle, son, muet, plein écran, quitter le plein écran. Elles sont posées sur le badge en bas à droite des vidéos, sur le bouton son en haut à droite, sur le bouton plein écran en bas à gauche et dans la barre du lecteur.",
+    rules: [
+      "Dessine chaque icône EN GRAND dans sa case : le site la réduit (12 à 26 px à l'écran). Fond transparent, une seule couleur : le site la teinte comme le texte du badge. Garde des traits épais et un dessin simple.",
+      "Chaque case montre l'icône actuelle du site : redessine par-dessus (ou efface-la et dessine). Une case que tu ne touches pas, vide ou supprimée : l'icône actuelle reste.",
+      "Seulement le logo : le carré du badge reste réglé par le thème (couleur, transparence, coins).",
+      "Option « Fond du badge » (case de 512 × 512, masquée au départ) : si tu y dessines, ce dessin remplace le carré du badge. Il est étiré à la taille du badge (carré pour une icône seule, plus large avec la durée) : évite les détails fins aux bords.",
+      IGN,
+      "Pas envie ? Laisse tel quel : c'est gardé.",
+    ],
+    panel: { x: 60, y: 1440, w: 3200 },
+    margin: 48,
+  },
+  {
     element: "cadre",
     role: "icones",
     group: "3 · Cadre des entrées de collection",
@@ -580,7 +647,7 @@ export const slotSpecOf = (id: string): SlotSpec | undefined => ALL_SLOTS.find((
 /** Emplacements d'un fichier du kit v4. */
 export const slotsOfRole = (role: KitRole) => ALL_SLOTS.filter((s) => s.at?.role === role);
 /** Emplacements lisibles dans un document de cette taille : le fichier « logo » d'avant le lot 83 n'a pas la case de l'icône. */
-export const slotsOfFile = (role: KitRole, width: number, height: number) => slotsOfRole(role).filter((s) => !(s.multiOnly && role === "logo" && isLegacyLogoDoc(width, height)));
+export const slotsOfFile = (role: KitRole, width: number, height: number) => slotsOfRole(role).filter((s) => !(s.multiOnly && ((role === "logo" && isLegacyLogoDoc(width, height)) || (role === "icones" && isLegacyIconesDoc(width, height)))));
 
 /** Plan n (1 = le plus lointain) du décor libre : mêmes règles qu'un plan du kit v2, sans hauteur utile. */
 export function decorSlot(n: number): SlotSpec {

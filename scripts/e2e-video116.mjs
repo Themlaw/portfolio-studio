@@ -192,7 +192,8 @@ async function probeContext(p, box, mode) {
     out.startedMuted = started ? (await vstate(box)).muted : null;
     const sound = box.locator('[data-testid="loop-sound"]');
     out.button = (await sound.count()) > 0;
-    if (out.button) {
+    // Lot 127 : le son est activé par défaut ; le bouton ne sert qu'à le remettre si la boucle a démarré muette.
+    if (out.button && out.startedMuted) {
       await sound.first().click();
       await sleep(300);
     }
@@ -281,7 +282,8 @@ try {
       console.log(`TABLE116 ${JSON.stringify({ contexte: name, mode, sonDetecte: sound, sonAudible: r.audible, boutonSon: r.button, muetAuDepart: mode === "loop" ? r.startedMuted : null, rms: Number(r.rms.toFixed(4)), badge: b ? b.text : null })}`);
       ok(`P ${name} : son ${sound ? "audible" : "absent"}`, sound ? r.audible : !r.audible, JSON.stringify(r));
       ok(`P ${name} : bouton son ${sound ? "présent" : "absent"}`, r.button === sound, JSON.stringify(r));
-      if (mode === "loop") ok(`P ${name} : la boucle démarre MUETTE`, r.startedMuted === true, JSON.stringify(r));
+      // Lot 127 : une boucle qui a du son démarre AVEC le son (réglage par défaut « activé »), une boucle sans son reste muette.
+      if (mode === "loop") ok(`P ${name} : la boucle démarre ${sound ? "avec le SON (lot 127)" : "muette (sans son)"}`, r.startedMuted === !sound, JSON.stringify(r));
       ok(`P ${name} : badge unique (${mode === "loop" ? "icône boucle" : "▶ + durée"})`, Boolean(b) && (mode === "loop" ? b.kind === "loop" && b.loopIcon && !/\d/.test(b.text) : b.kind === "player" && /\d:\d\d/.test(b.text)), JSON.stringify(b));
     }
     const same = (k) => new Set(badges.filter(Boolean).map((b) => b[k])).size === 1;
@@ -382,8 +384,11 @@ try {
     const sound = lp.locator('[data-testid="loop-sound"]');
     ok("A3b Aperçu : bouton son sur la Boucle qui a du son", (await sound.count()) === 1);
     if ((await sound.count()) === 1) {
-      await sound.click();
-      await sleep(300);
+      // Lot 127 : le son est déjà actif au clic sur la boucle ; le bouton ne sert qu'à le remettre.
+      if ((await sound.getAttribute("data-muted")) === "true") {
+        await sound.click();
+        await sleep(300);
+      }
       const r = await rmsOf(lp.locator("video").first());
       ok("A3c Aperçu : le son de la Boucle est audible après le bouton", r.rms > THRESHOLD && !r.muted, JSON.stringify(r));
     }

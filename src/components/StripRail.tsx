@@ -6,12 +6,14 @@ import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
+import { soundAttrs, withSound } from "@/blocks/video-sound";
 import type { LocalizedArtwork } from "@/lib/gallery";
 import { tintVars, type MediaLookData, type StrokeTint } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
 import VideoBadge from "./VideoBadge";
+import { FullscreenButton } from "./video-fullscreen";
 import { useEditCanvas } from "./video-playback";
 import MediaCaption, { type CaptionField } from "./MediaCaption";
 import MediaFrame from "./MediaFrame";
@@ -107,6 +109,8 @@ export default function StripRail({
   // Les vidéos ne passent pas par la visionneuse d'images : une boucle se met en pause sur place, un lecteur s'ouvre dans la visionneuse vidéo.
   const stills = shownArtworks.filter((a) => !a.video);
   const [viewing, setViewing] = useState<LocalizedArtwork | null>(null);
+  // Le bouton « Plein écran » d'une vidéo en Lecteur ouvre la visionneuse déjà en plein écran (lot 127).
+  const [viewingFull, setViewingFull] = useState(false);
   // Ordre : le choix de CETTE vidéo (lot 38), puis le réglage ancien de la bande (`videoMode`, plus proposé mais toujours lu : aucune page existante ne change), puis la nature de la vidéo.
   const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => {
     if (!a.video) return null;
@@ -261,7 +265,9 @@ export default function StripRail({
         aria-label={title}
         {...(edit && editRail !== undefined ? { "data-edit-rail": editRail } : {})}
       >
-        {artworks.map((artwork) => {
+        {artworks.map((raw) => {
+          // Son au départ de CHAQUE vidéo (lot 127) : `slotLook[place].sound`, posé sur la copie de la vidéo de cette place (jamais dans le média).
+          const artwork = raw.video ? { ...raw, video: withSound(raw.video, mineOf(raw.slug).sound) } : raw;
           const index = stills.indexOf(artwork);
           const slot = artwork.edit;
           // Titre, Légende, Date (lot 39) : le composant commun. Bande du projet : Titre et Légende sont ceux de l'emplacement (partagés,
@@ -322,6 +328,7 @@ export default function StripRail({
                 caption={caption}
                 mediaLook={lookOf(artwork.slug, true)}
                 texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
+                edit={edit}
               />
             );
             return slot || radiusOf(artwork.slug) ? (
@@ -337,7 +344,7 @@ export default function StripRail({
               loop
             );
           }
-          return (
+          const trigger = (
           <button
             key={artwork.id}
             type="button"
@@ -347,11 +354,15 @@ export default function StripRail({
             onClick={() => {
               // Sur la toile la vidéo ne s'ouvre pas en grand : le clic sert à choisir la place.
               if (!artwork.video) setOpenIndex(index);
-              else if (!canvas) setViewing(artwork);
+              else if (!canvas) {
+                setViewingFull(false);
+                setViewing(artwork);
+              }
             }}
             aria-label={openLabel}
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
+            {...(artwork.video ? soundAttrs(artwork.video) : {})}
             className="strip-frame group text-left"
             style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style) }}
             {...(!artwork.video ? { "data-pano": panoOf(artwork)["data-pano"] } : {})}
@@ -381,6 +392,23 @@ export default function StripRail({
             </span>
             {caption}
           </button>
+          );
+          // Vidéo en Lecteur (lot 127) : le bouton « Plein écran » est le frère de celui qui ouvre la vidéo (jamais un bouton dans un bouton).
+          return artwork.video ? (
+            <div key={artwork.id} className="strip-fs-wrap">
+              {trigger}
+              {!canvas && (
+                <FullscreenButton
+                  rail
+                  onActivate={() => {
+                    setViewingFull(true);
+                    setViewing(artwork);
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            trigger
           );
         })}
       </div>
@@ -424,7 +452,19 @@ export default function StripRail({
         </div>
       )}
     {openIndex !== null && <Lightbox items={stills} index={openIndex} onIndexChange={setOpenIndex} onClose={() => setOpenIndex(null)} />}
-    {viewing?.video && <VideoViewer video={viewing.video} width={viewing.width} height={viewing.height} title={viewing.title || viewing.alt} onClose={() => setViewing(null)} />}
+    {viewing?.video && (
+      <VideoViewer
+        video={viewing.video}
+        width={viewing.width}
+        height={viewing.height}
+        title={viewing.title || viewing.alt}
+        fullscreen={viewingFull}
+        onClose={() => {
+          setViewing(null);
+          setViewingFull(false);
+        }}
+      />
+    )}
     </>
   );
 }

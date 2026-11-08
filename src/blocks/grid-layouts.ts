@@ -306,7 +306,9 @@ export type GridModelOp =
   /** Image posée dans la case n° `index` (au-delà de la dernière : ajoutée à la suite) ; remplace le média, garde le reste. */
   | { op: "put"; index: number; child: GridChild }
   /** Lecture de la vidéo de la case n° `index` (lot 36) : « loop » = Boucle, « player » = Lecteur ; sans effet sur une image. */
-  | { op: "video-mode"; index: number; mode: "loop" | "player" };
+  | { op: "video-mode"; index: number; mode: "loop" | "player" }
+  /** Son au départ de la vidéo de la case n° `index` (lot 127) : « on » (le défaut) retire le champ ; sans effet sur une image (erreur). */
+  | { op: "video-sound"; index: number; sound: "on" | "off" };
 
 const kids = (p: Props): GridChild[] => (Array.isArray(p.children) ? (p.children as GridChild[]) : []);
 const spansOf = (p: Props, n: number): Span[] => {
@@ -468,6 +470,15 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       if (kid.type !== "video-single") return { error: "Cette case n'est pas une vidéo." };
       if (kid.props.mode === op.mode) return { props };
       return { props: { ...props, children: list.map((c, i) => (i === op.index ? { ...c, props: { ...c.props, mode: op.mode } } : c)) } };
+    }
+    case "video-sound": {
+      const kid = list[op.index];
+      if (!kid) return { error: "Cette case n'existe plus." };
+      if (kid.type !== "video-single") return { error: "Cette case n'est pas une vidéo." };
+      if ((kid.props.sound === "off") === (op.sound === "off")) return { props };
+      const { sound: _old, ...rest } = kid.props;
+      void _old;
+      return { props: { ...props, children: list.map((c, i) => (i === op.index ? { ...c, props: op.sound === "off" ? { ...rest, sound: "off" } : rest } : c)) } };
     }
   }
 }

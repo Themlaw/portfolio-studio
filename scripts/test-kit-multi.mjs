@@ -10,7 +10,7 @@
  *  - décor : 5 calques libres → 5 plans ; calque vide, masqué : ignorés ;
  *    plan retiré ou déplacé : reconnu inchangé (composition changée) ; plus de 8 : refusé ;
  *  - archive : lecture défensive (taille annoncée, chiffrement, PSD absent) ;
- *  - anciens kits mono-fichier (fichier réel de l'artiste) toujours lisibles.
+ *  - anciens kits mono-fichier (fichier de test synthétique) toujours lisibles.
  * Usage : npm test (via tsx)
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -104,9 +104,9 @@ const shuffled = [
 ];
 const r0 = await importKit(shuffled, path.join(tmp, "out0"), { manifests, themeId: theme.id });
 const changed0 = r0.slots.filter((s) => s.change !== "unchanged");
-ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 17 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
+ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 25 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
 ok("kit d'origine reconnu par l'identifiant (mêmes fichiers renommés)", r0.reference?.how === "identifiant" && r0.reference.exportId === exportId, JSON.stringify(r0.reference));
-ok("revue : un bloc par fichier, dans l'ordre du kit, tous reçus", r0.files.map((f) => `${f.id}${f.received ? "" : "!"}`).join(",") === "decor,logo,icones" && r0.files.map((f) => f.slots).join(",") === "5,4,8", JSON.stringify(r0.files));
+ok("revue : un bloc par fichier, dans l'ordre du kit, tous reçus", r0.files.map((f) => `${f.id}${f.received ? "" : "!"}`).join(",") === "decor,logo,icones" && r0.files.map((f) => f.slots).join(",") === "5,4,16", JSON.stringify(r0.files));
 ok("décor : même composition que l'export", r0.decor?.structure === "unchanged" && r0.decor.count === 5 && !decorApplicable(r0));
 ok("aucun élément à appliquer", r0.slots.filter(isApplicable).length === 0);
 console.log(`      réimport : pic ${r0.peakMb} Mo`);
@@ -115,7 +115,7 @@ console.log(`      réimport : pic ${r0.peakMb} Mo`);
 const rLogo = await importKit({ path: extracted[KIT_FILES.logo.file], name: "logo.psd" }, path.join(tmp, "out-logo"), { manifests, themeId: theme.id });
 ok("un seul fichier envoyé : les autres « pas envoyés » (inchangés), kit reconnu par son identifiant", rLogo.files.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:true,icones:false" && rLogo.slots.length === 4 && rLogo.reference?.how === "identifiant" && rLogo.slots.every((s) => s.change === "unchanged"), JSON.stringify(rLogo.files));
 const rTwo = await importKit([extracted[KIT_FILES.decor.file], extracted[KIT_FILES.icones.file]], path.join(tmp, "out-two"), { manifests, themeId: theme.id });
-ok("deux fichiers sur trois : le logo est « pas envoyé »", rTwo.files.find((f) => f.id === "logo")?.received === false && rTwo.slots.length === 13);
+ok("deux fichiers sur trois : le logo est « pas envoyé »", rTwo.files.find((f) => f.id === "logo")?.received === false && rTwo.slots.length === 21);
 const dup = await importKit([extracted[KIT_FILES.logo.file], extracted[KIT_FILES.logo.file]], path.join(tmp, "out-dup"), { manifests });
 ok("deux fois le même fichier : refusé, message clair", dup.ok === false && /Deux fichiers sont « 2 · Logo et papier »/.test(dup.problem ?? ""), dup.problem);
 
@@ -348,7 +348,7 @@ ok("un fichier nommé « 1-decor-accueil.psd » mais qui est le logo : reconnu c
 
 /* ---- Anciens kits mono-fichier ---------------------------------------------------------- */
 const legacy = await importKit(path.join(root, "tests/fixtures/kit-synthetique.psd"), path.join(tmp, "out-legacy"), { manifests: [JSON.parse(readFileSync(path.join(root, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), "utf8"))], themeId: "galerie-lumineuse" });
-ok("ancien kit v1 (fichier réel de l'artiste) : toujours lisible, un seul bloc « mono », seule la flèche droite redessinée", legacy.ok && legacy.layout === "v1" && legacy.files.length === 1 && legacy.files[0].id === "mono" && legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite", JSON.stringify({ l: legacy.layout, f: legacy.files, r: legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id) }));
+ok("ancien kit v1 (fichier de test synthétique) : toujours lisible, un seul bloc « mono », seule la flèche droite redessinée", legacy.ok && legacy.layout === "v1" && legacy.files.length === 1 && legacy.files[0].id === "mono" && legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite", JSON.stringify({ l: legacy.layout, f: legacy.files, r: legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id) }));
 const mixed = await importKit([path.join(root, "tests/fixtures/kit-synthetique.psd"), extracted[KIT_FILES.logo.file]], path.join(tmp, "out-mix"), {});
 ok("ancien kit envoyé avec d'autres fichiers : refusé, message clair", mixed.ok === false && /ancien kit en un seul fichier/.test(mixed.problem ?? ""), mixed.problem);
 

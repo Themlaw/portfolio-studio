@@ -6,7 +6,10 @@ import { useTranslations } from "next-intl";
 import type { VideoView } from "@/lib/media";
 
 import { useReducedMotion } from "./LoopVideo";
+import { enterFullscreen, exitFullscreen, fullscreenElement } from "./video-fullscreen";
+import { ExitFullscreenIcon, FullscreenIcon, PauseIcon, PlayIcon, SoundOffIcon, SoundOnIcon } from "./video-icons";
 import { MANAGED_ATTR, useSoloPlayback } from "./video-playback";
+import { setVisitorSound, startPlayback, unmuteOnGesture } from "./visitor-sound";
 
 /** Délai sans geste avant de masquer les commandes pendant la lecture. */
 const IDLE_MS = 2500;
@@ -21,10 +24,6 @@ function clock(seconds: number): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-type FsDoc = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void };
-type FsEl = HTMLElement & { webkitRequestFullscreen?: () => void };
-type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
-
 /**
  * Lecteur vidéo du site (bloc « Vidéo » en mode lecteur, visionneuse) :
  * commandes maison sur un <video> natif — mêmes sources qu'avant (1080 sur
@@ -32,7 +31,8 @@ type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
  *
  * Commandes : lecture / pause, barre de progression cliquable et glissable
  * (retour en arrière compris), temps écoulé / durée, « Revoir » à la fin,
- * reculer / avancer de 10 s, son (muet, volume), plein écran. Clavier
+ * reculer / avancer de 10 s, son (muet, volume), plein écran (icônes : video-icons.tsx). Son au départ (lot 127) : `muted` (réglage de
+ * l'artiste, choix du visiteur) ; un geste sur le son est le choix du visiteur pour toute la page. Clavier
  * (focus sur le lecteur) : Espace ou K, ← / → (± 10 s), Début / Fin, F (plein écran), M (muet). Les commandes se
  * masquent pendant la lecture après un moment sans geste et reviennent au
  * moindre mouvement, au focus ou à la pause. Couleurs : jetons du thème
@@ -47,6 +47,7 @@ export default function VideoPlayer({
   autoPlay = false,
   loop = false,
   muted: startMuted = false,
+  startFullscreen = false,
   className = "",
   videoClassName = "",
 }: {
@@ -57,6 +58,8 @@ export default function VideoPlayer({
   autoPlay?: boolean;
   loop?: boolean;
   muted?: boolean;
+  /** Bouton « Plein écran » du cadre (lot 127) : le lecteur s'ouvre déjà en plein écran. */
+  startFullscreen?: boolean;
   className?: string;
   videoClassName?: string;
 }) {
@@ -172,17 +175,33 @@ export default function VideoPlayer({
     };
   }, [schedule, wake]);
 
-  // Lecture automatique demandée (visionneuse) : jamais en « réduire les animations » pour une boucle.
+  // Lecture automatique demandée (visionneuse) : jamais en « réduire les animations » pour une boucle. Avec le son si le réglage et le
+  // visiteur le veulent (le clic qui a ouvert la visionneuse est le geste exigé par le navigateur) ; refus du navigateur : lecture muette,
+  // le son revient au premier geste.
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !autoPlay || (loop && reduced)) return;
-    void v.play().catch(() => {});
+    let cancelled = false;
+    let off: (() => void) | undefined;
+    void startPlayback(v, !startMuted).then((result) => {
+      if (!cancelled && result === "muted" && !startMuted) off = unmuteOnGesture(v, () => true);
+    });
+    return () => {
+      cancelled = true;
+      off?.();
+    };
+    // `startMuted` : lu au départ seulement (changer de réglage en cours de lecture ne relance rien).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, loop, reduced]);
+
+  // Ouverture par le bouton « Plein écran » du cadre (lot 127).
+  useEffect(() => {
+    if (startFullscreen && rootRef.current) enterFullscreen(rootRef.current, videoRef.current);
+  }, [startFullscreen]);
 
   useEffect(() => {
     const onFs = () => {
-      const doc = document as FsDoc;
-      setFullscreen((doc.fullscreenElement ?? doc.webkitFullscreenElement) === rootRef.current);
+      setFullscreen(fullscreenElement() === rootRef.current);
     };
     document.addEventListener("fullscreenchange", onFs);
     document.addEventListener("webkitfullscreenchange", onFs);
@@ -226,22 +245,17 @@ export default function VideoPlayer({
 
   const toggleMute = useCallback(() => {
     const v = videoRef.current;
-    if (v) v.muted = !v.muted;
+    if (!v) return;
+    v.muted = !v.muted;
+    setVisitorSound(!v.muted);
   }, []);
 
   const toggleFullscreen = useCallback(() => {
-    const root = rootRef.current as FsEl | null;
-    const doc = document as FsDoc;
+    const root = rootRef.current;
     if (!root) return;
-    if (doc.fullscreenElement ?? doc.webkitFullscreenElement) {
-      if (document.exitFullscreen) void document.exitFullscreen().catch(() => {});
-      else doc.webkitExitFullscreen?.();
-      return;
-    }
-    if (root.requestFullscreen) void root.requestFullscreen().catch(() => {});
-    else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
-    // iPhone : seul l'élément vidéo passe en plein écran (lecteur du système).
-    else (videoRef.current as IosVideo | null)?.webkitEnterFullscreen?.();
+    if (fullscreenElement()) exitFullscreen();
+    // iPhone : seul l'élément vidéo passe en plein écran (lecteur du système) ; repli dans enterFullscreen.
+    else enterFullscreen(root, videoRef.current);
   }, []);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -354,9 +368,7 @@ export default function VideoPlayer({
               <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
             </svg>
           ) : (
-            <svg viewBox="0 0 16 18" width="22" height="24" aria-hidden="true" data-icon="play">
-              <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
-            </svg>
+            <PlayIcon width={22} height={24} />
           )}
           {state === "ended" && <span className="vp-big-text">{t("replay")}</span>}
         </button>
@@ -365,18 +377,13 @@ export default function VideoPlayer({
       <div className="vp-bar" role="group" aria-label={t("controls")}>
         <button type="button" className="vp-btn" onClick={toggle} aria-label={playLabel} data-vp="play">
           {state === "playing" ? (
-            <svg viewBox="0 0 12 14" width="12" height="14" aria-hidden="true">
-              <rect x="1" y="1" width="3.5" height="12" fill="currentColor" />
-              <rect x="7.5" y="1" width="3.5" height="12" fill="currentColor" />
-            </svg>
+            <PauseIcon width={12} height={14} />
           ) : state === "ended" ? (
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
             </svg>
           ) : (
-            <svg viewBox="0 0 16 18" width="13" height="15" aria-hidden="true" data-icon="play">
-              <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
-            </svg>
+            <PlayIcon width={13} height={15} />
           )}
         </button>
 
@@ -426,14 +433,7 @@ export default function VideoPlayer({
         {hasAudio && (
           <>
         <button type="button" className="vp-btn" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")} aria-pressed={muted} data-vp="mute">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
-            {muted ? (
-              <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-            ) : (
-              <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-            )}
-          </svg>
+          {muted ? <SoundOffIcon size={18} /> : <SoundOnIcon size={18} />}
         </button>
 
         <input
@@ -451,19 +451,14 @@ export default function VideoPlayer({
             const next = Number(event.target.value);
             v.volume = next;
             v.muted = next === 0;
+            setVisitorSound(next !== 0);
           }}
         />
           </>
         )}
 
         <button type="button" className="vp-btn" onClick={toggleFullscreen} aria-label={fullscreen ? t("exitFullscreen") : t("fullscreen")} data-vp="fullscreen">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            {fullscreen ? (
-              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-            ) : (
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-            )}
-          </svg>
+          {fullscreen ? <ExitFullscreenIcon size={18} /> : <FullscreenIcon size={18} />}
         </button>
       </div>
     </div>

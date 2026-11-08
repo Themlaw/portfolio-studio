@@ -112,7 +112,7 @@ const READMES: Record<KitRole, { title: string; lines: string[] }> = {
     title: "Fichier 3 sur 3 · Icônes et curseurs",
     lines: [
       "Dessine chaque élément EN GRAND dans sa case : le site le réduit tout seul à sa taille d'usage, proprement.",
-      "Icônes : 512 × 512 px (affichées à 128). Curseurs : 512 × 512 px (affichés à 32). Cadre : 900 × 900 px. Scotch : 1200 × 480 px.",
+      "Icônes et icônes vidéo : 512 × 512 px (affichées à 128). Curseurs : 512 × 512 px (affichés à 32). Cadre : 900 × 900 px. Scotch : 1200 × 480 px.",
       "Pourquoi ici : ce sont de petits objets posés sur le site (boutons, souris, cadre des images, scotch). Ils se dessinent en grand puis se réduisent, comme les icônes.",
       "Pas envie de dessiner un élément ? Laisse-le tel quel. Pas envie d'envoyer ce fichier ? Ne l'envoie pas : tout reste inchangé.",
       "RVB 8 bits, ne redimensionne pas le document, pixellise effets et textes.",
@@ -128,7 +128,7 @@ export function archiveReadme(siteName: string): string {
     "Ce dossier contient trois fichiers Photoshop (.psd) :",
     `  ${KIT_FILES.decor.file}      le décor de l'accueil, en grand format. Calques libres : chaque calque devient un plan.`,
     `  ${KIT_FILES.logo.file}       le logo, le papier (tuile répétée), le trait et l'icône du site.`,
-    `  ${KIT_FILES.icones.file}   les icônes, les curseurs de la souris, le cadre des images et le scotch.`,
+    `  ${KIT_FILES.icones.file}   les icônes, les icônes des vidéos, les curseurs de la souris, le cadre des images et le scotch.`,
     "",
     "Comment faire :",
     "  1. Ouvre le fichier qui t'intéresse. Les consignes sont tout en haut (calque LISEZ-MOI).",
@@ -258,7 +258,7 @@ async function cardRaster(card: MultiCard, theme: Theme, fontFile: string): Prom
   for (const s of slots) {
     const f = frameOf(s, "multi");
     const wrap = Math.max(f.w, 540) - 16;
-    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : s.kind === "appicon" ? `${slotName(s)} — réduite à 16 px dans l'onglet` : `${slotName(s)} — affiché ${finalSize(s)} px`;
+    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : s.kind === "vicon" ? `${slotName(s)} — réduite à 12-26 px` : s.kind === "vbadge" ? `Fond du badge — option, masqué` : s.kind === "appicon" ? `${slotName(s)} — réduite à 16 px dans l'onglet` : `${slotName(s)} — affiché ${finalSize(s)} px`;
     const text = await textRaster(`<span foreground="${GREY}"><b>${esc(label.split(" — ")[0])}</b>\n${esc(label.split(" — ")[1] ?? "")}</span>`, fontFile, TEXT.label, wrap);
     const top = f.y - b.y + f.h + 14;
     if (top + text.height > b.h - 6) throw new Error(`légende hors de la carte : ${s.label}`);
@@ -522,7 +522,8 @@ export async function buildKitMulti(theme: Theme, publicDir: string, opts: Multi
     }
     await record(slot.id, raster, false);
     const f = frameOf(slot, "multi");
-    return layerAt(slot.layer, f.x, f.y, raster);
+    // Lot 121 : le fond du badge (option) est masqué au départ ; importé tel quel, il reste « inchangé ».
+    return layerAt(slot.layer, f.x, f.y, raster, slot.kind === "vbadge" ? { hidden: true } : {});
   };
 
   /** Plan n du décor (1 = le plus lointain) en grand : plan dessiné du kit, sinon calque SVG du thème, sinon gabarit. */

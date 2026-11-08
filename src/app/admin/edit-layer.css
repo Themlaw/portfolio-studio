@@ -1876,6 +1876,33 @@ html:not([data-edit-mode]) .pe-field-op {
   left: auto;
 }
 
+/* Titre de composant (lot 128) : une ancre sans hauteur posée AVANT le composant (ni espace, ni ordre du contenu changés) porte les pastilles ; elles se
+   montrent quand le bloc qui la suit est survolé (ou l'ancre elle-même : le bouton est posé dans l'espace du haut du bloc). */
+.pe-head-anchor {
+  position: relative;
+  z-index: 4;
+  height: 0;
+  padding-block: 0;
+}
+.pe-head-anchor > .relative {
+  height: 0;
+}
+/* Posées en haut à GAUCHE du bloc, sous le nom du bloc (case de grille : en haut à droite, dans la case). Ni au centre (poignée de déplacement), ni à droite
+   (barre d'outils du bloc sélectionné) : elles seraient recouvertes. 40 px sous le haut : la barre « position du titre » du bloc sélectionné au-dessus
+   occupe les 34 premiers pixels sous elle. */
+.pe-head-anchor .pe-field-ops:not([data-cell]),
+.surface-card[data-surface="on"] .pe-head-anchor .pe-field-ops:not([data-cell]) {
+  top: 40px;
+  left: 0;
+  right: auto;
+  justify-content: flex-start;
+}
+html[data-edit-mode] .pe-head-anchor:hover .pe-field-op,
+html[data-edit-mode] .pe-head-anchor:has(~ :hover) .pe-field-op {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Lot 27 : beaucoup de champs facultatifs (Profil) : les boutons se rangent AU-DESSUS du bloc et grandissent vers le haut. */
 .pe-field-ops[data-many] {
   top: auto;
@@ -2473,6 +2500,19 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius:
 [data-edit-mode] [data-edit-slot][data-slot-selected] > .media-caption [data-cap]:empty,
 [data-edit-mode] .media-caption:has(:is([data-editing], [data-cap][style*="visibility: hidden"])) [data-cap]:empty {
   display: block;
+}
+
+/* Lot 129 : planche libre. Les trois champs VIDES (Titre / Légende / Date) ne prennent aucune hauteur : au survol ou au choix ils se posent par-dessus, juste sous
+   le cadre (plus de saut de la carte, plus de bande de 45 px sous le contenu). Dès qu'un champ est rempli, la légende reprend sa place dans le flux, comme en public. */
+[data-edit-mode] .free-board-section[data-cap-host] {
+  position: relative;
+}
+[data-edit-mode] .free-board-section[data-cap-host] > .media-caption:not(:has([data-cap]:not(:empty))) {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  padding-inline: inherit;
+  z-index: 4;
 }
 
 /* Lot 39 : le « + Ajouter » entre deux composants de planche chevauche de 14 px le bas du composant précédent, où se trouve désormais

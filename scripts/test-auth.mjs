@@ -19,6 +19,11 @@
  *  E. secret absent / trop court en production → arrêt explicite.
  *  TH. thèmes : export / import d'archive (garde, origine, archives piégées, tailles).
  * Usage : npm run test:auth   (exit 1 si un test échoue)
+ *
+ * Lot 104b : la suite est découpée en PARTIES indépendantes (batterie : authA, authF, authV, authK, authT, authM1, authM2), chacune
+ * avec son dossier de données, son bloc de ports et ses serveurs. AUTH_ONLY=A,F,G,H,V,TAG,TK,TM,TH,PDF,VM1,VM2 choisit les sections
+ * (vide = toutes, comme avant) : A = A à E (mot de passe, OIDC, secret), F/G/H = images, kill -9, quota, V = vidéo, TAG = tags,
+ * TK = kit (export, import), TM = kit (mémoire), TH = thèmes (archive), PDF = CV, VM1/VM2 = mesures de conversion (1080p ; 4K et boucle).
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -32,6 +37,10 @@ import { utimesSync, writeFileSync } from "node:fs";
 import { OAuth2Server } from "oauth2-mock-server";
 import { initializeCanvas, readPsd, writePsdBuffer } from "ag-psd";
 
+import { onlyOf } from "./lib/parts.mjs";
+
+const run = onlyOf(process.env.AUTH_ONLY);
+
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
 // Données de test : sur disque si TEST_AUTH_TMP le dit (le /tmp de la VM est un tmpfs : les
@@ -39,7 +48,7 @@ const SA = path.join(ROOT, ".next/standalone");
 const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
 // Ports réglables (BATT_AUTH_PORT) : plusieurs batteries peuvent lancer la suite sur la même machine (défaut 3200 et 3290).
 const PORT = Number(process.env.BATT_AUTH_PORT ?? 3200);
-const MOCK_PORT = PORT + 90;
+const MOCK_PORT = Number(process.env.BATT_AUTH_MOCK_PORT ?? PORT + 90);
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = "test-secret-0123456789abcdef-0123456789abcdef";
 const ADMIN = { email: "artiste@example.test", password: "mot-de-passe-du-test-42" };
@@ -55,6 +64,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function prepareStandalone() {
   if (!existsSync(path.join(SA, "server.js"))) throw new Error("Build absent : lancer `npm run build:local` d'abord.");
+  // Lot 104b : plusieurs parties (et d'autres suites) partagent ce standalone en parallèle. La batterie l'a déjà préparé
+  // (prepare_standalone) : recopier par-dessus pendant qu'un autre serveur lit drizzle/ ou seed/ lui ferait voir des fichiers tronqués.
+  const ready = ["drizzle", "seed", "public", ".next/static"].every((d) => existsSync(path.join(SA, d)));
+  if (ready) return;
   for (const dir of ["drizzle", "seed", "public"]) cpSync(path.join(ROOT, dir), path.join(SA, dir), { recursive: true });
   cpSync(path.join(ROOT, ".next/static"), path.join(SA, ".next/static"), { recursive: true });
 }
@@ -62,9 +75,49 @@ function prepareStandalone() {
 /** Démarre le serveur ; `ready` résout quand /fr répond, ou quand le processus sort. */
 /* Serveurs lancés : arrêtés à la sortie, même sur une exception (port libre au run suivant). */
 const servers = new Set();
+/**
+ * Descendants d'un processus (pgrep -P, récursif). Lot 104b : remplace `pkill -x ffmpeg`, qui tuait aussi les conversions des
+ * AUTRES suites et parties de la batterie, tournant en parallèle sur la même machine ; on ne tue que les enfants de NOS serveurs.
+ */
+function descendants(pid) {
+  const out = [];
+  const kids = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" }).stdout.split("\n").filter(Boolean).map(Number);
+  for (const k of kids) out.push(k, ...descendants(k));
+  return out;
+}
+function killAll(pids) {
+  for (const p of pids) {
+    try {
+      process.kill(p, "SIGKILL");
+    } catch {
+      // déjà sorti
+    }
+  }
+}
+/**
+ * Processus `name` (pgrep -x) ou dont la ligne de commande contient `pattern` (pgrep -f si `byCmd`), RESTREINTS à ce serveur de test :
+ * descendants de `server` ou ligne de commande citant `dir` (son dossier de données). Lot 104b : les sondes `pgrep -x ffmpeg` etc. voyaient
+ * aussi les conversions des autres suites et parties qui tournent en parallèle sur la machine (P12 : fils d'un autre ffmpeg à nice 0).
+ */
+function procsOf(name, server, dir, byCmd = false) {
+  const mine = new Set(descendants(server.child.pid).map(String));
+  const pids = spawnSync("pgrep", byCmd ? ["-f", name] : ["-x", name], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+  return pids.filter((pid) => {
+    if (mine.has(pid)) return true;
+    try {
+      return readFileSync(`/proc/${pid}/cmdline`, "utf8").includes(dir);
+    } catch {
+      return false;
+    }
+  });
+}
 process.on("exit", () => {
-  for (const c of servers) if (c.exitCode === null) c.kill("SIGKILL");
-  spawnSync("pkill", ["-KILL", "-x", "ffmpeg"]);
+  for (const c of servers) {
+    if (c.exitCode !== null) continue;
+    const kids = descendants(c.pid);
+    c.kill("SIGKILL");
+    killAll(kids);
+  }
 });
 
 /** `probe` : chemin interrogé pour savoir le serveur prêt (« /fr » le met en cache). */
@@ -80,6 +133,8 @@ function startServer(dataDir, env, probe = "/fr") {
       HOSTNAME: "127.0.0.1",
       DATA_DIR: dataDir,
       PUBLIC_BASE_URL: BASE,
+      // Plafond mémoire de l'enfant du kit (650 Mo par défaut) : relevable pour une machine dont les cœurs visibles gonflent le pic (ssp : 104).
+      ...(process.env.KIT_CHILD_MAX_RSS_MB ? { KIT_CHILD_MAX_RSS_MB: process.env.KIT_CHILD_MAX_RSS_MB } : {}),
       ...env,
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -431,8 +486,9 @@ rmSync(TMP, { recursive: true, force: true });
 const baseEnv = { BETTER_AUTH_SECRET: SECRET, ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password };
 const ids = actionIds();
 
-console.log("\n== A. mot de passe");
 const dirA = `${TMP}/a`;
+if (run("A")) {
+console.log("\n== A. mot de passe");
 let s = startServer(dirA, baseEnv);
 ok("A0 démarrage", await s.ready);
 ok("A1 premier admin amorcé", s.text().includes(`premier administrateur créé : ${ADMIN.email}`));
@@ -713,7 +769,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Cible ED", en: "Target ED" }, slug: { fr: "cible-ed", en: "target-ed" } }], "/admin/pages");
   const targetPage = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
   res = await callActionJson(jar, ids.createProjectAction, [{ title: { fr: "Projet ED", en: "" } }], "/admin/pages");
-  const targetProject = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  const targetProject = Number(/"ok":true,"data":\{"id":(\d+)[,}]/.exec(res.text)?.[1]);
   const projectSlug = query(dirA, "select slug from projects where id = ?", targetProject).slug;
   const png = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#2e4e9e" } }).png().toBuffer();
   const up = await upload(jar, "brouillon-ed.png", "image/png", png);
@@ -1840,8 +1896,9 @@ s = startServer(`${TMP}/e1`, { ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.p
 ok("E1 sans BETTER_AUTH_SECRET → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"), s.text().match(/\[auth\] ÉCHEC[^\n]*/)?.[0]?.slice(0, 80) ?? "");
 s = startServer(`${TMP}/e2`, { BETTER_AUTH_SECRET: "trop-court" });
 ok("E2 secret trop court → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("trop court"));
+}
 
-console.log("\n== F. mémoire du traitement d'images (VmHWM du serveur, un serveur neuf par image)");
+if (run("F")) console.log("\n== F. mémoire du traitement d'images (VmHWM du serveur, un serveur neuf par image)");
 const baseEnvF = { ...baseEnv, AUTH_TRUSTED_PROXY_HOPS: "1" };
 let ipSeq = 20;
 async function freshAdmin(dir, env = {}) {
@@ -1851,10 +1908,11 @@ async function freshAdmin(dir, env = {}) {
   await signIn(j, ADMIN.email, ADMIN.password, `198.51.100.${ipSeq++}`);
   return { server, jar: j };
 }
-const bigJpeg = await sharp({ create: { width: 6000, height: 4000, channels: 3, background: "#c0503a" } })
+const bigJpeg = !(run("F") || run("G")) ? null : await sharp({ create: { width: 6000, height: 4000, channels: 3, background: "#c0503a" } })
   .composite([{ input: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="6000" height="4000"><rect x="300" y="300" width="2000" height="1200" fill="#f2d16b"/></svg>') }])
   .jpeg({ quality: 88 })
   .toBuffer();
+if (run("F")) {
 // [libellé, nom, type, contenu, attendu ("ready" ou motif du message de refus), env]
 const cases = [
   ["JPEG 6000 × 4000", "grand.jpg", "image/jpeg", bigJpeg, "ready", {}],
@@ -1898,7 +1956,9 @@ for (const [label, name, mime, data, expected, env] of cases) {
   );
   await stop(server);
 }
+}
 
+if (run("G")) {
 console.log("\n== G. traitement interrompu (kill -9) et envoi qui s'arrête");
 const dirG = `${TMP}/g`;
 let g = await freshAdmin(dirG, { UPLOAD_IDLE_TIMEOUT_S: "2" });
@@ -1966,7 +2026,9 @@ await sleep(500);
 const tmpG = existsSync(path.join(dirG, "tmp")) ? readdirSync(path.join(dirG, "tmp")).length : 0;
 ok(`G4 envoi muet pendant 2 s (UPLOAD_IDLE_TIMEOUT_S) : abandon en ${waited.toFixed(1)} s, fichier temporaire supprimé`, stallStatus === 408 && waited < 6 && tmpG === 0, `${stallStatus} tmp=${tmpG}`);
 await stop(g.server);
+}
 
+if (run("H")) {
 console.log("\n== H. quota de stockage (MEDIA_MAX_TOTAL_GB)");
 const dirH = `${TMP}/h`;
 const h = await freshAdmin(dirH, { MEDIA_MAX_TOTAL_GB: "0.00001" });
@@ -1990,9 +2052,10 @@ ok(
 h.server = h2.server;
 ok("H2 occupation affichée dans la médiathèque", /Espace utilisé/.test(lib) && /sur/.test(lib));
 await stop(h.server);
+}
 
 
-console.log("\n== V. vidéo : envoi par morceaux, conversion, limites");
+if (run("V")) console.log("\n== V. vidéo : envoi par morceaux, conversion, limites");
 /* Sources légitimes générées par ffmpeg (testsrc2, sine) : aucun fichier piégé. */
 const VID = `${TMP}/sources`;
 mkdirSync(VID, { recursive: true });
@@ -2005,6 +2068,9 @@ function probe(file) {
   return JSON.parse(r.stdout);
 }
 const src = (n) => path.join(VID, n);
+if (run("V") || run("TAG") || run("TK") || run("VM2")) {
+// Source de 20 s partagée par V (nice, délai dur) et TK (file lourde exclusive) : générée ici pour que chaque partie l'ait.
+ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=220", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("hd-20s.mp4")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "6", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-metadata", "title=Titre privé", "-metadata", "location=+48.8566+002.3522/", "-metadata", "creation_time=2024-01-01T00:00:00Z", src("base.mp4")]);
 ff(["-display_rotation", "90", "-i", src("base.mp4"), "-c", "copy", src("tourne.mp4")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "6", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "45", "-pix_fmt", "yuv420p", src("petite.mp4")]);
@@ -2012,6 +2078,7 @@ ff(["-f", "lavfi", "-i", "sine=frequency=440", "-t", "3", src("son.wav")]);
 ff(["-f", "lavfi", "-i", "sine=frequency=440", "-t", "3", "-c:a", "aac", "-f", "mp4", src("son-seul.mp4")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30", "-t", "4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", src("boucle-720.mp4")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "4", "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "300k", src("clip.webm")]);
+}
 
 /** Envoi par morceaux complet (init → morceaux → complete). */
 async function chunked(j, file, name, type = "video/mp4", { chunk = 1024 * 1024, origin = BASE } = {}) {
@@ -2036,6 +2103,7 @@ const initP2 = (j, size) =>
   fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: j.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name: "r.mp4", size, type: "video/mp4" }) });
 const serverLog = (srv, re) => [...srv.text().matchAll(re)].map((m) => m[0]);
 
+if (run("V")) {
 // ---- V1 : serveur par défaut --------------------------------------------------------
 const dirV = `${TMP}/v1`;
 let v = await freshAdmin(dirV);
@@ -2167,7 +2235,6 @@ await stop(q.server);
 // ---- Passe 5b : protocole d'envoi, propriété, codecs, conversion -------------------------
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "mjpeg", "-f", "mov", src("mjpeg.mov")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "ffv1", src("ffv1.mkv")]);
-ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=220", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("hd-20s.mp4")]);
 const dirP = `${TMP}/vp`;
 let pv = await freshAdmin(dirP);
 const HP = { cookie: pv.jar.header(), origin: BASE };
@@ -2262,7 +2329,7 @@ const hd = await chunked(pv.jar, src("hd-20s.mp4"), "hd.mp4", "video/mp4", { chu
 let nices = [];
 for (let i = 0; i < 150 && nices.length < 3; i++) {
   const seen = [];
-  const ps = spawnSync("pgrep", ["-x", "ffmpeg"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
+  const ps = procsOf("ffmpeg", pv.server, dirP);
   for (const pid of ps) {
     try {
       for (const t of readdirSync(`/proc/${pid}/task`)) seen.push(Number(readFileSync(`/proc/${pid}/task/${t}/stat`, "utf8").split(") ")[1].split(" ")[16]));
@@ -2283,9 +2350,10 @@ const hdVid = await fetch(`${BASE}/media/vid/${(query(dirP, "select sha256 from 
 ok("P14 vid/ d'un média en traitement → 404", !hdOut.variants && hdVid.status === 404, String(hdVid.status));
 // Redémarrage brutal pendant la conversion : reprise, aucun dossier de travail laissé.
 // kill -9 du serveur ; dans le conteneur, ses enfants (ffmpeg) partent avec lui.
+const pvKids = descendants(pv.server.child.pid);
 pv.server.child.kill("SIGKILL");
 await pv.server.exited;
-spawnSync("pkill", ["-KILL", "-x", "ffmpeg"]);
+killAll(pvKids);
 const leftovers = existsSync(path.join(dirP, "tmp")) ? readdirSync(path.join(dirP, "tmp")).filter((n) => n.startsWith("video-")) : [];
 pv = { server: startServer(dirP, baseEnvF), jar: pv.jar };
 await pv.server.ready;
@@ -2302,7 +2370,7 @@ const tv = await freshAdmin(dirT, { VIDEO_JOB_MAX_DURATION_S: "1" });
 const slow = await chunked(tv.jar, src("hd-20s.mp4"), "lente.mp4", "video/mp4", { chunk: 8 * 1024 * 1024 });
 const slowRow = await waitMedia(dirT, slow.body.media?.id, 60000);
 await sleep(500);
-const ffLeft = spawnSync("pgrep", ["-x", "ffmpeg"], { encoding: "utf8" }).stdout.trim();
+const ffLeft = procsOf("ffmpeg", tv.server, dirT).join("\n");
 const tmpT = readdirSync(path.join(dirT, "tmp")).filter((n) => n !== "uploads");
 ok("P16 VIDEO_JOB_MAX_DURATION_S=1 : échec « trop de temps », plus aucun ffmpeg, tmp/ vide", slowRow?.status === "failed" && /trop de temps/.test(slowRow?.error ?? "") && !ffLeft && tmpT.length === 0, `${slowRow?.status} ${slowRow?.error} ffmpeg=${ffLeft} tmp=${tmpT.join(",")}`);
 const failedVid = await fetch(`${BASE}/media/vid/${(query(dirT, "select sha256 from media where id = ?", slow.body.media?.id)?.sha256 ?? "").slice(0, 16)}/720.mp4`);
@@ -2348,9 +2416,10 @@ await fetch(`${BASE}/admin/api/upload/${a1.upload.id}`, { method: "DELETE", head
 const a3r = await initP2(rv2.jar, 2 * 1024 * 1024);
 ok("P21 DELETE rend la réservation : une nouvelle annonce passe", a3r.status === 200, String(a3r.status));
 await stop(rv2.server);
+}
 
 // ---- Phase 6a : tags (bornes, Unicode, envoi, dédoublonnage, fusion, suppression, XSS) -----
-{
+if (run("TAG")) {
 console.log("\n== TAG. tags de la bibliothèque");
 const dirT = `${TMP}/vt6`;
 const tv = await freshAdmin(dirT);
@@ -2543,7 +2612,7 @@ await stop(tv.server);
 }
 
 // ---- check-standalone : le build réel passe ; un standalone pollué échoue -----------------
-{
+if (run("TAG")) {
   const real = spawnSync(process.execPath, ["scripts/check-standalone.mjs", "--require"], { encoding: "utf8" });
   const fake = `${TMP}/fake-standalone`;
   mkdirSync(path.join(fake, "src", "lib"), { recursive: true });
@@ -2556,7 +2625,7 @@ await stop(tv.server);
 }
 
 // ---- Phase 6c : kit Photoshop d'un thème (route gardée, cache, file lourde exclusive) ------
-{
+if (run("TK")) {
 console.log("\n== TK. kit Photoshop (export)");
 const dirK = `${TMP}/vkit`;
 const kv = await freshAdmin(dirK);
@@ -2699,7 +2768,7 @@ const bigPsd = Buffer.from(writePsdBuffer({ width: 6000, height: 6000, children:
 const big = await kitUpload(bigPsd, "trop-grand.psd");
 ok("TI4 PSD de 6000 × 6000 : refusé avant décodage (422, dimensions), aucun job", big.status === 422 && /6000 × 6000/.test(big.body.message ?? "") && importJobs().length === jobs0, `${big.status} ${big.body.message}`);
 
-// Fichier réel de l'artiste : import dans le processus enfant (bundle), manifeste du kit v1 d'origine.
+// Fichier de test synthétique (kit v1 réenregistré) : import dans le processus enfant (bundle), manifeste du kit v1 d'origine.
 mkdirSync(path.join(dirK, "cache", "kits", "manifests"), { recursive: true });
 cpSync(path.join(ROOT, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), path.join(dirK, "cache", "kits", "manifests", "legacy-galerie-lumineuse-v1.json"));
 const real = await kitUpload(fixturePsd, "kit-synthetique.psd");
@@ -2710,7 +2779,7 @@ const redrawn = rapport?.slots.filter((x) => x.change === "redrawn").map((x) => 
 const importLine = serverLog(kv.server, /\[kit\] import [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${importLine}`);
 ok(
-  "TI5 fichier réel de l'artiste : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
+  "TI5 fichier de test synthétique : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
   real.status === 200 && st.status === "done" && redrawn.length === 1 && redrawn[0] === "icones/fleche-droite" && !readdirSync(path.join(dirK, "kit-imports", importId)).some((n) => /^source.*\.psd$/.test(n)),
   `${real.status} ${JSON.stringify(st)} ${redrawn.join(",")}`,
 );
@@ -2815,7 +2884,7 @@ const st2 = await waitImport(draftId, again2.body.kitImport?.id);
 const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
 ok(
   `TI9 kit (v4) de la copie : case « Flèche droite » = flèche de l'artiste dessinée en 512 × 512 (IoU ${iou.toFixed(3)}) ; archive réimportée telle quelle → ${rap2?.slots.length} éléments inchangés dans ${rap2?.files?.length} fichiers`,
-  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 17 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
+  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 25 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
   `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
 );
 
@@ -2823,7 +2892,7 @@ ok(
 const iconsOnly = await kitUpload(kitFiles["3-icones-curseurs.psd"], "peu-importe.psd");
 const stIcons = await waitImport("galerie-lumineuse", iconsOnly.body.kitImport?.id);
 const rapIcons = stIcons.status === "done" ? rapportOf(dirK, iconsOnly.body.kitImport.id) : null;
-ok("TI12 un seul fichier du kit (nom quelconque) : reconnu par son contenu, les deux autres « pas envoyés »", rapIcons?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:false,icones:true" && rapIcons.slots.length === 8, JSON.stringify(rapIcons?.files));
+ok("TI12 un seul fichier du kit (nom quelconque) : reconnu par son contenu, les deux autres « pas envoyés »", rapIcons?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:false,icones:true" && rapIcons.slots.length === 16, JSON.stringify(rapIcons?.files));
 const bid = "0d3a7f10-2b6c-4a41-9c55-7e1f0a8d6b21";
 const bInit = (name, size, last) => kitInit({ name, size, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId: "galerie-lumineuse", batch: { id: bid, last } } });
 const sendBatch = async (data, name, last) => {
@@ -2924,10 +2993,10 @@ await stop(kv.server);
 }
 
 // ---- Phase 6d : plafond mémoire de l'enfant, reprise au redémarrage ---------------------
-{
+if (run("TM")) {
 console.log("\n== TM. kit : plafond mémoire, redémarrage");
 const dirM = `${TMP}/vkitmem`;
-// Plafond abaissé à 60 Mo : l'import du fichier réel (≈ 150 Mo) le dépasse.
+// Plafond abaissé à 60 Mo : l'import du fichier de test (≈ 150 Mo) le dépasse.
 const km = await freshAdmin(dirM, { KIT_CHILD_MAX_RSS_MB: "60" });
 const HM = { cookie: km.jar.header(), origin: BASE };
 const data = readFileSync(path.join(ROOT, "tests/fixtures/kit-synthetique.psd"));
@@ -2945,7 +3014,7 @@ for (let i = 0; i < 240; i++) {
   await sleep(250);
 }
 await sleep(500);
-const children = spawnSync("pgrep", ["-f", "kit-child.cjs"], { encoding: "utf8" }).stdout.trim();
+const children = procsOf("kit-child.cjs", km.server, dirM, true).join("\n");
 ok(
   "TM1 plafond mémoire de l'enfant dépassé : job en échec, message lisible, plus aucun processus, PSD supprimé",
   job?.status === "failed" && /trop de mémoire|trop lourd à analyser/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
@@ -2971,7 +3040,7 @@ await stop(km2.server);
 }
 
 // ---- v0.14 : export / import de thème (route mutante gardée, archive bornée) ---------------
-{
+if (run("TH")) {
 console.log("\n== TH. thèmes : export et import d'archive");
 const { lowContrastPackage, lowContrastScrimPackage, maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
 const { loadPreset, presetSlugs } = await import("./lib/presets.mjs");
@@ -3063,7 +3132,7 @@ await stop(tv.server);
 }
 
 // ---- Lot médias : PDF du bloc CV (envoi, aperçu, téléchargement en pièce jointe) ----------
-{
+if (run("PDF")) {
 console.log("\n== PDF. CV : envoi gardé, signature, pages, aperçu isolé, téléchargement");
 const { textPdf, scriptedPdf, imageBombPdf } = await import("./lib/pdf-fixtures.mjs");
 const dirP = `${TMP}/pdf`;
@@ -3129,7 +3198,7 @@ const t0 = Date.now();
 r = await upload(jp, "bombe.pdf", "application/pdf", bombBuf);
 const bombRow = r.json?.media?.id ? await waitMedia(dirP, r.json.media.id, 180000) : null;
 const memAfter = procMem(p.server.child.pid);
-const left = spawnSync("pgrep", ["-x", "pdftoppm"], { encoding: "utf8" }).stdout.trim();
+const left = procsOf("pdftoppm", p.server, dirP).join("\n");
 const bombLog = serverLog(p.server, /\[jobs\] PDF \d+[^\n]+/g).pop() ?? "";
 ok(
   `PDF18 bombe de décompression (${(bombBuf.length / 1024 / 1024).toFixed(1)} Mo → 900 Mo décodés) : rendu borné (prêt sous le plafond, ou échec lisible), serveur VmHWM ${memBefore.hwm} → ${memAfter.hwm} Mo, plus aucun pdftoppm`,
@@ -3140,15 +3209,17 @@ console.log(`      bombe : ${bombRow?.status} en ${Math.round((Date.now() - t0) 
 await stop(p.server);
 }
 
-// ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg ---------------
-console.log("      (génération des sources de mesure : 1080p 60 s avec son, 4K 20 s, boucle 720p 4 s)");
-ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=330", "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("m-1080p-60s.mp4")]);
-ff(["-f", "lavfi", "-i", "testsrc2=size=3840x2160:rate=30", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "22", "-pix_fmt", "yuv420p", src("m-4k-20s.mp4")]);
+// ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg (VM1 = 1080p ; VM2 = 4K et boucle) ---------------
+if (run("VM1") || run("VM2")) {
+// Parties VM1 (1080p) et VM2 (4K + boucle 720p) : chacune ne génère que ses sources (lot 104b).
+console.log("      (génération des sources de mesure : " + [run("VM1") ? "1080p 60 s avec son" : "", run("VM2") ? "4K 20 s, boucle 720p 4 s" : ""].filter(Boolean).join(", ") + ")");
+if (run("VM1")) ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=330", "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("m-1080p-60s.mp4")]);
+if (run("VM2")) ff(["-f", "lavfi", "-i", "testsrc2=size=3840x2160:rate=30", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "22", "-pix_fmt", "yuv420p", src("m-4k-20s.mp4")]);
 for (const [label, file] of [
-  ["1080p, 60 s, avec son", "m-1080p-60s.mp4"],
-  ["4K, 20 s", "m-4k-20s.mp4"],
-  ["boucle 720p, 4 s, sans son", "boucle-720.mp4"],
-]) {
+  ["1080p, 60 s, avec son", "m-1080p-60s.mp4", "VM1"],
+  ["4K, 20 s", "m-4k-20s.mp4", "VM2"],
+  ["boucle 720p, 4 s, sans son", "boucle-720.mp4", "VM2"],
+].filter(([, , part]) => run(part))) {
   const dir = `${TMP}/vm-${file}`;
   const m = await freshAdmin(dir);
   await http("/fr");
@@ -3169,6 +3240,7 @@ for (const [label, file] of [
   const ffPeak = Number(/ffmpeg pic (\d+) Mo/.exec(line)?.[1] ?? 9999);
   ok(`VM ${label} : convertie, pic du serveur ${after.hwm} Mo et de ffmpeg ${ffPeak} Mo, tous deux sous 600 Mo`, row?.status === "ready" && after.hwm < 600 && ffPeak < 600, `${res.status} ${row?.status} ${row?.error ?? ""}`);
   await stop(m.server);
+}
 }
 
 rmSync(TMP, { recursive: true, force: true });

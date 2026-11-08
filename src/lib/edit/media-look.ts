@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 
-import { cleanLook, FrameSchema, ImageBgSchema, MEDIA_LOOK_FIELDS, RADII, SLOT_PANO_MODES, SLOT_VIDEO_MODES, type Look, type MediaLookData, type MediaLookField } from "../look";
+import { cleanLook, FrameSchema, ImageBgSchema, MEDIA_LOOK_FIELDS, RADII, SLOT_PANO_MODES, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS, type Look, type MediaLookData, type MediaLookField } from "../look";
 
 export const MediaPatchSchema = z
   .strictObject({
@@ -22,19 +22,21 @@ export const MediaPatchSchema = z
     radius: z.enum(RADII).nullable().optional(),
     pano: z.enum(SLOT_PANO_MODES).nullable().optional(),
     video: z.enum(SLOT_VIDEO_MODES).nullable().optional(),
+    /** Son au départ d'une vidéo (lot 127) : place de carrousel et Planche libre ; ailleurs, `props.sound` (message `video-sound`). */
+    sound: z.enum(SLOT_VIDEO_SOUNDS).nullable().optional(),
   })
   .refine((p) => MEDIA_LOOK_FIELDS.some((k) => p[k] !== undefined), { message: "Rien à changer." });
 export type MediaPatch = z.infer<typeof MediaPatchSchema>;
 
 /** Champs que seule une place de carrousel porte. */
-const SLOT_ONLY: readonly MediaLookField[] = ["pano", "video"];
+const SLOT_ONLY: readonly MediaLookField[] = ["pano", "video", "sound"];
 
 /** Le patch concerne-t-il une place de carrousel seulement ? Message (français simple) si un champ n'a pas sa place là. */
 export function patchError(patch: MediaPatch, where: "slot" | "own" | "free"): string | null {
   if (where === "slot") return null;
   // Planche libre (lot 116) : la lecture d'une vidéo (Boucle / Lecteur) se règle sur sa ligne, comme sur une place de carrousel ; pas le panorama.
   if (where === "free") return patch.pano !== undefined ? "Le panorama ne se règle que sur une place d'« Images qui défilent »." : null;
-  return SLOT_ONLY.some((k) => patch[k] !== undefined) ? "Le panorama et la lecture ne se règlent que sur une place d'« Images qui défilent »." : null;
+  return SLOT_ONLY.some((k) => patch[k] !== undefined) ? "Le panorama, la lecture et le son au départ ne se règlent que sur une place d'« Images qui défilent »." : null;
 }
 
 /** Les champs d'un habillage avec un patch par-dessus (`null` retire, absent ne touche pas). */
@@ -43,7 +45,8 @@ export function mergeMedia(cur: MediaLookData | undefined, patch: MediaPatch): M
   for (const k of MEDIA_LOOK_FIELDS) {
     const v = patch[k];
     if (v === undefined) continue;
-    if (v === null) delete out[k];
+    // « Son au départ : activé » est le défaut : le champ disparaît (lot 127).
+    if (v === null || (k === "sound" && v === "on")) delete out[k];
     else out[k] = v;
   }
   return out as MediaLookData;
@@ -85,15 +88,15 @@ export function applyMediaPatch(look: Look | undefined, patch: MediaPatch, slug?
 }
 
 /** Une image de la Planche libre : ses trois réglages vivent sur sa ligne (`frame`, `bg`, `radius`). */
-export type FreeLook = { frame?: unknown; bg?: unknown; radius?: unknown; video?: unknown };
+export type FreeLook = { frame?: unknown; bg?: unknown; radius?: unknown; video?: unknown; sound?: unknown };
 export function applyMediaPatchToFree<T extends FreeLook>(item: T, patch: MediaPatch): { item: T } | { error: string } {
   const error = patchError(patch, "free");
   if (error) return { error };
   const next: Record<string, unknown> = { ...item };
-  for (const k of ["frame", "bg", "radius", "video"] as const) {
+  for (const k of ["frame", "bg", "radius", "video", "sound"] as const) {
     const v = patch[k];
     if (v === undefined) continue;
-    if (v === null) delete next[k];
+    if (v === null || (k === "sound" && v === "on")) delete next[k];
     else next[k] = v;
   }
   return { item: next as T };

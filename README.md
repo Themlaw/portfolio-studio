@@ -1,15 +1,42 @@
-# Portfolio
+# Portfolio d'artiste
 
-Portfolio d'artiste — Next.js 16 (App Router) + TypeScript + Tailwind v4 + next-intl (fr/en).
+Site de portfolio pour une artiste 2D (character design, décors, animation), avec son espace
+d'administration : pages à blocs, projets et collections, médiathèque (images, vidéos), thèmes
+personnalisables (moteur de thèmes, import d'un kit Photoshop), sauvegardes, bilingue fr/en.
+Next.js (App Router) + SQLite, une seule image Docker. Les données du dépôt (jeu de démonstration,
+fixtures, captures) sont **synthétiques** : aucune œuvre ni donnée réelle.
+
+## Démarrage rapide
+
+```bash
+npm ci
+cp .env.example .env            # puis renseigner BETTER_AUTH_SECRET (openssl rand -base64 48)
+npm run dev -- -p 3001          # http://localhost:3001 ; /admin pour l'administration
+```
+
+## Tests
+
+- Le PSD de test (synthétique) est généré à la demande par `npm test` et `scripts/test-all-local.sh` ; pour lancer un script seul : `npm run fixture:psd -- --if-missing`.
+- Rapides : `npx tsc --noEmit`, `npm run lint`, `npm test` (suites unitaires, quelques minutes).
+- Complets : `scripts/test-all-local.sh [suite…]` (e2e Playwright, une base et un serveur neufs par suite) ;
+  `BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh` va plus vite. La CI GitHub (`.github/workflows/tests.yml`)
+  répartit ces mêmes suites en shards ; une suite seule se lance à la main (`gh workflow run tests.yml -f suites=kit53`).
+- Hygiène du dépôt : `npm run audit:public` (aucun secret, fichier interdit ni donnée privée, historique compris).
+
+Licence : GNU AGPL-3.0 (`LICENSE`). Contribuer, signaler une faille : voir `SECURITY.md`. Détails techniques : `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE.md`.
+
+## Pile technique
+
+Next.js 16 (App Router) + TypeScript + Tailwind v4 + next-intl (fr/en).
 
 ## Développement
 
-Sur la VM de dev (`vm-dev`, dossier `~/portfolio`, Node 24 via nvm) :
+Sur une machine ou une VM de dev (Node 24, par exemple via nvm) :
 
 ```bash
 . ~/.nvm/nvm.sh
 npm ci
-npm run dev -- -p 3001      # http://192.0.2.10:3001 (ou portfolio.example.org)
+npm run dev -- -p 3001      # http://<ip-de-la-vm>:3001 (ou portfolio.example.org)
 npx tsc --noEmit            # typecheck
 npm run lint
 npm run build:local        # build à mémoire réduite (VM de dev) ; la CI utilise npm run build
@@ -58,7 +85,7 @@ Tout le contenu vient d'une base SQLite, sans admin pour l'instant : le seed fai
 - 404 : `src/proxy.ts` vérifie le slug sur l'URL brute et sert la page réservée
   `/<langue>/_404` (rendu serveur complet, thème, en-tête et pied) avec le statut
   404 et `Cache-Control: no-store`.
-- `PUBLIC_BASE_URL` (défaut `https://portfolio.example.org`) : base des URL
+- `PUBLIC_BASE_URL` (obligatoire en production ; en dev `http://localhost:3001`) : base des URL
   absolues (canonical, hreflang).
 - `REDIRECT_FROM` (défaut vide) : ancien(s) domaine(s), séparés par des virgules,
   renvoyés vers `PUBLIC_BASE_URL` (même chemin, même requête ; 301 en GET/HEAD,
@@ -254,7 +281,7 @@ docs/ARCHITECTURE.md, « Éditeur visuel : brouillon et publication ».
   (`/admin/api/editeur/toile`) n'accepte qu'une requête de la même origine,
   reconnue par l'en-tête `Sec-Fetch-Site` ; les navigateurs ne l'envoient
   qu'en contexte sécurisé. En HTTP sur une autre adresse (ex.
-  `http://192.0.2.10:3001`), la toile répond **403** : passer par l'URL
+  `http://<ip-de-la-vm>:3001`), la toile répond **403** : passer par l'URL
   HTTPS (proxy) ou `http://localhost:3001` (tunnel SSH).
 - Deux onglets, ou l'éditeur et le formulaire, ne s'écrasent jamais :
   chaque écriture porte la version lue ; si la page a changé ailleurs,
@@ -328,7 +355,7 @@ fournisseur OIDC local, serveur dev arrêté).
 
 ## Déploiement
 
-Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-de-prod**.
+Flux : **push GitHub → GitHub Actions → GHCR → Komodo sur l'hôte de prod**.
 
 1. `.github/workflows/docker.yml` se déclenche sur push `main`, sur les tags
    `v*` / `da/*` et à la main (`workflow_dispatch`) :
@@ -338,14 +365,14 @@ Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-de
      reproductibles (`SOURCE_DATE_EPOCH=0`, `rewrite-timestamp=true`), push sur
      `ghcr.io/themlaw/portfolio` avec les tags `latest` (main), `sha-<court>` et
      le nom du tag git nettoyé (`da/pro` → `da-pro`).
-2. Sur hote-de-prod, Komodo déploie `docker-compose.yml` (service `portfolio`,
+2. Sur l'hôte de prod, Komodo déploie `docker-compose.yml` (service `portfolio`,
    `pull_policy: always`) ; Newt (Pangolin) joint le conteneur sur le réseau
    externe `traefik` : `http://portfolio:3000`. Aucun port publié.
 
 ### Stack Komodo
 
 Deux façons, même fichier (`docker-compose.yml` du dépôt ≡
-`/home/user/docker/portfolio/compose.yaml`, octet pour octet) :
+`<dossier de la stack>/compose.yaml`, octet pour octet) :
 
 - **depuis le dépôt git** : Stack → *Git Repo* = ce dépôt, branche `main`,
   *File Paths* = `docker-compose.yml` ; un redeploy relit le fichier à jour ;

@@ -26,6 +26,7 @@ import { chromium } from "playwright";
 
 import { publishBlocks } from "./lib/page-draft.mjs";
 import { gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -188,7 +189,7 @@ try {
   );
 
   // Retour à la version 1 (« Revenir et publier »).
-  await page.goto(`${BASE}/admin/themes/${themeId}/versions`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${themeId}/versions`);
   await page.locator('li[data-version="1"]').getByTestId("version-revert").click();
   await page.locator("dialog[open]").getByTestId("revert-publish").click();
   await toast("Retour à la version 1");

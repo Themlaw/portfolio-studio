@@ -8,6 +8,10 @@
  *   icone     <kit.zip> <sortie.psd>          : « Flèche droite » redessinée EN GRAND (360 px dans la case 512)
  *   decor     <kit.zip> <sortie.psd>          : décor libre : plans 1, 3 et 5 gardés, un nouveau calque « nuages »
  *                                               inséré avant le dernier : 4 plans, dont un redessiné
+ *   video     <kit.zip> <sortie.psd> [--only=lecture,son,…] [--empty=muet,…] [--delete=pause,…] : lot 121 : dessine les calques du groupe
+ *                                               « 5 · Vidéo » (formes pleines distinctes, une par icône, et un fond de badge rose) ;
+ *                                               --only : seulement ceux-là ; --empty : calque vidé ; --delete : calque supprimé
+ *   legacy-icones <kit.zip> <sortie.psd>      : lot 121 : le fichier « icônes » d'avant (sans « 5 · Vidéo », 3400 × 5770)
  *   zip       <kit.zip> <icone.psd> <sortie>  : l'archive avec le fichier d'icônes remplacé par la version retouchée
  *   defil99   <kit.zip> <sortie.zip>          : lot 99 : barre de défilement (« Trait ») et flèches en dégradés de couleurs (synthétiques)
  *   studio    <kit.zip> <sortie.psd> [--opaque-logo] : fichier « logo et papier » retouché (lot 17a) : tuile de
@@ -71,6 +75,50 @@ try {
     const img = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="368" height="320"><path d="M8 112 H208 V16 L360 160 L208 304 V208 H8 Z" fill="#1f2a6b"/></svg>`);
     const box = frameOf(SLOTS.find((s) => s.id === "icones/fleche-droite")!, "multi");
     Object.assign(arrow, { left: box.x + 72, top: box.y + 88, right: box.x + 72 + img.width, bottom: box.y + 88 + img.height, imageData: img });
+    write(psd, out);
+  } else if (cmd === "video") {
+    const psd = readPsd(readFileSync(files.icones), READ);
+    const list = (name: string) => (rest.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? "").split(",").filter(Boolean);
+    const only = list("only");
+    const empty = list("empty");
+    const del = list("delete");
+    // Une forme pleine par icône (distincte des autres), 360 × 360 posée à 76 px du coin de la case 512 × 512 ; fond du badge : rose opaque arrondi.
+    const SHAPES: Record<string, string> = {
+      lecture: '<path d="M60 20 L330 180 L60 340Z"/>',
+      pause: '<rect x="50" y="20" width="100" height="320"/><rect x="210" y="20" width="100" height="320"/>',
+      boucle: '<circle cx="180" cy="180" r="160"/>',
+      son: '<path d="M20 120 H110 L230 20 V340 L110 240 H20Z"/>',
+      muet: '<path d="M20 120 H110 L230 20 V340 L110 240 H20Z"/><rect x="260" y="150" width="90" height="60"/>',
+      "plein-ecran": '<rect x="20" y="20" width="320" height="90"/><rect x="20" y="250" width="320" height="90"/>',
+      "quitter-plein-ecran": '<rect x="20" y="20" width="90" height="320"/><rect x="250" y="20" width="90" height="320"/>',
+    };
+    for (const slot of ALL_SLOTS.filter((x) => x.element === "video")) {
+      const key = slot.id.slice(6);
+      const layer = find(psd.children, slot.layer);
+      if (!layer) throw new Error(`calque « ${slot.layer} » introuvable`);
+      if ((only.length || empty.length || del.length) && ![...only, ...empty, ...del].includes(key)) continue;
+      const f = frameOf(slot, "multi");
+      if (del.includes(key)) {
+        const group = psd.children!.find((c) => c.children?.includes(layer))!;
+        group.children = group.children!.filter((c) => c !== layer);
+      } else if (empty.includes(key)) {
+        Object.assign(layer, { left: f.x, top: f.y, right: f.x, bottom: f.y, imageData: undefined });
+      } else if (slot.kind === "vbadge") {
+        const img = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="${f.w}" height="${f.h}"><rect width="${f.w}" height="${f.h}" rx="110" fill="#ff2d95"/></svg>`);
+        Object.assign(layer, { left: f.x, top: f.y, right: f.x + f.w, bottom: f.y + f.h, imageData: img });
+      } else {
+        const img = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360"><g fill="#1f2a6b">${SHAPES[key]}</g></svg>`);
+        Object.assign(layer, { left: f.x + 76, top: f.y + 76, right: f.x + 76 + 360, bottom: f.y + 76 + 360, imageData: img });
+      }
+    }
+    write(psd, out);
+  } else if (cmd === "legacy-icones") {
+    // Fichier « icônes » d'avant le lot 121 : sans le groupe « 5 · Vidéo », document de 3400 × 5770 (l'ancien en-tête, les mêmes cases).
+    const psd = readPsd(readFileSync(files.icones), READ);
+    psd.children = psd.children!.filter((c) => c.name !== "5 · Vidéo");
+    const guides = psd.children.find((c) => c.name === "_guides");
+    if (guides) guides.children = guides.children!.filter((c) => !/^repères · 5 · Vidéo/.test(c.name ?? ""));
+    psd.height = 5770;
     write(psd, out);
   } else if (cmd === "cursor") {
     const psd = readPsd(readFileSync(files.icones), READ);

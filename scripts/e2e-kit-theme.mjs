@@ -24,6 +24,7 @@ import path from "node:path";
 
 import { gotoThemesPage } from "./lib/theme-live.mjs";
 import { chromium } from "playwright";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -83,7 +84,7 @@ const edited = path.join(DIR, "logo-papier-retouche.psd");
 execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", "studio", kitFile, edited, ...(OPAQUE_LOGO ? ["--opaque-logo"] : [])], { stdio: "inherit" });
 
 /* ---- Envoi sur l'écran d'un AUTRE thème (Pro) ------------------------------ */
-await page.goto(`${BASE}/admin/themes/pro/kit`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/pro/kit`);
 await page.setInputFiles('[data-testid="kit-file"]', edited);
 await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
 await page.locator(".a-kit-card").nth(2).waitFor({ timeout: 240000 });
@@ -147,7 +148,7 @@ const bodyImg = await page.$eval("body", (b) => getComputedStyle(b).backgroundIm
 ok("B7 accueil : le papier couvre toujours le fond de la page", /url|image-set/.test(bodyImg), bodyImg);
 
 // Option « Papier sous le bandeau » (éditeur de thème) : la tuile revient.
-await page.goto(`${BASE}/admin/themes/${draftId}?etape=papier`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/${draftId}?etape=papier`);
 const toggle = page.locator('[data-testid="paper-under-header"]');
 ok("B7 éditeur : option « Papier sous le bandeau du haut », décochée par défaut", (await toggle.count()) === 1 && !(await toggle.isChecked()));
 if (await toggle.count()) {

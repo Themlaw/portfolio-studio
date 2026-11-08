@@ -6,8 +6,8 @@
  *  - aplatissement : modes de fusion simples, opacité, avertissement sinon,
  *    calque recadré par Photoshop replacé dans sa case ;
  *  - préalable sans décodage : signature, dimensions ;
- *  - fichier RÉEL de l'artiste (tests/fixtures/kit-synthetique.psd,
- *    kit v1 réenregistré par Photoshop, flèche droite redessinée) : seule
+ *  - fichier de test synthétique (tests/fixtures/kit-synthetique.psd,
+ *    kit v1 synthétique, flèche droite redessinée ; généré par scripts/make-fixture-psd.mts) : seule
  *    « Flèche droite » ressort redessinée, vectorisée en masque dans sa boîte
  *    128 × 128, fidélité du contour mesurée ; tout le reste inchangé.
  *    Manifeste de référence : empreintes du kit v1 d'origine (legacy-manifest.mts).
@@ -71,7 +71,7 @@ for (const group of ["4 · Cadre des images agrandies", "4 · Cadre des entrées
 const res = resolveSlots(tree, "v2");
 ok("identifiant d'export lu dans un nom de calque de _guides", res.exportId === "k2-0123456789ab", String(res.exportId));
 const found = new Set(res.sources.keys());
-const want = SLOTS.map((s) => s.id).filter((id) => !["cadre", "trait", "icone-site"].includes(id));
+const want = SLOTS.map((s) => s.id).filter((id) => !["cadre", "trait", "icone-site"].includes(id) && !id.startsWith("video/"));
 ok("emplacements trouvés (v2, v1, noms libres, sous-groupe traversé)", want.every((id) => found.has(id)) && !found.has("cadre"), [...found].join(","));
 ok("groupe d'un élément à un emplacement : tout son contenu (sous-groupe compris), sans l'aperçu", res.sources.get("signature")?.nodes.map((n) => n.name).join("|") === "Signature|mes essais");
 ok("calque inconnu dans un élément à plusieurs emplacements : ignoré et signalé", res.ignored.some((m) => m.startsWith("1 · Paysage d'accueil / nuages")) && res.ignored.some((m) => m.includes("doodle")), res.ignored.join(" ; "));
@@ -121,7 +121,7 @@ ok("pixels hors de la case : coupés et signalés", flat.overflow === true);
 /* ---- Préalable sans décodage ------------------------------------------- */
 const fixture = path.join(root, "tests/fixtures/kit-synthetique.psd");
 const pre = await preflightPsd(fixture);
-ok("fichier de l'artiste : en-tête accepté (2880 × 2560, RVB 8 bits)", preflightProblem(pre, DEFAULT_LIMITS) === null && pre.width === 2880, JSON.stringify(pre));
+ok("fichier de test : en-tête accepté (2880 × 2560, RVB 8 bits)", preflightProblem(pre, DEFAULT_LIMITS) === null && pre.width === 2880, JSON.stringify(pre));
 const big = Buffer.from(readFileSync(fixture));
 big.writeUInt32BE(30000, 14);
 big.writeUInt32BE(30000, 18);
@@ -132,7 +132,7 @@ writeFileSync(path.join(tmp, "faux.psd"), Buffer.from("\x89PNG\r\n\x1a\n" + "0".
 const notPsd = await preflightPsd(path.join(tmp, "faux.psd")).then(() => null, (e) => e);
 ok("signature invalide : refusée (PsdPreflightError)", notPsd instanceof PsdPreflightError, String(notPsd));
 
-/* ---- Fichier réel de l'artiste ------------------------------------------ */
+/* ---- Fichier de test synthétique (kit v1 réenregistré) ------------------------------------------ */
 const manifest = JSON.parse(readFileSync(path.join(root, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), "utf8"));
 const out = path.join(tmp, "out");
 const t0 = Date.now();
@@ -149,8 +149,8 @@ const svg = readFileSync(path.join(out, arrow.files[0]), "utf8");
 ok("flèche normalisée dans sa boîte 128 × 128 (recadrée 97 × 85 par Photoshop)", /viewBox="0 0 128 128"/.test(svg), svg.slice(0, 120));
 ok(`fidélité du contour mesurée : écart ${arrow.fidelity?.deviation} px ≤ 0,6`, arrow.fidelity && arrow.fidelity.deviation <= 0.6);
 ok("aperçu « après » écrit", Boolean(arrow.preview) && readFileSync(path.join(out, arrow.preview)).length > 100);
-ok("aucun avertissement sur le fichier de l'artiste", report.slots.every((s) => s.status === "ok"), report.slots.filter((s) => s.status !== "ok").map((s) => `${s.id}: ${s.messages}`).join(" ; "));
-console.log(`      import du fichier réel : ${ms} ms, pic ${report.peakMb} Mo`);
+ok("aucun avertissement sur le fichier de test", report.slots.every((s) => s.status === "ok"), report.slots.filter((s) => s.status !== "ok").map((s) => `${s.id}: ${s.messages}`).join(" ; "));
+console.log(`      import du fichier de test : ${ms} ms, pic ${report.peakMb} Mo`);
 
 /* ---- Paire de flèches : miroir (case cochée par défaut dans la revue) ---- */
 const { arrowMirror, mirrorSvg } = await kit("mirror.ts");
@@ -196,7 +196,7 @@ ok("arbre : trop de calques (y compris ceux que l'en-tête ne voit pas) → refu
 ok("arbre : surface cumulée trop grande → refus", /mégapixels/.test(treeProblem(treeStats(rectL(6, 4000, 4000)), lim, doc) ?? ""));
 ok("arbre : imbrication trop profonde → refus", /niveaux/.test(treeProblem(treeStats([deep]), lim, doc) ?? ""));
 ok("arbre : un calque plus grand que tout le document → refus", /plus grand que tout le document/.test(treeProblem(treeStats([{ name: "x", left: -5000, top: 0, right: 5000, bottom: 10 }]), lim, doc) ?? ""));
-ok(`arbre du fichier réel de l'artiste : accepté (${report.tree?.layers} calques et groupes, profondeur ${report.tree?.depth})`, report.tree && treeProblem(report.tree, lim, { width: 2880, height: 2560 }) === null);
+ok(`arbre du fichier de test synthétique : accepté (${report.tree?.layers} calques et groupes, profondeur ${report.tree?.depth})`, report.tree && treeProblem(report.tree, lim, { width: 2880, height: 2560 }) === null);
 
 /* ---- En-têtes légitimes hors limites (générés avec ag-psd) -------------- */
 const tiny = (n = 1) => Array.from({ length: n }, (_, i) => ({ name: `calque ${i}`, left: i, top: 0, right: i + 2, bottom: 2, imageData: rect(2, 2, [10, 20, 30, 255]) }));
@@ -255,7 +255,7 @@ try {
   zipErr = e;
 }
 ok("canal compressé en ZIP : détecté et refusé avant décodage (« Compression ZIP non prise en charge »)", zipSeen && zipErr instanceof SlotRefusal && /Compression ZIP non prise en charge/.test(zipErr.message), String(zipErr));
-ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(readFileSync(fixture), { ...PSD_READ_OPTIONS }).children.some(function z(l) { return hasZipChannels(l) || (l.children ?? []).some(z); }));
+ok("fichier de test synthétique : aucun canal ZIP (RLE Photoshop)", !readPsd(readFileSync(fixture), { ...PSD_READ_OPTIONS }).children.some(function z(l) { return hasZipChannels(l) || (l.children ?? []).some(z); }));
 
 /* ---- Kit v3 : palette et curseurs, aller-retour réel (export → modif ag-psd → import) ---- */
 {
@@ -343,7 +343,7 @@ ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(read
   ok("pastille : calque de forme → couleur de remplissage (RVB et FRGB)", shapeFill([{ name: "x", vectorFill: { type: "color", color: { r: 12, g: 34, b: 56 } } }])?.g === 34 && shapeFill([{ name: "x", vectorFill: { type: "color", color: { fr: 1, fg: 0, fb: 0.5 } } }])?.b === 128);
   ok("comparaison de couleurs : hex et rgba", sameColor("#E5E2DB", "#e5e2db") && sameColor("rgba(237, 232, 220, 0.14)", "rgba(237,232,220,0.14)") && !sameColor("#000000", "#000001"));
   ok("point chaud : repère supprimé → défaut + message", readHotspot(undefined, zone, CURSOR_DEFAULT_HOTSPOT.default).message?.includes("introuvable"));
-  ok("ancien kit (v1, fichier réel) : ni palette ni curseurs rapportés", !report.colors && report.extras?.palette === false && !report.slots.some((x) => x.id.startsWith("curseur/")), JSON.stringify(report.extras));
+  ok("ancien kit (v1, fichier de test) : ni palette ni curseurs rapportés", !report.colors && report.extras?.palette === false && !report.slots.some((x) => x.id.startsWith("curseur/")), JSON.stringify(report.extras));
 }
 
 /* ---- Palette : gestes naturels de Photoshop (lot 17a), aller-retour PSD réel ---- */

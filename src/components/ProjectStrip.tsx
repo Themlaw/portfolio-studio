@@ -7,6 +7,7 @@ import BoardBox from "@/components/BoardBox";
 import EditOnly from "@/components/EditOnly";
 import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
+import VideoSoundSeg from "@/components/edit/VideoSoundSeg";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { captionCss, captionStylesOf, type CaptionStyles } from "@/blocks/caption-style";
@@ -51,6 +52,8 @@ export type BoardPart = {
   dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
+  /** Composant Vidéo (vue brouillon, lot 127) : sa vidéo a du son ? (le réglage « Son au départ » n'existe que pour une vidéo avec son). */
+  hasAudio?: boolean;
   /** Couleur posée sur la barre de défilement de cette bande (lot 110). */
   stroke?: StrokeTint;
   /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
@@ -286,6 +289,13 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       if (isVideoMode(v)) videoNow = v;
     } catch {}
   }
+  // Son au départ (lot 127) : `props.sound` du composant Vidéo (absent = activé).
+  let soundNow: "on" | "off" = "on";
+  if (videoKey && part.props) {
+    try {
+      if ((JSON.parse(part.props) as { props?: Record<string, unknown> }).props?.sound === "off") soundNow = "off";
+    } catch {}
+  }
   const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (
     <button type="button" className="pe-bitem-btn" data-edit-bitem-op={name} data-uid={part.uid} data-board={board} disabled={disabled} aria-label={`${text} — ${label}`} title={text}>
       <span aria-hidden="true">{glyph}</span>
@@ -350,6 +360,9 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
               </button>
             ))}
           </span>
+        )}
+        {videoKey && !part.empty && part.hasAudio && (
+          <VideoSoundSeg now={soundNow} testId="bitem-video-sound" attr="data-edit-bitem-op" prefix="sound-" className="pe-bitem-btn" extra={{ "data-uid": part.uid, "data-board": board }} />
         )}
         {(part.type === "image" || (part.type === "video-single" && !part.empty)) && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title={part.type === "image" ? "Cadre autour de la photo" : "Cadre autour de la vidéo"}>

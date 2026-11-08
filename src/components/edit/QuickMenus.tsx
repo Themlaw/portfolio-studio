@@ -45,7 +45,8 @@ function writeLook(uid: string, look: Look) {
 
 /** Valeur courte affichée à côté du libellé de la barre (lot 90), seulement quand le bloc a son propre réglage ; sinon rien (le thème décide). */
 export function spaceValue(look: Look): string | undefined {
-  return look.spaceTop === undefined ? undefined : look.spaceTop === "none" ? "aucun" : spaceLabel(look.spaceTop);
+  if (look.spaceTop === undefined) return look.padTop !== undefined || look.padBottom !== undefined ? "intérieur" : undefined;
+  return look.spaceTop === "none" ? "aucun" : spaceLabel(look.spaceTop);
 }
 export function sizeValue(look: Look): string | undefined {
   const parts = [look.imageSize === "large" ? "grande" : undefined, look.imageAlign && look.imageAlign !== "center" ? IMAGE_ALIGN_LABELS[look.imageAlign].toLowerCase() : undefined].filter(Boolean);
@@ -90,7 +91,9 @@ export function SpaceControls({ look, onChange, topOnly = false }: { look: Look;
       <SpaceSlider label="Haut" testId="slider-spaceTop" attr="data-space-top" value={look.spaceTop} onChange={(v) => onChange({ spaceTop: v })} />
       {!topOnly && <SpaceSlider label="Bas" testId="slider-spaceBottom" attr="data-space-bottom" value={look.spaceBottom} onChange={(v) => onChange({ spaceBottom: v })} />}
       {!topOnly && <SidesSlider label="Côtés" testId="slider-spaceSides" attr="data-space-sides" value={look.spaceSides} onChange={(v) => onChange({ spaceSides: v })} />}
-      <p className="sm-hint">Espacement intérieur : la distance DANS le fond et la carte, que leur couleur et leur papier peint couvrent. Auto : l&apos;espace du thème. La distance à l&apos;extérieur est dans « Marge ».</p>
+      {!topOnly && <SpaceSlider label="Intérieur haut" testId="slider-padTop" attr="data-pad-top" value={look.padTop} onChange={(v) => onChange({ padTop: v })} />}
+      {!topOnly && <SpaceSlider label="Intérieur bas" testId="slider-padBottom" attr="data-pad-bottom" value={look.padBottom} onChange={(v) => onChange({ padBottom: v })} />}
+      <p className="sm-hint">Espacement intérieur : la distance DANS le fond et la carte, que leur couleur et leur papier peint couvrent. « Intérieur haut / bas » : entre le bord de la carte (ou du fond) et le contenu, « Aucun » les colle ; « Haut / Bas » s&apos;ajoutent à cette distance. Auto : l&apos;espace du thème. La distance à l&apos;extérieur est dans « Marge ».</p>
     </div>
   );
 }

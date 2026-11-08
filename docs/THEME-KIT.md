@@ -277,9 +277,9 @@ Retour réel de l'artiste sur le kit v1 (Photoshop, Windows) : « Non je compren
 pas ». Calques isolés hors des groupes, LISEZ-MOI rangé n'importe où, « pourquoi
 seulement le scotch dans les accessoires », tout tassé sur une toile 2880 × 2560
 sous le paysage, libellés illisibles à 25 %, rien ne dit où chaque élément
-apparaît sur le site. Son fichier réenregistré par Photoshop (flèche droite
-redessinée) est le jeu de test réel : `tests/fixtures/kit-synthetique.psd`
-(5,8 Mo ; 1,5 Mo une fois compressé par git : gardé dans le dépôt).
+apparaît sur le site. Un fichier réenregistré par Photoshop (flèche droite
+redessinée) est le jeu de test : `tests/fixtures/kit-synthetique.psd`, SYNTHÉTIQUE depuis le lot 103
+(généré par `scripts/make-fixture-psd.mts`, 2,4 Mo, aucune donnée de l'artiste ; NON commité : `npm test` et `scripts/test-all-local.sh` le génèrent s'il manque).
 
 ### Groupes plutôt que plans de travail
 
@@ -289,7 +289,7 @@ sur une zone de toile dédiée et espacée** (une « carte »). Raisons : la rel
 d'un document à plans de travail réenregistré par Photoshop n'est pas vérifiable
 sur la VM, et Photoshop agrandit et décale la toile d'un tel document
 (coordonnées déplacées) ; l'aller-retour des groupes est, lui, **prouvé sur le
-fichier de l'artiste** : chaque emplacement relu identique au bit près (une fois
+fichier de test** : chaque emplacement relu identique au bit près (une fois
 replacé dans sa case). L'import tolère malgré tout un plan de travail : ses cases
 sont alors relatives au rectangle du plan.
 
@@ -386,7 +386,7 @@ et vue d'ensemble : `screenshots/phase6d/kit-v2-*.png`.
   `KIT_IMPORT_MAX_DURATION_S`) → job en échec lisible, PSD supprimé, sortie
   tronquée à 64 Ko ; un enfant précédent encore vivant est tué avant d'en
   lancer un autre. Mesuré en production sous ce plafond : export 346 Mo,
-  import du fichier réel 181 Mo. `mem_limit: 1g` commenté dans le compose.
+  import du fichier de test 181 Mo. `mem_limit: 1g` commenté dans le compose.
 - **Lecture ag-psd bornée** : `totalMemoryLimit` de 64 Mo (`PSD_READ_OPTIONS`) : ce
   qu'ag-psd décode lui-même pendant la lecture (motifs `Patt`/`Pat2`/`Pat3`,
   composite) ne dépasse pas 64 Mo (2 Go par défaut). **Canaux ZIP refusés**
@@ -430,7 +430,7 @@ copie brouillon « … (kit) » (jamais le thème en ligne), avec les nouveaux a
 | Opération | Durée | Pic mémoire | Sortie |
 |---|---|---|---|
 | Export v2 de galerie-lumineuse (enfant esbuild) | 3,1 s | **345 Mo** (sans rognage ni composite en flux : 445 Mo) | PSD 9,6 Mo, 30 calques |
-| Import du fichier réel de l’artiste (enfant, production) | 0,9 s | 150 Mo | 1 masque SVG de 463 o |
+| Import du fichier de test de l’artiste (enfant, production) | 0,9 s | 150 Mo | 1 masque SVG de 463 o |
 | Import d'un kit v2 non modifié | 0,7 s | 226 Mo | rien à convertir |
 
 Export sous 400 Mo : calques rognés à leur contenu (comme Photoshop), cache
@@ -633,7 +633,7 @@ la palette SORT du kit (elle se choisit dans l'éditeur visuel, lot 17f).
 |---|---|---|
 | `1-decor-accueil.psd` | 5760 × 3960 (bande de consignes 760 px + cadre du décor 5760 × 3200) | Calques LIBRES de premier niveau : chacun (ou groupe) est un plan, du fond (bas de la pile) vers l'avant, jusqu'à 8. Le décor actuel du thème (calques SVG du hero, ou plans déjà dessinés) y est découpé en ses plans, à 2 × leur taille d'usage. Repères : cadre du décor, zone du titre. |
 | `2-logo-papier.psd` | 3000 × 4640 | Logo 2400 × 600 → 1200 × 300 ; papier : tuile 1024 × 1024 → 512 × 512 avec, à côté, l'aperçu 3 × 3 de la tuile actuelle (raccords repérés en pointillés roses) ; trait 2400 × 160 → 1200 × 80. |
-| `3-icones-curseurs.psd` | 3400 × 5770 | 4 icônes 512 × 512 → 128 × 128 ; 2 curseurs 512 × 512 → 64 × 64 (affiché 32, point chaud : anneau rose de 88 px) ; cadre 900 × 900 → 300 × 300 (marges 144 px = 48) ; scotch 1200 × 480 → 400 × 160. |
+| `3-icones-curseurs.psd` | 3400 × 7810 (lot 121 ; avant : 3400 × 5770, toujours importé) | 4 icônes 512 × 512 → 128 × 128 ; 2 curseurs 512 × 512 → 64 × 64 (affiché 32, point chaud : anneau rose de 88 px) ; cadre 900 × 900 → 300 × 300 (marges 144 px = 48) ; scotch 1200 × 480 → 400 × 160. |
 | `LISEZ-MOI.txt` | | Court : trois fichiers, comment faire, envoyer seulement les fichiers modifiés. |
 
 Où ranger quoi : le logo (identité), le papier (répété) et le trait (étiré) sont ce qui se
@@ -708,7 +708,7 @@ l'enfant (§ « Défenses ») s'appliquent tels quels.
 Les anciens kits restent lus : `layout` `v1` / `v2` (cases d'usage, groupe « 8 · Palette » avec la lecture
 des gestes naturels du lot 17a, curseurs 64 × 64) ; `buildKit` (export v3) n'est plus appelé par
 l'application, il sert aux tests de compatibilité (`test-kit-import.mjs`) et au script du tuto. Le
-fichier réel `tests/fixtures/kit-synthetique.psd` est toujours lu à l'identique.
+fichier de test `tests/fixtures/kit-synthetique.psd` est toujours lu à l'identique.
 
 Tests : `scripts/test-kit-multi.mjs` (dans `npm test` : export → archive → réimport sans changement,
 icône à 512, logo, curseur, décor libre, archive défensive, anciens kits), `test-kit-import.mjs`,
@@ -718,3 +718,13 @@ l'artiste) et `kit17a` (logo et papier seuls, appliqués au thème d'origine).
 ### Palette suggérée retirée de la revue (lot 17e)
 
 La revue ne propose plus de palette tirée du paysage (`kit/palette.ts` supprimé, option `palette` de « Appliquer » retirée) : les couleurs se choisissent dans l'éditeur visuel (lot 17f). La lecture du groupe « 8 · Palette » des anciens kits v1/v2/v3 est conservée (section « Couleurs de la palette » de la revue, `extras.ts`).
+
+## 10. Icônes des vidéos (lot 121)
+
+Le fichier « icônes » du kit v4 gagne un groupe **« 5 · Vidéo »** sous le scotch (document 3400 × 7810 ; l'ancien 3400 × 5770 reste importé : ses emplacements vidéo n'existent pas, `multiOnly`). Il contient un calque gabarit par icône, dans une case de 512 × 512 réduite à 128 × 128 (l'icône actuelle du site y est dessinée en exemple) : « Lecture vidéo », « Pause vidéo », « Boucle », « Son activé », « Muet », « Plein écran », « Quitter le plein écran », et « Fond du badge (option) » (masqué au départ, 512 × 512 réduit à 256 × 256, en couleurs).
+
+- **Le logo seul, pas le carré** : l'artiste dessine l'icône ; le carré du badge reste réglé par le thème (couleur, transparence, coins). Le fond du badge dessiné, s'il existe, remplace le carré (`[data-kit-vicon-badge] .vid-badge`, étiré à la taille du badge).
+- **Règle des icônes du kit** : forme d'une seule couleur, masque teinté par `currentColor` (SVG tracé, sinon masque bitmap). Case vide ou calque supprimé : l'icône actuelle est gardée ; case inchangée : « inchangé » (aucun asset).
+- **Données** : `kit.vicons` = `{ play, pause, loop, sound, muted, fullscreen, exitFullscreen, badge }` (chacun facultatif, un `kitImage`). Variables `--t-kit-vicon-<nom>` et attributs `data-kit-vicon-<nom>` posés par `src/themes/css.ts` ; règles dans `variants.css`.
+- **Composant** : `src/components/video-icons.tsx` (contrat commun avec le lot 127). Chaque icône porte `data-vicon="<clé>"` et `--vi` (taille) ; le CSS efface le SVG d'origine et pose le dessin. Sans dessin, le rendu est identique à celui d'avant.
+- Emplacements dans le kit : `video/lecture`, `video/pause`, `video/boucle`, `video/son`, `video/muet`, `video/plein-ecran`, `video/quitter-plein-ecran`, `video/fond-badge` (`src/lib/kit/spec.ts`, `VIDEO_ICONS`).

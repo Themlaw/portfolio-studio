@@ -368,6 +368,60 @@
     outline-offset: 2px;
   }
 
+  /* ---- Bouton « Plein écran » (lot 127) : même style que les badges, EN BAS À GAUCHE (le badge reste en bas à droite, le bouton son en haut
+     à droite). Un vrai bouton : cible d'au moins 44 px au doigt, focus visible. */
+  .vid-fs {
+    right: auto;
+    left: 0.6rem;
+    width: 2rem;
+    padding: 0;
+    border: 0;
+    pointer-events: auto;
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  .vid-fs:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  @media (pointer: coarse) {
+    .vid-fs {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+
+  /* Place d'un carrousel : le bouton est posé sur la case entière (légende comprise), calé sur le bas de la boîte du média. */
+  .vid-fs-rail {
+    bottom: auto;
+    top: calc(var(--fit-h, var(--strip-h)) - 0.6rem - 2rem);
+  }
+
+  @media (pointer: coarse) {
+    .vid-fs-rail {
+      top: calc(var(--fit-h, var(--strip-h)) - 0.6rem - 44px);
+    }
+  }
+
+  /* Vidéo de carrousel en Lecteur : l'enveloppe porte le bouton plein écran à côté du bouton qui ouvre la vidéo. */
+  .strip-fs-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  /* Boucle en plein écran : la vidéo entière sur fond noir (sinon elle garde le rognage de sa boîte). */
+  .media-frame video:fullscreen {
+    object-fit: contain;
+    background-color: var(--color-scrim) !important;
+  }
+
+  .media-frame video:-webkit-full-screen {
+    object-fit: contain;
+    background-color: var(--color-scrim) !important;
+  }
+
   .loop-mark {
     opacity: 0.55;
     transition: opacity var(--dur-fast) var(--ease-soft);

@@ -25,6 +25,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -302,9 +303,9 @@ if (run("C")) {
   // Lot 60 : plus de « Dupliquer » ; le thème qu'on modifie est Mon thème (créé depuis « Galerie lumineuse »).
   await activateTheme("Galerie lumineuse");
   const copyId = q("select id from themes where mine = 1")[0].id;
-  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(copyId)}`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(copyId)}`);
   // Lot 61 : les styles par rôle sont sous « Affiner (avancé) » de l'étape « Textes ».
-  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(copyId)}?etape=textes`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(copyId)}?etape=textes`);
   await page.locator('[data-testid="adv-textes"] summary').click();
   const type = page.getByTestId("theme-type");
   ok("C1 éditeur de thème : section « Styles par rôle » (sept rôles)", (await type.locator("fieldset").count()) === 7);

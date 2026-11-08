@@ -94,6 +94,8 @@ export const GridCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("pick"), index: z.number().int().min(0).max(MAX_GRID_CELLS), media: z.enum(["image", "video"]).optional() }),
   // Lot 36 : lecture de la vidéo de la case n° `index` (Boucle ou Lecteur).
   z.object({ op: z.literal("video-mode"), index: CellIndex, mode: z.enum(["loop", "player"]) }),
+  // Lot 127 : son au départ de la vidéo de la case n° `index` (activé / coupé).
+  z.object({ op: z.literal("video-sound"), index: CellIndex, sound: z.enum(["on", "off"]) }),
 ]);
 export type GridCanvasOp = z.infer<typeof GridCanvasOpSchema>;
 /** Identité d'une image de la planche libre (lot 42). */
@@ -196,6 +198,8 @@ export const FromCanvasSchema = z.union([
   // Vidéo ou bande de la planche (`board` + `uid` ; `props` = ses réglages lus par la toile, repli). `mode` null : la bande suit
   // la nature de chaque vidéo (réglage d'avant).
   z.object({ kind: z.literal("video-mode"), uid: Uid, board: Board.optional(), item: BoardItemKind.optional(), props: z.string().max(100_000).optional(), mode: z.enum(["loop", "player"]).nullable() }),
+  // Lot 127 : son au départ d'une vidéo (activé / coupé) depuis sa barre : composant Vidéo d'une page (`uid`) ou de la planche (`board` + `uid`). Une case de grille passe par `grid-op`, une place de carrousel et la Planche libre par `media-look`.
+  z.object({ kind: z.literal("video-sound"), uid: Uid, board: Board.optional(), item: BoardItemKind.optional(), props: z.string().max(100_000).optional(), sound: z.enum(["on", "off"]) }),
   // Lot 31d : mise en forme (cadre, recadrage) de la case d'une grille de PLANCHE (la case n'est pas un bloc de la page).
   z.object({ kind: z.literal("cell-look"), board: Board, grid: Uid, props: z.string().max(100_000).optional(), uid: Uid, look: LookSchema.nullable() }),
   // Lot 75 (R4) : UNE écriture pour l'habillage d'un média (cadre, fond d'image, arrondi, panorama, lecture), tous conteneurs.

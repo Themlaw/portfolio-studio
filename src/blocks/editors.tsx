@@ -38,6 +38,7 @@ import { applyFreeLook, applyFreeOp, cropOf, FREE_FORMAT_LABELS, FREE_FORMATS, F
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
+import { soundOf, VIDEO_SOUND_HINTS, VIDEO_SOUND_OPTIONS } from "./video-sound";
 import { applyGridOp, AUTO_HINT, autoCols, isJustified, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
@@ -873,6 +874,16 @@ export function VideoSingleEditor() {
         options={VIDEO_MODE_OPTIONS}
         onChange={(v) => set("mode", v ?? "player")}
       />
+      {typeof value.mediaId === "number" && context.media.find((x) => x.id === value.mediaId)?.hasAudio !== false && (
+        // Son au départ (lot 127) : seulement pour une vidéo qui a du son ; « Activé » (le défaut) retire le champ.
+        <Select
+          label="Son au départ"
+          help={VIDEO_SOUND_HINTS[soundOf(value)]}
+          value={soundOf(value)}
+          options={VIDEO_SOUND_OPTIONS}
+          onChange={(v) => onChange(v === "off" ? { ...value, sound: "off" } : (({ sound: _s, ...rest }) => (void _s, rest))(value))}
+        />
+      )}
       <Select
         label="Présentation"
         value={(value.variant as string) ?? "card"}
@@ -1104,8 +1115,20 @@ export function FreeBoardEditor() {
                         </button>
                       )}
                     </div>
+                    {m.hasAudio !== false && (
+                      <Select
+                        label="Son au départ"
+                        help={VIDEO_SOUND_HINTS[it.sound === "off" ? "off" : "on"]}
+                        value={it.sound === "off" ? "off" : "on"}
+                        options={VIDEO_SOUND_OPTIONS}
+                        onChange={(v) => {
+                          const res = applyFreeLook(value, it.id, { sound: v === "off" ? "off" : null });
+                          if (!("error" in res)) onChange(res.props);
+                        }}
+                      />
+                    )}
                     <p className="ve-hint" data-testid={`free-sound-${i}`}>
-                      {m.hasAudio === false ? "Vidéo sans son : pas de bouton son." : "Cette vidéo a du son : un bouton son s'affiche, la lecture démarre muette."}
+                      {m.hasAudio === false ? "Vidéo sans son : pas de bouton son." : "Cette vidéo a du son : un bouton son s'affiche, sur le site comme dans l'Aperçu."}
                     </p>
                   </>
                 )}

@@ -30,6 +30,7 @@ import { decodeProblem } from "./budget";
 import { cropHeight, cropWidths, fileRect, rectKey, rectPixels, SIG_LENGTH, type RectUnits } from "./crop";
 import { ImageTooHeavy, MAX_PIXELS, orient, originalFile } from "./process";
 import type { VariantFormat } from "./variants";
+import { devSecret } from "@/lib/auth/dev-secret";
 
 /** Recadrages gardés par média ; au-delà, le plus ancien est effacé (il se régénère si on le redemande). */
 export const MAX_RECTS = 32;
@@ -45,9 +46,8 @@ export class CropRejected extends Error {}
 
 // Hors production sans secret : valeur fixe (dev, tests). En production la connexion exige BETTER_AUTH_SECRET
 // (src/lib/auth/config.ts) ; s'il manquait ici quand même, un secret aléatoire du processus évite toute signature devinable.
-const DEV_SECRET = "secret-de-dev-supprime";
 const PROCESS_SECRET = randomBytes(32).toString("hex");
-const secret = () => process.env.BETTER_AUTH_SECRET || (process.env.NODE_ENV === "production" ? PROCESS_SECRET : DEV_SECRET);
+const secret = () => process.env.BETTER_AUTH_SECRET || (process.env.NODE_ENV === "production" ? PROCESS_SECRET : devSecret("crop-cache"));
 const digest = (mediaId: number, key: string) => createHmac("sha256", secret()).update(`crop1:${mediaId}:${key}`).digest("hex").slice(0, SIG_LENGTH);
 
 /** Signature d'un recadrage (rendu du site) : n'accepte que ce que le serveur a écrit lui-même. */

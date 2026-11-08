@@ -34,6 +34,9 @@ const LOW_MEM = process.env.LOW_MEM_BUILD === "1";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   env: { PORTFOLIO_VERSION: appVersion },
+  // Batterie de tests (lot 104b) : chaque serveur `next dev` en parallèle reçoit son propre dossier (NEXT_DIST_DIR=.next/d-<suite>),
+  // deux `next dev` ne pouvant pas partager le même. Absent en production et en build : aucun effet.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // En LOW_MEM, le typecheck tourne AVANT le build (`tsc --noEmit` dans
   // build:local), pas en parallèle du serveur de build : même garantie, pic réduit.
   ...(LOW_MEM ? { typescript: { ignoreBuildErrors: true } } : {}),
@@ -77,7 +80,7 @@ const nextConfig: NextConfig = {
   // Serveur autonome minimal (.next/standalone) pour l'image Docker.
   output: "standalone",
   // Accès au serveur de dev à travers le reverse proxy.
-  allowedDevOrigins: ["portfolio.example.org"],
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   // La base et les médias de dev (./data) ne doivent jamais finir dans le
   // standalone. Cette exclusion couvre les traces des routes ; celle de
   // l'instrumentation (Turbopack) ne l'honore pas : la vraie garantie est

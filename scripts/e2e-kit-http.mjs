@@ -11,7 +11,7 @@
  *  H4. Application : copie brouillon (décor libre de 4 plans, `plansOnly`) ; flèche de l'artiste et son miroir ;
  *      thème en ligne inchangé.
  *  H5. Aller-retour sans fin : le kit de la copie réimporté tel quel → rien de modifié.
- *  H6. Ancien kit (fichier réel de l'artiste) : toujours reçu et lu, sans titre de fichier.
+ *  H6. Ancien kit (fichier de test synthétique) : toujours reçu et lu, sans titre de fichier.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… [BASE=http://localhost:3001] [DATA_DIR=./data] node scripts/e2e-kit-http.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -124,7 +124,7 @@ const upZip = await upload(bytes(zipEdited), "kit-v4-modifie.zip", { type: "appl
 const idZip = upZip.body.kitImport?.id;
 const stZip = await waitImport("galerie-lumineuse", idZip);
 const rZip = stZip.status === "done" ? rapportOf(idZip) : null;
-ok("H2 archive entière : importée, 17 éléments (décor 5, logo 4, icônes 8), seule la flèche droite redessinée", upZip.status === 200 && rZip?.slots.length === 17 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:4,icones:8", JSON.stringify({ st: stZip, f: rZip?.files }));
+ok("H2 archive entière : importée, 25 éléments (décor 5, logo 4, icônes 16), seule la flèche droite redessinée", upZip.status === 200 && rZip?.slots.length === 25 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:4,icones:16", JSON.stringify({ st: stZip, f: rZip?.files }));
 ok("H2 archive : les PSD extraits sont supprimés après l'import", !readdirSync(path.join(DATA, "kit-imports", idZip)).some((n) => /\.psd$/.test(n)));
 const htmlZip = await (await get(`/admin/themes/galerie-lumineuse/kit?import=${idZip}`)).text();
 ok("H3 revue de l'archive : un bloc par fichier, tous reçus, flèche droite redessinée", ["decor", "logo", "icones"].every((f) => new RegExp(`data-file="${f}" data-received="true"`).test(htmlZip)) && htmlZip.includes("Flèche droite : redessinée"), htmlZip.slice(0, 0));
@@ -135,7 +135,7 @@ const idOne = upOne.body.kitImport?.id;
 const stOne = await waitImport("galerie-lumineuse", idOne);
 const rOne = stOne.status === "done" ? rapportOf(idOne) : null;
 const htmlOne = await (await get(`/admin/themes/galerie-lumineuse/kit?import=${idOne}`)).text();
-ok("H2 un seul PSD (nom quelconque) : reconnu comme le fichier d'icônes, 8 éléments", rOne?.files.map((f) => `${f.id}:${f.received}`).join() === "decor:false,logo:false,icones:true" && rOne.slots.length === 8 && rOne.reference?.how === "identifiant", JSON.stringify(rOne?.files));
+ok("H2 un seul PSD (nom quelconque) : reconnu comme le fichier d'icônes, 16 éléments", rOne?.files.map((f) => `${f.id}:${f.received}`).join() === "decor:false,logo:false,icones:true" && rOne.slots.length === 16 && rOne.reference?.how === "identifiant", JSON.stringify(rOne?.files));
 ok("H3 revue d'un seul PSD : « pas envoyé : inchangé » pour le décor et le logo", (htmlOne.match(/pas envoyé : inchangé/g) ?? []).length >= 2 && /data-file="decor" data-received="false"/.test(htmlOne) && /data-file="logo" data-received="false"/.test(htmlOne));
 
 /* ---- Deux PSD choisis ensemble : envoi groupé, décor libre ------------------------------------- */
@@ -146,7 +146,7 @@ ok("H2 envoi groupé : le premier fichier ne lance PAS l'import", b1.status === 
 const b2 = await upload(bytes(iconPsd), "icones-modifie.psd", { batch: { id: batchId, last: true } });
 const stBatch = await waitImport("galerie-lumineuse", batchId);
 const rBatch = stBatch.status === "done" ? rapportOf(batchId) : null;
-ok("H2 envoi groupé : le dernier lance un seul import des deux fichiers (décor 4 plans, logo « pas envoyé », icônes 8)", b2.status === 200 && rBatch?.files.map((f) => `${f.id}:${f.received}:${f.slots}`).join() === "decor:true:4,logo:false:0,icones:true:8", JSON.stringify({ b2: b2.status, f: rBatch?.files, st: stBatch }));
+ok("H2 envoi groupé : le dernier lance un seul import des deux fichiers (décor 4 plans, logo « pas envoyé », icônes 16)", b2.status === 200 && rBatch?.files.map((f) => `${f.id}:${f.received}:${f.slots}`).join() === "decor:true:4,logo:false:0,icones:true:16", JSON.stringify({ b2: b2.status, f: rBatch?.files, st: stBatch }));
 const reopened = await upload(bytes(iconPsd), "icones-modifie.psd", { batch: { id: batchId, last: true } });
 ok("H2 lot refermé : un fichier de plus est refusé (409)", reopened.status === 409, `${reopened.status} ${reopened.body.message}`);
 const decorPlans = rBatch?.slots.filter((s) => s.id.startsWith("decor/")) ?? [];
@@ -186,9 +186,9 @@ const again = await upload(draftZip, `kit-${draftId}.zip`, { themeId: draftId, t
 const stAgain = await waitImport(draftId, again.body.kitImport?.id);
 const rAgain = stAgain.status === "done" ? rapportOf(again.body.kitImport.id) : null;
 const modified = rAgain?.slots.filter((s) => s.change !== "unchanged") ?? [];
-ok(`H5 kit de la copie (décor de 4 plans + flèche de l'artiste) réimporté tel quel : ${rAgain?.slots.length} éléments, 0 modifié`, draftReady.ready && rAgain?.reference?.how === "identifiant" && rAgain.slots.length === 16 && modified.length === 0 && rAgain.decor?.structure === "unchanged" && rAgain.decor.count === 4, JSON.stringify({ n: rAgain?.slots.length, modified: modified.map((s) => `${s.id}:${s.change}`), decor: rAgain?.decor }));
+ok(`H5 kit de la copie (décor de 4 plans + flèche de l'artiste) réimporté tel quel : ${rAgain?.slots.length} éléments, 0 modifié`, draftReady.ready && rAgain?.reference?.how === "identifiant" && rAgain.slots.length === 24 && modified.length === 0 && rAgain.decor?.structure === "unchanged" && rAgain.decor.count === 4, JSON.stringify({ n: rAgain?.slots.length, modified: modified.map((s) => `${s.id}:${s.change}`), decor: rAgain?.decor }));
 
-/* ---- H6. Ancien kit mono-fichier (fichier réel de l'artiste) ---------------------------------------------- */
+/* ---- H6. Ancien kit mono-fichier (fichier de test synthétique) ---------------------------------------------- */
 const manifests = path.join(DATA, "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync("tests/fixtures/kit-galerie-lumineuse-v1.manifest.json", path.join(manifests, "legacy-galerie-lumineuse-v1.json"));

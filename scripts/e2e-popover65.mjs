@@ -18,7 +18,7 @@
  *  O  Recouvrement : aucune barre (réelle, ou sonde de chaque classe posée sur la fenêtre) au-dessus de la fenêtre Fond ouverte
  *     (page, image courte, composants de planche) ; vidéo : barre du composant Vidéo (MENU-02) et ses fenêtres.
  * Captures : $SHOTS. Mode « rapport » (REPORT=1) : n'échoue pas, écrit seulement les mesures (captures « avant »).
- * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=W,D] [WIDTHS=1440,1024,390] [SHOTS=dossier] node scripts/e2e-popover65.mjs
+ * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=W,D] [WIDTHS=1440,1024,390] [CASES=noms exacts des cas de W] [PREP_QUIET=1] [SHOTS=dossier] node scripts/e2e-popover65.mjs
  */
 import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,6 +26,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
+import { sharedOk } from "./lib/parts.mjs";
 import { ensureVideos } from "./lib/video36.mjs";
 import { grid, img, login, makeMedia, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep } from "./lib/grille31d.mjs";
 
@@ -156,6 +157,8 @@ let checks = 0;
 async function check(name, prep, btn, { scroll = 140, esc = true, pointerOutside = false, write = null, noCover = null, fresh = true } = {}) {
   const tag = `${W} ${name}`;
   if (process.env.CASE && !process.env.CASE.split(",").some((c) => name.includes(c))) return;
+  // CASES : noms EXACTS des cas joués par cette partie (lot 104b : la suite W est découpée en trois groupes de cas par largeur).
+  if (process.env.CASES && !process.env.CASES.split(",").includes(name)) return;
   try {
     if (fresh && ++checks % 10 === 0) {
       await launch({ width: W, height: W === 390 ? 844 : W === 1024 ? 768 : 900 });
@@ -928,7 +931,8 @@ if (run("D"))
     await page.screenshot({ path: path.join(SHOTS, "barre-libre.png") }).catch(() => {});
   });
 
-ok("aucune erreur JavaScript dans la page de l'éditeur", errors.length === 0, errors.slice(0, 3).join(" | "));
+// Vérification de fin de suite, rejouée par chaque partie : comptée PASS une seule fois (PREP_QUIET=1 dans les autres, voir lib/parts.mjs).
+sharedOk(ok)("aucune erreur JavaScript dans la page de l'éditeur", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 console.log(failures ? `\n${failures} échec(s)` : "\nOK");
 process.exit(failures ? 1 : 0);

@@ -25,6 +25,7 @@ const TABLE = {
   "src/lib/favicon.ts": ["c", "media/icons/<id>/ (image choisie, sauvegardé) ; media/icons-auto/ (régénérable, exclu)"],
   "src/lib/fonts/library.ts": ["c", "fonts/ (sauvegardé) ; fonts/preview/"],
   "src/lib/images/crop-cache.ts": ["b", "cache/crops (régénérable, vidé à la restauration)"],
+  "src/lib/auth/dev-secret.ts": ["t", ".dev-secret (secret de DÉVELOPPEMENT aléatoire, jamais en production ; ne doit pas être sauvegardé ni restauré)"],
   "src/lib/images/process.ts": ["b", "media/img/ (variantes) ; tmp/"],
   "src/lib/kit/apply.ts": ["c", "media/kit/ (dessins du kit appliqués) : sauvegardé par défaut"],
   "src/lib/kit/build-multi.ts": ["b", "cache/kits (export du kit), fiches : cache/kits/manifests (sauvegardées, exception)"],

@@ -37,6 +37,7 @@ import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
+import { applyHeadOp } from "@/blocks/head";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
 import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
 import { announcePublished } from "@/lib/publish-signal";
@@ -827,6 +828,15 @@ export default function VisualEditor({
   const fieldOp = (uid: string, op: Extract<FromCanvas, { kind: "field-op" }>["op"]): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
+    // Titre de composant (lot 128) : `props.head` (titre, sous-titre, dessous / sur l'image), src/blocks/head.ts ; un titre ajouté s'édite aussitôt.
+    if (block && /^(add|remove)-head(-|$)/.test(op)) {
+      const done = applyHeadOp(block.type, block.props, op);
+      if (!done) return false;
+      setBlocks(updateBlock(list, uid, (b) => ({ ...b, props: done.props })), { structural: true });
+      selectBlock(uid);
+      if (done.edit) send({ kind: "edit-text", uid, path: done.edit });
+      return true;
+    }
     // Grille, Contact, Profil, CV (lot 27) : table de src/blocks/optional-fields.ts.
     const named = /^(add|remove)-(.+)$/.exec(op);
     const def = block && named ? fieldOpDef(block.type, named[2]) : undefined;
@@ -1197,6 +1207,36 @@ export default function VisualEditor({
     const next = { ...base };
     if (msg.mode) next[key] = msg.mode;
     else delete next[key];
+    return Boolean(await boardDo(msg.board, { op: "item-set", uid: msg.uid, props: next }));
+  };
+
+  /**
+   * Son au départ d'une vidéo depuis sa barre sur la toile (lot 127) : composant Vidéo d'une page (`props.sound`) ou composant Vidéo de la
+   * planche d'un projet. « Activé » est le défaut : il retire le champ.
+   */
+  const videoSound = async (msg: Extract<FromCanvas, { kind: "video-sound" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (!msg.board) {
+      if (!findBlock(draftRef.current.blocks, msg.uid)) return false;
+      setProp(msg.uid, "sound", msg.sound === "off" ? "off" : undefined);
+      return true;
+    }
+    await itemFlushRef.current();
+    const item = boards.current.get(msg.board)?.layout.find((i) => i.uid === msg.uid);
+    let base: Record<string, unknown> | null = item?.props ?? null;
+    const type = item?.type ?? msg.item;
+    if (!base) {
+      try {
+        const v = JSON.parse(msg.props ?? "null") as { props?: unknown } | null;
+        base = v?.props && typeof v.props === "object" && !Array.isArray(v.props) ? (v.props as Record<string, unknown>) : null;
+      } catch {
+        base = null;
+      }
+    }
+    if (!base || type !== "video-single") return false;
+    const next = { ...base };
+    if (msg.sound === "off") next.sound = "off";
+    else delete next.sound;
     return Boolean(await boardDo(msg.board, { op: "item-set", uid: msg.uid, props: next }));
   };
 
@@ -2391,9 +2431,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode, videoSound });
   useEffect(() => {
-    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode, videoSound };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2547,6 +2587,9 @@ export default function VisualEditor({
           break;
         case "video-mode":
           void h.videoMode(msg);
+          break;
+        case "video-sound":
+          void h.videoSound(msg);
           break;
         case "media-look":
           // Refusé (cible disparue, réglage sans place ici) ou sans effet : la toile retire son aperçu.

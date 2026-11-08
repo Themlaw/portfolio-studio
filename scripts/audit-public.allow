@@ -1,0 +1,30 @@
+# Résultats de scripts/audit-public.mjs relus un par un et acceptés (lot 103).
+# Format : « classe chemin-ou-motif » ou « classe blob:<sha> » ; commentaire après « # ».
+# Une nouvelle entrée doit être justifiée dans la demande de tirage.
+
+# Polices libres (licence OFL) : binaires tiers, noms et e-mails des fondeurs dans les textes de licence.
+media public/kit/**
+media src/themes/fonts/*
+infra public/kit/**
+email public/kit/**
+
+# Vignettes de thèmes et vidéo de démonstration : produites par les scripts du dépôt (theme-thumbs, seed de test).
+media public/themes/*/thumb.webp
+media seed/media/*
+media public/favicon.ico
+
+# Valeurs de TEST dans des jeux d'essai (adresses IP privées inventées, identifiants de réseaux sociaux fictifs).
+infra scripts/test-auth.mjs
+infra scripts/test-publish.mjs
+infra scripts/test-containers.mjs
+
+# Modèles de réécriture d'historique : valeurs d'EXEMPLE (example.org, adresses .invalid), pas de vraies données.
+infra scripts/public-history/*
+email scripts/public-history/*
+
+# Texte officiel de la licence AGPL-3.0 : adresses du site de la FSF.
+infra LICENSE
+
+# Images du tutoriel admin : régénérées par scripts/tuto-shots.mjs sur un PSD SYNTHETIQUE (scripts/make-fixture-psd.mts)
+# et un site de démonstration fictif ; leurs anciennes versions sont retirées de l'historique (forbidden.txt).
+media public/admin/tuto/*

@@ -21,6 +21,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import sharp from "sharp";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -187,7 +188,7 @@ if (run("V")) {
   await settled();
 
   // Liste des thèmes : mêmes six rôles.
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes`);
   const sw = await page.locator(".a-swatches").first().locator(".a-swatch").evaluateAll((els) => els.map((e) => (e.getAttribute("title") ?? "").replace(/ #?[0-9a-fA-F]{3,8}$/, "")));
   ok("V6 miniature d'un thème : les six rôles dans l'ordre", JSON.stringify(sw) === JSON.stringify(ROLES), JSON.stringify(sw));
 

@@ -148,7 +148,7 @@ try {
     const archive = path.join(BACKUP_DIR, archives().at(-1));
     const res = await restore(archive, dataB);
     ok("5. restauration : fichiers extraits, manifest posé à la racine", res.files > 2 && existsSync(path.join(dataB, "manifest.json")) && !existsSync(path.join(dataB, "backup")));
-    const portB = PORT + 30; // hors des ports des autres suites en parallèle (BATT_JOBS)
+    const portB = PORT + 1; // bloc de ports de la suite (allocateur du lot 104 : PORT..PORT+7)
     second = startServer(portB, dataB);
     const baseB = `http://localhost:${portB}`;
     const up = await waitFor(async () => (await fetch(`${baseB}/fr`).catch(() => null))?.status === 200, 90000);

@@ -20,6 +20,7 @@ import { BlockLookPanel, ImageSizeSection, SpaceTopSection } from "./LookPanel";
 import { StrokeField } from "./StrokeField";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
+import { soundOf, VIDEO_SOUND_HINTS, VIDEO_SOUND_OPTIONS } from "@/blocks/video-sound";
 
 type Props = Record<string, unknown>;
 type Kid = { uid: string; type: "image" | "video-single"; props: Props };
@@ -74,6 +75,16 @@ function GridContent({ props, onChange, context }: { props: Props; onChange: (ne
                   value={modeOf(k.props)}
                   options={VIDEO_MODE_OPTIONS}
                   onChange={(v) => setKid(i, (p) => ({ ...p, mode: v ?? "player" }))}
+                />
+              )}
+              {k.type === "video-single" && m?.hasAudio !== false && (
+                // Son au départ (lot 127) : seulement pour une vidéo qui a du son ; « Activé » retire le champ.
+                <Select
+                  label="Son au départ"
+                  help={VIDEO_SOUND_HINTS[soundOf(k.props)]}
+                  value={soundOf(k.props)}
+                  options={VIDEO_SOUND_OPTIONS}
+                  onChange={(v) => setKid(i, (p) => (v === "off" ? { ...p, sound: "off" } : (({ sound: _s, ...rest }) => (void _s, rest))(p)))}
                 />
               )}
               {k.type === "image" && (

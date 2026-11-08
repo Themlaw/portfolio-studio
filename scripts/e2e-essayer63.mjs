@@ -17,6 +17,7 @@ import { chromium } from "playwright";
 
 import { canvas, draftBlocks, pageIdOf, q1, setDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { login } from "./lib/medias-setup.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3770";
 const ONLY = process.env.ONLY ?? "";
@@ -144,7 +145,7 @@ try {
     await stopPreview();
     sql((db) => db.prepare("update pages set draft = null, draft_updated_at = null").run());
     const home = q1("select id from pages where json_extract(slug, '$.fr') = ''")?.id;
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes`);
     await page.locator(".a-theme-card").first().waitFor();
     const cards = page.locator(".a-theme-card");
     const n = await cards.count();
@@ -159,7 +160,7 @@ try {
     ok("D4 avec ce thème en préparation", (await banner().count()) === 1 && ((await banner().textContent()) ?? "").includes(themeName(T1)));
     await stopPreview();
     setDraft(PAGE_ID, [{ uid: "essayer63d", type: "section-title", props: { title: { fr: "Dernière page", en: "Last page" } } }]);
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes`);
     const card2 = page.locator(".a-theme-card", { has: page.locator("h2", { hasText: new RegExp(`^${themeName(T2)}$`) }) });
     await Promise.all([page.waitForURL(/\/editer/, { timeout: 120000 }), card2.locator('[data-testid="theme-work"]').click()]);
     await canvas(page);
@@ -192,7 +193,7 @@ try {
   if (run("E")) {
     await stopPreview();
     await page.request.post(`${BASE}/admin/apercu`, { form: { id: T1, retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes`);
     const badge = page.locator('[data-testid="theme-preparing"]');
     ok("E1 pastille « En travail » sur la carte en préparation", (await badge.count()) === 1 && /En travail/.test((await badge.textContent()) ?? ""));
     const live = page.locator('[data-testid="theme-live"]');

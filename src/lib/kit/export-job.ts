@@ -28,7 +28,7 @@ import { planIcon } from "@/lib/favicon-plan";
 
 import { exportIdOf, loadManifests } from "./manifest";
 import { kitMetaFile, writeKitMeta } from "./parts";
-import { KIT_V4_VERSION } from "./spec";
+import { KIT_V4_VERSION, VIDEO_ICONS } from "./spec";
 import { themeVersion } from "./version";
 
 /** Durée maximale d'un export (au-delà : processus tué, job en échec). */
@@ -304,6 +304,7 @@ async function addKitAssets(theme: Theme, kit: NonNullable<Theme["assets"]["kit"
   await add("icones/fleche-droite", kit.icons?.arrowRight);
   await add("icones/fermer", kit.icons?.close);
   await add("icones/lecture", kit.icons?.play);
+  for (const v of VIDEO_ICONS) await add(v.id, kit.vicons?.[v.key]);
   await add("accessoires/scotch", kit.tape);
   // Curseurs : le PNG 2x (64 × 64, la case du kit) ; x, y = point chaud (px CSS).
   for (const [slotId, c] of [

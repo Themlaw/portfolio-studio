@@ -17,6 +17,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -284,7 +285,7 @@ if (run("L")) {
   }
   // 4. Téléphone : dans la fenêtre, compact.
   await page.setViewportSize({ width: 390, height: 800 });
-  await page.goto(`${BASE}/admin/themes/galerie-lumineuse`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse`);
   {
     const role = page.locator('.a-da .lc-role-item[data-role="ink"] .lc-role');
     await role.click();

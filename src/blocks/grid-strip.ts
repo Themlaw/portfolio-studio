@@ -11,6 +11,7 @@
  * - cadre, fond d'image .. `look.frame`, `look.imageBg` de la case <-> `slotLook[place].frame` / `.bg` de la rubrique de la page ;
  * - arrondi .............. `look.radius` de la case (sinon celui de la grille) <-> `slotLook[place].radius` ;
  * - lecture d'une vidéo .. `mode` de la case <-> `slotLook[place].video` (sinon la lecture de toute la bande, `videoMode`) ;
+ * - son au départ ........ `sound` de la case <-> `slotLook[place].sound` (lot 127) ;
  * - fond, espace, carte .. `look` et `background` du composant : communs aux deux formes, jamais touchés.
  *
  * Tout ce qui n'a pas d'équivalent (agencement, colonnes, tailles de cases, espace entre les images, format des cases,
@@ -28,8 +29,8 @@ type Text = { fr: string; en: string };
 export type MediaKinds = Record<number, "image" | "video">;
 
 /** Réglages d'UNE image dans un vocabulaire commun aux deux formes. */
-type Fields = { title?: Text; caption?: Text; date?: Text; frame?: unknown; bg?: unknown; radius?: unknown; mode?: unknown };
-const FIELD_KEYS = ["title", "caption", "date", "frame", "bg", "radius", "mode"] as const;
+type Fields = { title?: Text; caption?: Text; date?: Text; frame?: unknown; bg?: unknown; radius?: unknown; mode?: unknown; sound?: unknown };
+const FIELD_KEYS = ["title", "caption", "date", "frame", "bg", "radius", "mode", "sound"] as const;
 
 /** Mémoire de la forme quittée (`props.converted`). */
 type Stash = { kind: "grid" | "strip"; props: Json; pairs: [string, string][]; orig: Record<string, Fields>; gen: Record<string, Fields> };
@@ -38,7 +39,7 @@ type Stash = { kind: "grid" | "strip"; props: Json; pairs: [string, string][]; o
  * Habillage par place (`look.slotLook`) de la rubrique de la page qui montre la planche (une entrée par place : `<uid du composant>-<place>`).
  * Champ commun -> champ de l'entrée : la lecture d'une vidéo (`mode`) s'y appelle `video`.
  */
-const SLOT_FIELDS = { frame: "frame", bg: "bg", radius: "radius", mode: "video" } as const;
+const SLOT_FIELDS = { frame: "frame", bg: "bg", radius: "radius", mode: "video", sound: "sound" } as const;
 
 const isObj = (v: unknown): v is Json => Boolean(v) && typeof v === "object" && !Array.isArray(v);
 const isText = (v: unknown): v is Text => isObj(v) && typeof v.fr === "string" && typeof v.en === "string" && v.fr.length <= 2000 && v.en.length <= 2000;
@@ -88,6 +89,7 @@ function fieldsOfKid(kid: Kid, gridRadius: unknown): Fields {
   const radius = look.radius ?? gridRadius;
   if (radius !== undefined) f.radius = radius;
   if (video) f.mode = p.mode === "loop" ? "loop" : "player";
+  if (video && p.sound !== undefined) f.sound = p.sound;
   return f;
 }
 
@@ -113,6 +115,7 @@ function applyToKid(kid: Kid, f: Fields): Kid {
   if (Object.keys(look).length) props.look = look;
   else if (had) props.look = look;
   if (video && f.mode !== undefined) props.mode = f.mode;
+  if (video) set("sound", f.sound);
   return { ...kid, props };
 }
 
@@ -129,6 +132,7 @@ function fieldsOfPlace(strip: Json, slug: string, blockLook: Json): Fields {
   for (const key of ["frame", "bg", "radius"] as const) if (mine[SLOT_FIELDS[key]] !== undefined) f[key] = mine[SLOT_FIELDS[key]];
   if (mine.video !== undefined) f.mode = mine.video;
   else if (strip.videoMode === "loop" || strip.videoMode === "player") f.mode = strip.videoMode;
+  if (mine.sound !== undefined) f.sound = mine.sound;
   return f;
 }
 
@@ -139,8 +143,8 @@ function applyToPlace(captions: Record<string, Json>, look: Json, slug: string, 
   if (f.caption) entry.caption = clone(f.caption);
   if (f.date) entry.date = clone(f.date);
   if (Object.keys(entry).length) captions[slug] = entry;
-  for (const key of ["frame", "bg", "radius", "mode"] as const) {
-    const v = key === "mode" && !kidIsVideo ? undefined : f[key];
+  for (const key of ["frame", "bg", "radius", "mode", "sound"] as const) {
+    const v = (key === "mode" || key === "sound") && !kidIsVideo ? undefined : f[key];
     if (v === undefined) continue;
     const map: Json = isObj(look.slotLook) ? { ...(look.slotLook as Json) } : {};
     const mine: Json = isObj(map[slug]) ? { ...(map[slug] as Json) } : {};
