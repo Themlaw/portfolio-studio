@@ -4,7 +4,7 @@
  * règles pures des vidéos (liste blanche de codecs, boucle).
  * Usage : npm test
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 const transcode = read("src/lib/video/transcode.ts");
@@ -43,7 +43,11 @@ for (const a of arrays) {
   );
 }
 // Environnement minimal (docs/SECURITE.md N10, P7) : chaque lancement passe `env: ffmpegEnv()`, jamais l'environnement du serveur.
-for (const [name, src] of [["transcode.ts", transcode], ["probe.ts", probe]]) {
+// Complément #32 : TOUS les fichiers de src/lib/video qui lancent un outil (audio.ts, lot 116/127, avait été oublié : la mesure du son
+// `volumedetect` passait tout process.env à ffmpeg).
+const videoFiles = readdirSync(new URL("../src/lib/video/", import.meta.url)).filter((f) => f.endsWith(".ts") && read(`src/lib/video/${f}`).includes('spawn("nice"'));
+ok("src/lib/video : les lanceurs sont transcode, probe et audio", ["audio.ts", "probe.ts", "transcode.ts"].every((f) => videoFiles.includes(f)), videoFiles.join(","));
+for (const [name, src] of videoFiles.map((f) => [f, read(`src/lib/video/${f}`)])) {
   const calls = [...src.matchAll(/spawn\("nice",[\s\S]*?\}\);/g)].map((m) => m[0]);
   ok(`${name} : chaque spawn passe env: ffmpegEnv()`, calls.length > 0 && calls.every((c) => /env:\s*ffmpegEnv\(\)/.test(c)), calls.map((c) => c.slice(-120)).join(" | "));
   ok(`${name} : aucune lecture de process.env transmise à l'outil`, !/env:\s*(\{\s*\.\.\.process\.env|process\.env)/.test(src));
