@@ -4,18 +4,20 @@
  * #47 dépendances, #19 permissions et SHA des actions). Démonstrations LOCALES : aucune image docker, aucun push, aucun réseau.
  * Chaque test est une ATTAQUE : PASS = attaque bloquée. À lancer dans le dépôt éprouvé (ou BATT_SECUC_REPO=<arbre extrait par git archive> pour
  * éprouver une révision sans la sortir : v0.34.0 seul = les sections échouent, avec le correctif = elles passent).
- *  K  (#50) contexte docker : ce qui y entrerait (émulation @balena/dockerignore) et mode du cache BuildKit
+ *  K  (#50) contexte docker : ce qui y entrerait (émulation du .dockerignore) et mode du cache BuildKit
  *  E  (#49) e2e.sh : DATA_DIR hors de RUNNER_TEMP effacé ? (dossier jetable) ; chemins /tmp fixes
  *  N  (#48) paquet local synthétique avec postinstall : exécuté par `npm install` ?
  *  V  (#47) versions des dépendances vulnérables (lock, build) et accessibilité des failles de next
  *  W  (#19) workflows : déclencheurs, permissions, épinglage par SHA, secrets, persist-credentials
- * Usage : [BATT_SECUC_REPO=<arbre git archive d'une révision>] [ONLY=K,E,N,V,W] BATT_SECUC_TOOLS=<dossier avec node_modules/@balena/dockerignore> node scripts/secuC-chaine.mjs
+ * Usage : [BATT_SECUC_REPO=<arbre git archive d'une révision>] [ONLY=K,E,N,V,W] node scripts/secuC-chaine.mjs
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+import { excludedBy, parseDockerignore } from "./lib/dockerignore.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const OVERRIDE = process.env.BATT_SECUC_REPO ?? "";
@@ -36,16 +38,24 @@ const walk = (dir, base = dir) => readdirSync(dir, { withFileTypes: true }).flat
 
 /* ------------------------------------------------------------ K : #50 -- */
 if (run("K")) {
-  const tools = process.env.BATT_SECUC_TOOLS ?? path.join(ROOT, "../secuC-tools");
-  const ignoreLib = createRequire(path.join(tools, "x.js"))("@balena/dockerignore");
+  // Émulation du .dockerignore sans dépendance (scripts/lib/dockerignore.mjs, la même que `npm test`) ; @balena/dockerignore reste utilisé
+  // si BATT_SECUC_TOOLS le fournit (comparaison indépendante).
+  let ig;
+  const tools = process.env.BATT_SECUC_TOOLS;
+  if (tools) {
+    const ignoreLib = createRequire(path.join(tools, "x.js"))("@balena/dockerignore");
+    ig = ignoreLib().add((rd(".dockerignore") ?? "").split("\n"));
+  } else {
+    const rules = parseDockerignore(rd(".dockerignore") ?? "");
+    ig = { ignores: (f) => excludedBy(rules, f) !== null };
+  }
   const files = walk(REPO);
   // Fichiers piégés (synthétiques) posés dans une COPIE du dépôt : ce qu'un poste de dev ou une VM peut contenir sans que git le suive.
   const planted = [".npmrc", "zz.key", "deploy.p12", "zz.db", "zz.db-wal", "data-de-test.sqlite3", ".local/zz/secret", ".local/worktrees/tmp/portfolio.db", "src/zz/id_ed25519", "src/zz/id_rsa.pub", "scripts/zz/cert.pem", "docs/SECURITE.md", "docs/rapport-audit.md"];
-  const ig = ignoreLib().add((rd(".dockerignore") ?? "").split("\n"));
   const has = (f) => !ig.ignores(f);
   const before = files.filter(has).length;
   const entering = planted.filter(has);
-  info(`contexte docker (émulation @balena/dockerignore) : ${files.length} fichiers dans l'arbre, ${before} entrent dans le contexte ; fichiers piégés qui entrent : ${entering.join(", ") || "aucun"}`);
+  info(`contexte docker (émulation du .dockerignore) : ${files.length} fichiers dans l'arbre, ${before} entrent dans le contexte ; fichiers piégés qui entrent : ${entering.join(", ") || "aucun"}`);
   ok("K1 aucun fichier piégé (docs, .npmrc, clés, bases SQLite, .local) n'entre dans le contexte docker", entering.length === 0, entering.join(", "));
   const extra = ["id_ed25519", "deploy.key", "private.pem", "x/y/.npmrc"].filter(has);
   ok("K1b contournement : mêmes motifs à la racine et dans un sous-dossier (« **/ » vise aussi la racine)", extra.length === 0, extra.join(", "));

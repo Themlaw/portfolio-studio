@@ -16,6 +16,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { excludedBy, parseDockerignore } from "./lib/dockerignore.mjs";
+
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 
@@ -31,42 +33,9 @@ for (const name of ["build", "build:local"]) {
   }
 }
 
-/** Règles .dockerignore → { négation, expression } (chemins relatifs à la racine du contexte). */
-const rules = readFileSync(path.join(root, ".dockerignore"), "utf8")
-  .split("\n")
-  .map((l) => l.trim())
-  .filter((l) => l && !l.startsWith("#"))
-  .map((l) => {
-    const neg = l.startsWith("!");
-    const pat = (neg ? l.slice(1) : l).replace(/^\/+/, "").replace(/\/+$/, "");
-    // « ** » : zéro ou plusieurs dossiers (« **/*.key » vise aussi la racine, comme Docker).
-    const segs = pat.split("/");
-    const re = segs
-      .map((seg, i) => {
-        const last = i === segs.length - 1;
-        if (seg === "**") return last ? ".*" : "(?:.*/)?";
-        return seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]") + (last ? "" : "/");
-      })
-      .join("");
-    return { neg, re: new RegExp(`^${re}$`), pat: l };
-  });
-
-/** Exclu si la dernière règle qui touche le chemin (ou un de ses dossiers parents) n'est pas une négation. */
-function excluded(file) {
-  const parts = file.split("/");
-  let out = false;
-  let by = "";
-  for (const r of rules) {
-    for (let i = 1; i <= parts.length; i++) {
-      if (r.re.test(parts.slice(0, i).join("/"))) {
-        out = !r.neg;
-        by = r.pat;
-        break;
-      }
-    }
-  }
-  return out ? by : null;
-}
+/** Règles .dockerignore (scripts/lib/dockerignore.mjs : motifs Docker, ordre, négation « ! », « * », « ** »). */
+const rules = parseDockerignore(readFileSync(path.join(root, ".dockerignore"), "utf8"));
+const excluded = (file) => excludedBy(rules, file);
 
 const problems = [];
 for (const file of [...referenced].sort()) {

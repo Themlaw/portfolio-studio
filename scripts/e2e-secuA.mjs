@@ -7,9 +7,9 @@
  *
  *   node scripts/e2e-secuA.mjs                      (toutes les parties)
  *   SECUA_ONLY=68,57 node scripts/e2e-secuA.mjs     (parties choisies : 68 67 66 65 63 62 61 59 57 56 52)
- *   SECUA_PORT=4200 (serveur de test ; l'OIDC simulé prend +90, la sonde +99)
+ *   SECUA_PORT=4200 (serveur de test ; serveur annexe +1, OIDC simulé +2, sonde +3 : tout tient dans le bloc de 8 ports de la batterie)
  *
- * Prérequis : `npm run build` (standalone). Ids pour la batterie 104 : secuA (une partie par PR : secuA68 … secuA52).
+ * Prérequis : `npm run build` (standalone). Id batterie 104 : secuA (SECUA_PORT, SECUA_TMP donnés par la batterie).
  */
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -505,13 +505,13 @@ if (run(65)) {
   }
   {
     // PORT absent de l'environnement du processus (lancement hors de l'image) : `next start -p`, pour que le port interne dépende de Host.
-    const port = PORT + 50;
+    const port = PORT + 1;
     const canary = createServer((req, res) => {
       canary.hits.push(`${req.method} ${req.url}`);
       res.end("canary");
     });
     canary.hits = [];
-    const cport = PORT + 99;
+    const cport = PORT + 3;
     await new Promise((r) => canary.listen(cport, "127.0.0.1", r));
     const dir = fresh("b65b");
     mkdirSync(dir, { recursive: true });
@@ -544,7 +544,7 @@ if (run(65)) {
 
 /* #65 (suite) : `next dev` n'a pas PORT dans l'environnement : le port de la requête interne vient-il de l'en-tête Host ? */
 if (run(65)) {
-  const cport = PORT + 99;
+  const cport = PORT + 3;
   const canary = createServer((req, res) => {
     canary.hits.push(`${req.method} ${req.url}`);
     res.end("canary");
@@ -753,7 +753,7 @@ if (run(61)) {
 if (run(59)) {
   console.log("\n== #59 e-mails OIDC acceptés en ASCII seulement avant la comparaison avec ADMIN_EMAILS");
   const { OAuth2Server } = await import("oauth2-mock-server");
-  const MOCK_PORT = PORT + 90;
+  const MOCK_PORT = PORT + 2;
   const mock = new OAuth2Server();
   await mock.issuer.keys.generate("RS256");
   await mock.start(MOCK_PORT, "127.0.0.1");

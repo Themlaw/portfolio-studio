@@ -165,5 +165,18 @@
  "video127": 170,
  "video36": 91,
  "visionneuse44": 56,
- "vitesse54": 76
+ "vitesse54": 76,
+ "secuA": 144,
+ "secuAbrowser": 32,
+ "secuB": 53,
+ "secuBsvg": 65,
+ "secuBffmpeg": 4,
+ "secuBusages": 2,
+ "secuBretention": 10,
+ "secuBrestore": 5,
+ "secuCcontenu": 39,
+ "secuCjournal": 36,
+ "secuCcontact": 43,
+ "secuCchaine": 2,
+ "compte": 35
 }

@@ -9,7 +9,7 @@
  *  D  durées : toutes les suites du script ont une durée et un poids.
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -211,6 +211,47 @@ const durations = parseDurations(durText);
   const steps = splitSteps(pkg.scripts.test);
   ok("P1 `npm test` découpé en étapes", steps.length >= 60 && steps.every((s) => !s.includes("&&")), String(steps.length));
   ok("P2 la jonction des étapes redonne exactement le script", steps.join(" && ") === pkg.scripts.test.replace(/\s+/g, " ").trim() || steps.join(" && ") === pkg.scripts.test);
+}
+
+/* ---- X. sécurité (secu-v100) : chaque suite de sécurité est inscrite dans la batterie, ses durées, la CI et la carte --- */
+{
+  const SECU = {
+    secuA: "scripts/e2e-secuA.mjs",
+    secuAbrowser: "scripts/e2e-secuA-browser.mjs",
+    secuB: "scripts/e2e-secuB.mjs",
+    secuBsvg: "scripts/secuB-svg.mjs",
+    secuBffmpeg: "scripts/secuB-ffmpeg.mjs",
+    secuBusages: "scripts/secuB-usages.mjs",
+    secuBretention: "scripts/secuB-retention.mjs",
+    secuBrestore: "scripts/secuB-restore.mjs",
+    secuCcontenu: "scripts/secuC-contenu.mjs",
+    secuCjournal: "scripts/secuC-journal.mjs",
+    secuCcontact: "scripts/secuC-contact-spam.mjs",
+    secuCchaine: "scripts/secuC-chaine.mjs",
+    compte: "scripts/e2e-compte.mjs",
+  };
+  const durs = parseDurations(readFileSync(path.join(ROOT, "scripts/batt-durations.tsv"), "utf8"));
+  const weights = JSON.parse(readFileSync(path.join(ROOT, ".github/ci-weights.json"), "utf8"));
+  const planSrc = readFileSync(path.join(ROOT, ".github/scripts/ci-plan.mjs"), "utf8");
+  const map2 = JSON.parse(readFileSync(path.join(ROOT, "scripts/batt-map.json"), "utf8"));
+  const ctx2 = buildContext(ROOT, scriptText);
+  const allIds = parsed.ids.filter((i) => i !== "build");
+  const byShard = [];
+  for (let k = 1; k <= 14; k++) byShard.push(shardIds(allIds, durs, 14, k));
+  for (const [id, file] of Object.entries(SECU)) {
+    ok(`X1 ${id} : id du script, commande qui existe (${file})`, parsed.ids.includes(id) && existsSync(path.join(ROOT, file)));
+    ok(`X2 ${id} : durée et poids dans batt-durations.tsv`, durs.has(id) && durs.get(id).sec > 0 && durs.get(id).weight >= 1);
+    ok(`X3 ${id} : durée dans .github/ci-weights.json (plan de la CI)`, typeof weights[id] === "number" && weights[id] > 0);
+    const hit = suitesForFile(file, map2, ctx2).suites;
+    ok(`X4 ${id} : modifier son script la sélectionne (--changed)`, hit.has(id), [...hit].join(" "));
+    ok(`X5 ${id} : dans exactement un des 14 shards`, byShard.filter((ids) => ids.includes(id)).length === 1);
+  }
+  ok("X6 ci-plan lit les ids du tableau (les lignes SECU suivent la même syntaxe que E2E)", /A-Za-z0-9-/.test(planSrc) && Object.keys(SECU).every((id) => scriptText.includes(`"${id}|`)));
+  const ruleHit = (f) => [...suitesForFile(f, map2, ctx2).suites];
+  ok("X7 src/lib/auth/config.ts → secuA", ruleHit("src/lib/auth/config.ts").includes("secuA"));
+  ok("X8 src/lib/backup/archive.ts → secuB, secuBretention, secuBrestore", ["secuB", "secuBretention", "secuBrestore"].every((i) => ruleHit("src/lib/backup/archive.ts").includes(i)));
+  ok("X9 src/app/api/contact/route.ts → secuCcontact", ruleHit("src/app/api/contact/route.ts").includes("secuCcontact"));
+  ok("X10 .dockerignore, .npmrc et .github/ → secuCchaine", [".dockerignore", ".npmrc", ".github/workflows/tests.yml"].every((f) => ruleHit(f).includes("secuCchaine")));
 }
 
 rmSync(tmp, { recursive: true, force: true });

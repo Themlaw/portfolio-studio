@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [options] [suite…]      # vide = toutes
-#   ids : checks build domaine88 pdf authA authF authV authK authT authM1 v013a v013b v013c lot1 lot8 lot11 stateA stateB palette look themes kit kit17a kithttp integ17 cartes17c papier28 texte19a palogo17f couleurs19b composants20 fondtexte21 fond32 fondplanche24 papiers35 papiers78 fondmarge43 fondcontenu47 entrees48 editor boards admin admin23 medias medias-firefox 17b crop17d crop17d-http crop17g collections22 blocs27 images25 couleurs26 chrome24 couleurps29 planche31 retour30 cadre34 grille31d grille37 fleches33 video36 icones121 espace129 titres128 video116 video127 interaction034b carrousel31f barres38 legendes39 legendes98 image40 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 publication51 publication101 backup50 vitesse54 kit53 partage52 priseenmain57 cadremotif58 cadres62 cadres74 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 tags mediaframe64 cadres79 cadre95a cadre95b grille69 public67 surface66 popover65a popover65w1440a popover65w1440b popover65w1440c popover65w1024a popover65w1024b popover65w1024c popover65w390a popover65w390b popover65w390c popover65b popover65c textes70 admin76 restes77 unif75 favicon83 introuvable89 site96 backup85 backup118 apercu118 langue87 pied86 logo84 logo106 opacite90 fond100a fond100b fond100c fond100d fond100e reglages105 medias112 couches107 couches107c couches107d couleur107 barreaa114 structures108a structures108b structures108c structures108p structures108q planche113 portee119 portee124 defilement99 defilement99-firefox parite99 journal97 contact125 perte336 integ33 raccord102 menu109 scroll123 couleur110 couleur110a couleur110b entrees117 contenu111 couleurtitres115 kitpartie122 langue126  (auth = authA authF authV authK authT authM1 ; voir PARTS_OF pour les autres suites découpées)
+#   ids : checks build domaine88 pdf authA authF authV authK authT authM1 v013a v013b v013c lot1 lot8 lot11 stateA stateB palette look themes kit kit17a kithttp integ17 cartes17c papier28 texte19a palogo17f couleurs19b composants20 fondtexte21 fond32 fondplanche24 papiers35 papiers78 fondmarge43 fondcontenu47 entrees48 editor boards admin admin23 medias medias-firefox 17b crop17d crop17d-http crop17g collections22 blocs27 images25 couleurs26 chrome24 couleurps29 planche31 retour30 cadre34 grille31d grille37 fleches33 video36 icones121 espace129 titres128 video116 video127 interaction034b carrousel31f barres38 legendes39 legendes98 image40 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 publication51 publication101 backup50 vitesse54 kit53 partage52 priseenmain57 cadremotif58 cadres62 cadres74 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 tags mediaframe64 cadres79 cadre95a cadre95b grille69 public67 surface66 popover65a popover65w1440a popover65w1440b popover65w1440c popover65w1024a popover65w1024b popover65w1024c popover65w390a popover65w390b popover65w390c popover65b popover65c textes70 admin76 restes77 unif75 favicon83 introuvable89 site96 backup85 backup118 apercu118 langue87 pied86 logo84 logo106 opacite90 fond100a fond100b fond100c fond100d fond100e reglages105 medias112 couches107 couches107c couches107d couleur107 barreaa114 structures108a structures108b structures108c structures108p structures108q planche113 portee119 portee124 defilement99 defilement99-firefox parite99 journal97 contact125 perte336 integ33 raccord102 menu109 scroll123 couleur110 couleur110a couleur110b entrees117 contenu111 couleurtitres115 kitpartie122 langue126 compte secuA secuAbrowser secuB secuBsvg secuBffmpeg secuBusages secuBretention secuBrestore secuCcontenu secuCjournal secuCcontact secuCchaine  (auth = authA authF authV authK authT authM1 ; voir PARTS_OF pour les autres suites découpées)
 # Options (lot 104) :
 #   --changed <base>    MODE CIBLÉ : ne lance que les suites liées aux fichiers modifiés depuis <base>
 #                       (git diff <base>, plus l'arbre de travail), plus le socle fixe checks, state,
@@ -298,6 +298,37 @@ E2E=(
   "titres128|node scripts/e2e-titres128.mjs|chromium|"
 )
 
+# Suites de SÉCURITÉ (secu-v100) : des attaques contre des serveurs LOCAUX qui lancent leurs PROPRES serveurs standalone (pas de e2e.sh).
+# id|commande|type|-|variables : @PORT@ = premier port du bloc alloué (les serveurs annexes prennent +1 à +3), @RT@ = dossier de travail jetable.
+# type « serveur » : exige le build standalone ; « seul » : aucun build (bibliothèque, base jetable ou lecture de l'arbre).
+# Chaque suite imprime des lignes PASS (attaque bloquée) / FAIL (attaque réussie) comme les autres. Aucune n'ouvre de PSD.
+SECU=(
+  "secuA|SECUA_PORT=@PORT@ SECUA_TMP=@RT@/a node scripts/e2e-secuA.mjs|serveur||"
+  "secuAbrowser|SECUA_PORT=@PORT@ SECUA_TMP=@RT@/ab node scripts/e2e-secuA-browser.mjs|serveur||"
+  "secuB|SECUB_PORT=@PORT@ SECUB_TMP=@RT@ node scripts/e2e-secuB.mjs|serveur||"
+  "secuBsvg|TMPDIR=@RT@ node --import tsx scripts/secuB-svg.mjs|seul||"
+  "secuBffmpeg|TMPDIR=@RT@ node --import tsx scripts/secuB-ffmpeg.mjs|seul||"
+  "secuBusages|TMPDIR=@RT@ node --import tsx scripts/secuB-usages.mjs|seul||"
+  "secuBretention|TMPDIR=@RT@ node --import tsx scripts/secuB-retention.mjs|seul||"
+  "secuBrestore|TMPDIR=@RT@ node scripts/secuB-restore.mjs|seul||"
+  "secuCcontenu|BATT_SECUC_PORT=@PORT@ BATT_SECUC_TMP=@RT@ node scripts/secuC-contenu.mjs|serveur||"
+  "secuCjournal|BATT_SECUC_PORT=@PORT@ BATT_SECUC_TMP=@RT@ node scripts/secuC-journal.mjs|serveur||"
+  "secuCcontact|BATT_SECUC_PORT=@PORT@ BATT_SECUC_TMP=@RT@ node scripts/secuC-contact-spam.mjs|serveur||"
+  "secuCchaine|TMPDIR=@RT@ node scripts/secuC-chaine.mjs|seul||"
+)
+secu_type() { # type d'une suite de sécurité (serveur | seul) ; vide si l'id n'en est pas une
+  local e t
+  for e in "${SECU[@]}"; do
+    [ "${e%%|*}" = "$1" ] && { IFS='|' read -r _ _ t _ <<<"$e"; echo "$t"; return; }
+  done
+}
+secu_cmd() { # <id> <port> <rt> : commande de la suite avec ses marqueurs remplacés
+  local e c
+  for e in "${SECU[@]}"; do
+    if [ "${e%%|*}" = "$1" ]; then IFS='|' read -r _ c _ <<<"$e"; c=${c//@PORT@/$2}; echo "${c//@RT@/$3}"; return; fi
+  done
+}
+
 # Parties de test-auth.mjs (lot 104b) : id|sections (AUTH_ONLY). Chaque partie a son dossier de données, son bloc de ports et ses serveurs.
 # Somme des PASS des parties = PASS de la suite entière (voir le rapport du lot 104b).
 AUTHS=(
@@ -344,6 +375,7 @@ in_list() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 ALL_IDS=(checks build domaine88 pdf)
 for l in "${AUTHS[@]}"; do ALL_IDS+=("${l%%|*}"); done
 for e in "${E2E[@]}"; do ALL_IDS+=("${e%%|*}"); done
+for e in "${SECU[@]}"; do ALL_IDS+=("${e%%|*}"); done
 T0=$(date +%s)
 
 # Durée mesurée (s) et poids (créneaux) d'une suite : scripts/batt-durations.tsv (id, secondes, poids). Défaut 120 s, poids 1.
@@ -403,6 +435,7 @@ NEED_BUILD=0
 want build && NEED_BUILD=1
 for l in "${AUTHS[@]}"; do want "${l%%|*}" && NEED_BUILD=1; done
 want domaine88 && NEED_BUILD=1
+for e in "${SECU[@]}"; do [ "$(secu_type "${e%%|*}")" = serveur ] && want "${e%%|*}" && NEED_BUILD=1; done
 [ "$BATT_SERVER" = start ] && [ $need_e2e = 1 ] && NEED_BUILD=1
 BUILD_OK=0
 BUILD_PID=""
@@ -522,6 +555,20 @@ run_task() {
         record domaine88 1 "$(date +%s)"
       fi
       ;;
+    secu*)
+      # secu-v100 : serveurs propres de la suite (ports du bloc, dossier de travail jetable), journal dédié.
+      local st rt="${BATT_PREFIX:-/root/pf-batt}-$id"
+      st=$(secu_type "$id")
+      if [ "$st" = serveur ] && [ $BUILD_OK != 1 ]; then
+        echo "FAIL $id : build absent ou en échec" >"$BATTERY_DIR/$id.log"
+        record "$id" 1 "$(date +%s)"
+      else
+        rm -rf "$rt"
+        mkdir -p "$rt"
+        run_suite "$id" "$(secu_cmd "$id" "$port" "$rt")"
+        rm -rf "$rt"
+      fi
+      ;;
     *)
       for e in "${E2E[@]}"; do [ "${e%%|*}" = "$id" ] && entry=$e; done
       run_e2e "$entry" "$port"
@@ -547,6 +594,7 @@ fi
 
 needs_build() { # attendre la fin du build ? (checks et pdf n'ont besoin ni du standalone ni de .next ; tout le reste attend)
   case "$1" in checks | pdf) return 1 ;; esac
+  [ "$(secu_type "$1")" = seul ] && return 1
   return 0
 }
 
