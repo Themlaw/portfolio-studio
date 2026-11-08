@@ -306,6 +306,19 @@ if (run(68)) {
       const single = [];
       for (let i = 0; i < 8; i++) single.push((await form("198.51.100.230", "mauvais")).code);
       ok("S68p même corps form-urlencoded depuis UNE IP : la limite par IP, elle, joue toujours (429 au 6e)", single.slice(5).every((c) => c === "IP_RATE_LIMITED"), single.join(","));
+      // Complément #68 : un corps que Better Auth lirait (multipart, texte brut, sans type) mais que le frein ne sait pas lire est refusé.
+      const odd = [];
+      for (const [label, headers, raw] of [
+        ["multipart", { "content-type": "multipart/form-data; boundary=zz" }, `--zz\r\nContent-Disposition: form-data; name="email"\r\n\r\n${ADMIN.email}\r\n--zz--\r\n`],
+        ["text/plain", { "content-type": "text/plain" }, `email=${ADMIN.email}&password=mauvais`],
+        ["sans type", {}, `email=${ADMIN.email}&password=mauvais`],
+      ]) {
+        const r = await http("/api/auth/sign-in/email", { method: "POST", raw, headers: { ...headers, origin: BASE, "x-forwarded-for": "198.51.100.240" } });
+        odd.push(`${label}:${r.status}`);
+      }
+      ok("S68q complément #68 : multipart, texte brut et corps sans type refusés (415) sur la connexion, jamais passés sans frein par compte", odd.every((x) => x.endsWith(":415")), odd.join(" "));
+      const jsonOk = await http("/api/auth/sign-in/email", { method: "POST", raw: JSON.stringify({ email: ADMIN.email, password: "mauvais" }), headers: { "content-type": "application/json; charset=utf-8", origin: BASE, "x-forwarded-for": "198.51.100.241" } });
+      ok("S68r … et le JSON (avec charset) passe toujours par le frein normal (401 sur mauvais mot de passe)", jsonOk.status === 401, String(jsonOk.status));
       await stop(s);
     }
   }

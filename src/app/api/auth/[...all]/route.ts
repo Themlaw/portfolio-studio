@@ -57,6 +57,27 @@ async function signedInUser(response: Response): Promise<string | null> {
   }
 }
 
+/**
+ * E-mail visé par une connexion, lu comme Better Auth lit le corps : JSON ET formulaire `application/x-www-form-urlencoded`
+ * (Better Auth accepte les deux ; un frein qui ne lisait que le JSON ne voyait pas le compte dans un corps de formulaire :
+ * complément #68). `undefined` = type de contenu que Better Auth lirait mais que le frein ne sait pas lire (multipart,
+ * texte brut, sans type…) : la connexion est refusée (415) plutôt que passée sans frein par compte.
+ */
+function emailOfBody(contentType: string, body: string): string | null | undefined {
+  let raw: unknown;
+  // Même test que better-call (application/json et application/<x>+json, paramètres éventuels).
+  if (/^application\/(?:[\w!#$%&*.^`~-]*\+)?json(\s*;.*)?$/i.test(contentType.trim())) {
+    try {
+      raw = (JSON.parse(body || "{}") as { email?: unknown }).email;
+    } catch {
+      return null;
+    }
+  } else if (contentType.includes("application/x-www-form-urlencoded")) {
+    raw = new URLSearchParams(body).get("email") ?? undefined;
+  } else return undefined;
+  return typeof raw === "string" ? raw.trim().toLowerCase() : null;
+}
+
 function tooMany(code: string, message: string, wait: number): Response {
   return Response.json(
     { code, message, retryAfter: wait },
@@ -108,12 +129,11 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
   let email: string | null = null;
   let sessionUser: string | null = null;
   if (endpoint === "/sign-in/email") {
-    try {
-      const parsed = JSON.parse(body ?? "{}") as { email?: unknown };
-      email = typeof parsed.email === "string" ? parsed.email.trim().toLowerCase() : null;
-    } catch {
-      email = null;
+    const found = emailOfBody((request.headers.get("content-type") ?? "").toLowerCase(), body ?? "");
+    if (found === undefined) {
+      return Response.json({ code: "UNSUPPORTED_MEDIA_TYPE", message: "Type de contenu non accepté pour la connexion (JSON ou formulaire)." }, { status: 415, headers: { "Cache-Control": "no-store" } });
     }
+    email = found;
   } else {
     // Changement de mot de passe : le compte est celui de la session (sans session, Better Auth répond 401).
     const session = await getAuth().api.getSession({ headers }).catch(() => null);
