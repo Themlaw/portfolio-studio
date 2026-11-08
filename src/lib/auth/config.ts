@@ -19,7 +19,7 @@ import { devSecret } from "./dev-secret";
 
 export const OIDC_PROVIDER_ID = "authentik";
 /** Longueur minimale d'un NOUVEAU mot de passe (Better Auth, amorçage du premier admin) ; jamais vérifiée à la connexion. */
-export const MIN_PASSWORD_LENGTH = 12;
+export { MIN_PASSWORD_LENGTH } from "./password-policy";
 /** Repli neutre : en production PUBLIC_BASE_URL est obligatoire (avertissement sinon). */
 const DEFAULT_PUBLIC_URL = "http://localhost:3001";
 

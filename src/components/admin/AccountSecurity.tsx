@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { changePasswordAction, revokeOtherSessionsAction } from "@/app/admin/(espace)/compte/actions";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import type { SessionRow } from "@/lib/auth/sessions";
 
 import { ConfirmDialog, toast, useUnsavedGuard } from "./editing";
@@ -86,8 +87,8 @@ export default function AccountSecurity({ email, passwordEnabled, sessions, idle
               </div>
               <div className="a-field">
                 <label htmlFor="cs-nouveau">Nouveau mot de passe</label>
-                <input id="cs-nouveau" className="a-input" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={pw.newPassword} onChange={(e) => set("newPassword", e.target.value)} data-testid="mdp-nouveau" />
-                <span className="a-help">Au moins 8 caractères ; une phrase de plusieurs mots est plus sûre et plus facile à retenir.</span>
+                <input id="cs-nouveau" className="a-input" type="password" autoComplete="new-password" minLength={MIN_PASSWORD_LENGTH} maxLength={MAX_PASSWORD_LENGTH} value={pw.newPassword} onChange={(e) => set("newPassword", e.target.value)} data-testid="mdp-nouveau" />
+                <span className="a-help">Au moins {MIN_PASSWORD_LENGTH} caractères ; une phrase de plusieurs mots est plus sûre et plus facile à retenir.</span>
                 {errors.newPassword && <span className="a-field-error">{errors.newPassword}</span>}
               </div>
               <div className="a-field">

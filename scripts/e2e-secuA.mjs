@@ -755,7 +755,10 @@ if (run(61)) {
         await r1.text();
         await r2.text();
         const short = spawnSync(process.execPath, [script, ADMIN.email, d2], { input: "court-8c\n", encoding: "utf8", cwd: ROOT });
-        info("S61l reset-password.mjs avec un mot de passe de 8 caractères", short.status === 0 ? "ACCEPTÉ (le script ne suit pas la règle des 12 caractères)" : `refusé : ${short.stderr.trim().slice(0, 80)}`);
+        // Complément #61 : le script suit la règle des 12 caractères (jamais 8) ; 12 pile passe.
+        const eleven = spawnSync(process.execPath, [script, ADMIN.email, d2], { input: "onzecarac-1\n", encoding: "utf8", cwd: ROOT });
+        const twelve = spawnSync(process.execPath, [script, ADMIN.email, d2], { input: "douzecarac-12\n", encoding: "utf8", cwd: ROOT });
+        ok("S61l complément #61 : reset-password.mjs refuse 8 et 11 caractères (code 2, message « 12 »), accepte 12", short.status === 2 && eleven.status === 2 && /12/.test(eleven.stderr) && twelve.status === 0, `8c:${short.status} 11c:${eleven.status} (${eleven.stderr.trim().slice(0, 60)}) 12c:${twelve.status}`);
         await stop(s3);
       }
     }

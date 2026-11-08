@@ -5,7 +5,7 @@
  *
  *   node reset-password.mjs <e-mail> [dossier-de-données]       (défaut : $DATA_DIR ou /data)
  *
- * Le nouveau mot de passe est lu sur l'entrée standard (une ligne, 8 à 128 caractères) ; sans entrée (ou ligne vide), un mot de
+ * Le nouveau mot de passe est lu sur l'entrée standard (une ligne, 12 à 128 caractères) ; sans entrée (ou ligne vide), un mot de
  * passe aléatoire est tiré et affiché UNE fois. Il n'est jamais passé en argument (il resterait dans l'historique et `ps`).
  * Exemples (site arrêté de préférence ; possible aussi site en marche, la base est en WAL) :
  *   docker compose run --rm --no-deps -T --entrypoint /nodejs/bin/node portfolio reset-password.mjs moi@exemple.fr < /dev/null
@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 
 import Database from "better-sqlite3";
 
+/** Même règle que src/lib/auth/password-policy.ts (ce script tourne seul dans l'image, sans le code de l'app). */
+const MIN_PASSWORD_LENGTH = 12;
 const SCRYPT = { N: 16384, r: 16, p: 1, dkLen: 64 };
 
 /** Même calcul que Better Auth (@better-auth/utils/password) : vérifiable par `verifyPassword` de better-auth/crypto. */
@@ -90,8 +92,8 @@ async function main() {
   let password = (await readStdin()).trim();
   const generated = password === "";
   if (generated) password = randomPassword();
-  if (password.length < 8 || password.length > 128) {
-    console.error("Mot de passe refusé : entre 8 et 128 caractères.");
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > 128) {
+    console.error(`Mot de passe refusé : entre ${MIN_PASSWORD_LENGTH} et 128 caractères.`);
     process.exit(2);
   }
   try {
