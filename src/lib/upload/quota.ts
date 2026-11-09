@@ -82,3 +82,31 @@ export async function diskProblem(need: number, pending = 0): Promise<string | n
   if (free === null || free - pending - need >= min) return null;
   return `Le disque du serveur est presque plein (${formatGb(Math.max(0, free))} libres) : cet envoi est refusé pour ne pas mettre le site en panne. Supprime des médias inutilisés, ou demande plus de place.`;
 }
+
+/**
+ * Envois DIRECTS (/admin/api/upload) en cours : leur taille annoncée est réservée le temps de la réception, comme celle des envois
+ * par morceaux (table uploads). Sans cela, N envois simultanés passaient tous la vérification du quota avant qu'aucun n'ait écrit.
+ * Mémoire du processus (le site est un seul processus) ; vérification et réservation sont synchrones : rien ne s'intercale.
+ */
+let directReserved = 0;
+
+/** Réserve `bytes` pour un envoi direct : { release } si la place existe, { problem } sinon. `release` est idempotent. */
+export function reserveDirectUpload(bytes: number): { problem: string } | { release: () => void } {
+  const need = Math.max(0, Math.round(bytes));
+  const full = quotaProblem(directReserved + need);
+  if (full) return { problem: full };
+  directReserved += need;
+  let done = false;
+  return {
+    release: () => {
+      if (done) return;
+      done = true;
+      directReserved = Math.max(0, directReserved - need);
+    },
+  };
+}
+
+/** Octets réservés par les envois directs en cours (pour la garde du disque). */
+export function directReservedBytes(): number {
+  return directReserved;
+}

@@ -210,7 +210,7 @@ try {
     const quota = 2.5 * MB;
     const allowed = Math.floor(quota / sizeEach);
     info("envois directs parallèles", `${direct.map((r) => r.status).join(",")} ; taille ${(sizeEach / MB).toFixed(2)} Mo ; place pour ${allowed} originaux (variantes en plus)`);
-    ok("SB60 Q5 8 envois DIRECTS simultanés à quota presque plein : pas plus que la place (résiduel : la réservation ne couvre que /init)", okCount <= allowed + 0, `${okCount} acceptés pour ${allowed} de place`);
+    ok("SB60 Q5 8 envois DIRECTS simultanés à quota presque plein : pas plus que la place", okCount <= allowed + 0, `${okCount} acceptés pour ${allowed} de place`);
     await stop(a.server);
   }
 
