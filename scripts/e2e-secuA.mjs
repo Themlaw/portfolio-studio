@@ -317,7 +317,8 @@ if (run(68)) {
         odd.push(`${label}:${r.status}`);
       }
       ok("S68q complément #68 : multipart, texte brut et corps sans type refusés (415) sur la connexion, jamais passés sans frein par compte", odd.every((x) => x.endsWith(":415")), odd.join(" "));
-      const jsonOk = await http("/api/auth/sign-in/email", { method: "POST", raw: JSON.stringify({ email: ADMIN.email, password: "mauvais" }), headers: { "content-type": "application/json; charset=utf-8", origin: BASE, "x-forwarded-for": "198.51.100.241" } });
+      const jsonOk = await http("/api/auth/sign-in/email", { method: "POST", raw: JSON.stringify({ email: "inconnu.s68r@example.test", password: "mauvais" }), headers: { "content-type": "application/json; charset=utf-8", origin: BASE, "x-forwarded-for": "198.51.100.241" } });
+      // Compte INCONNU : le compte de l'admin est déjà freiné (429, à raison) par le botnet de S68o dans ce même serveur.
       ok("S68r … et le JSON (avec charset) passe toujours par le frein normal (401 sur mauvais mot de passe)", jsonOk.status === 401, String(jsonOk.status));
       await stop(s);
     }
