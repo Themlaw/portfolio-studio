@@ -13,7 +13,19 @@ ID=$1
 shift
 # Fichiers créés ici (base de test, pot de cookies de la session admin, journaux) : lisibles par nous seuls.
 umask 077
-ROOT_TMP=${RUNNER_TEMP:-/tmp}
+# #49 : sans RUNNER_TEMP (poste de dev), jamais /tmp tout entier (un DATA_DIR=/tmp/<n'importe quoi> serait effaçable) : un dossier à nous
+# seuls, par utilisateur, sous TMPDIR (ou /tmp) ; refusé s'il existe déjà sans être à nous ou s'il est un lien (posé d'avance par un tiers).
+if [ -n "${RUNNER_TEMP:-}" ]; then
+  ROOT_TMP=$RUNNER_TEMP
+else
+  ROOT_TMP="${TMPDIR:-/tmp}/e2e-$(id -u)"
+  mkdir -p -m 700 -- "$ROOT_TMP" 2>/dev/null
+  if [ -L "$ROOT_TMP" ] || [ ! -d "$ROOT_TMP" ] || [ ! -O "$ROOT_TMP" ]; then
+    echo "::error::$ROOT_TMP n'est pas un dossier à nous : refus. Définir RUNNER_TEMP vers un dossier jetable." >&2
+    exit 2
+  fi
+  chmod 700 -- "$ROOT_TMP"
+fi
 PORT=${PORT:-3001}
 export BASE="http://localhost:$PORT"
 export DATA_DIR="${DATA_DIR:-$ROOT_TMP/data-$ID}"

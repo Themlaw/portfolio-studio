@@ -119,7 +119,13 @@ if (run("E")) {
   const r2 = spawnSync("bash", [script, "garde", "true"], { cwd: base, env: { PATH: process.env.PATH, HOME: process.env.HOME, BATT_SERVER: "start", STANDALONE_DIR: path.join(base, "x"), DATA_DIR: loose }, encoding: "utf8", timeout: 20000 });
   ok("E5 sans RUNNER_TEMP, un DATA_DIR hors de /tmp (base de dev) n'est pas effacé", alive(loose) && r2.status === 2, `${alive(loose) ? "intacte" : "EFFACÉE"}, code ${r2.status}`);
   rmSync(home, { recursive: true, force: true });
-  info("limite connue : sans RUNNER_TEMP la racine autorisée est /tmp tout entier (un DATA_DIR=/tmp/<n'importe quoi> reste effaçable) ; TOCTOU entre le contrôle (realpath) et le rm -rf non fermé");
+  // #49 : sans RUNNER_TEMP la racine n'est plus /tmp tout entier : un DATA_DIR voisin (sous TMPDIR) n'est pas effacé, la racine par défaut est privée.
+  const voisin = precious("voisin-dans-tmp");
+  const r3 = spawnSync("bash", [script, "garde", "true"], { cwd: base, env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: base, BATT_SERVER: "start", STANDALONE_DIR: path.join(base, "x"), DATA_DIR: voisin }, encoding: "utf8", timeout: 20000 });
+  ok("E7 sans RUNNER_TEMP, un DATA_DIR placé sous /tmp (ou TMPDIR) mais hors de la racine privée n'est pas effacé", alive(voisin) && r3.status === 2, `${alive(voisin) ? "intact" : "EFFACÉ"}, code ${r3.status}`);
+  const r4 = spawnSync("bash", [script, "garde", "true"], { cwd: base, env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: base, BATT_SERVER: "start", STANDALONE_DIR: path.join(base, "x") }, encoding: "utf8", timeout: 20000 });
+  const priv = path.join(base, `e2e-${process.getuid()}`);
+  ok("E7b (témoin) sans RUNNER_TEMP ni DATA_DIR : la racine par défaut est un dossier privé (0700) et le script s'y prépare", r4.status !== 2 && existsSync(priv) && (statSync(priv).mode & 0o777) === 0o700 && existsSync(path.join(priv, "data-garde")), `code ${r4.status}, mode ${existsSync(priv) ? (statSync(priv).mode & 0o777).toString(8) : "absent"}`);
 
   rmSync(base, { recursive: true, force: true });
   // Chemins /tmp fixes restants dans les scripts de test.
