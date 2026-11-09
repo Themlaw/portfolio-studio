@@ -15,6 +15,7 @@ import { and, asc, eq, isNull } from "drizzle-orm";
 import { extractProjectRefs } from "@/blocks/refs";
 
 import { cached, TAGS } from "./cache";
+import { readDisplayedProjects } from "./gallery";
 import { getDb, schema } from "./db";
 import type { PictureSources } from "./images/variants";
 import { parseJson } from "./json";
@@ -68,12 +69,16 @@ export function readPoolWorks(): PoolWork[] {
     const pageOfCollection = new Map<string, (typeof pages)[number]>();
     for (const p of pages) if (p.collection && !pageOfCollection.has(p.collection)) pageOfCollection.set(p.collection, p);
 
+    // #24 : un projet qu'aucune page publiée n'affiche est « masqué » (il n'est pas sur le site) : ses œuvres ne sont pas tirées, même
+    // en sélection manuelle, et même si la page de leur collection existe (le repli sur cette page ne vaut que pour un projet affiché).
+    const displayed = readDisplayedProjects();
     const projects = new Map(
       db
         .select({ id: schema.projects.id, slug: schema.projects.slug })
         .from(schema.projects)
         .where(and(isNull(schema.projects.draftPageId), isNull(schema.projects.deletedAt)))
         .all()
+        .filter((p) => displayed.has(p.id))
         .map((p) => [p.id, p.slug]),
     );
     const out: PoolWork[] = [];
