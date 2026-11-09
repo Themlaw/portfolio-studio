@@ -33,7 +33,7 @@ const ok = (label, pass, detail = "") => {
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const { readBackupConfig, describeConfig } = await import("../src/lib/backup/config.ts");
-const { Scheduler, dueReason, rotationPlan, retentionPlan, archiveDate, RETENTION, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
+const { Scheduler, dueReason, rotationPlan, securityRetentionPlan, archiveDate, RETENTION, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
 
 /* ---- 1. réglages ---------------------------------------------------------------------------------------------------- */
 {
@@ -194,18 +194,18 @@ const { Scheduler, dueReason, rotationPlan, retentionPlan, archiveDate, RETENTIO
   const list = [A(0), A(72), A(73, true), A(73.1, true)];
   const now = plus(73.2).getTime();
   ok("rétention : avant le correctif, keep 1 ne gardait que la dernière (référence)", rotationPlan(list.map((a) => a.name), 1).length === 3);
-  const doomed = retentionPlan(list, { keep: 1, now });
+  const doomed = securityRetentionPlan(list, { keep: 1, now });
   ok("rétention : keep 1 + deux manuelles : l'archive de plus de 48 h ET l'automatique restent", doomed.length === 0, JSON.stringify(doomed));
-  ok("rétention : seule la PLUS RÉCENTE de plus de 48 h est protégée", eq(retentionPlan([A(0), A(10), A(72)], { keep: 1, now }), [at(plus(0))]));
+  ok("rétention : seule la PLUS RÉCENTE de plus de 48 h est protégée", eq(securityRetentionPlan([A(0), A(10), A(72)], { keep: 1, now }), [at(plus(0))]));
   const spam = [A(0), A(72), ...[1, 2, 3, 4, 5].map((i) => A(72 + i / 10, true))];
-  const sd = retentionPlan(spam, { keep: 1, now });
+  const sd = securityRetentionPlan(spam, { keep: 1, now });
   ok(`rétention : « Sauvegarder maintenant » en boucle ne fait tourner que la réserve manuelle (${RETENTION.manualKeep})`, eq(sd, [at(plus(72.1)), at(plus(72.2))]), JSON.stringify(sd));
-  ok("rétention : les manuelles ne poussent jamais dehors une automatique", eq(retentionPlan([A(70), A(71), A(72), A(72.5, true), A(72.6, true)], { keep: 3, now }), []));
-  ok("rétention : sans archive de plus de 48 h, keep s'applique comme avant", eq(retentionPlan([A(60), A(61), A(62)], { keep: 2, now }), [at(plus(60))]));
+  ok("rétention : les manuelles ne poussent jamais dehors une automatique", eq(securityRetentionPlan([A(70), A(71), A(72), A(72.5, true), A(72.6, true)], { keep: 3, now }), []));
+  ok("rétention : sans archive de plus de 48 h, keep s'applique comme avant", eq(securityRetentionPlan([A(60), A(61), A(62)], { keep: 2, now }), [at(plus(60))]));
   // plafond de place : les plus anciennes NON protégées partent d'abord, la dernière et la protégée jamais
   const big = [A(0, false, 400), A(50, false, 400), A(60, false, 400), A(70, false, 400)];
-  ok("rétention : plafond de place, retire les plus anciennes non protégées", eq(retentionPlan(big, { keep: 30, now, maxBytes: 1000 }), [at(plus(50)), at(plus(60))]));
-  ok("rétention : plafond trop bas, la dernière et la plus récente de plus de 48 h restent", eq(retentionPlan(big, { keep: 30, now, maxBytes: 1 }), [at(plus(50)), at(plus(60))]));
+  ok("rétention : plafond de place, retire les plus anciennes non protégées", eq(securityRetentionPlan(big, { keep: 30, now, maxBytes: 1000 }), [at(plus(50)), at(plus(60))]));
+  ok("rétention : plafond trop bas, la dernière et la plus récente de plus de 48 h restent", eq(securityRetentionPlan(big, { keep: 30, now, maxBytes: 1 }), [at(plus(50)), at(plus(60))]));
 }
 
 /* ---- 3b. lot 76 : réglages de l'admin, origine des valeurs, prochaine date, sauvegarde à la demande, téléchargement ------- */
