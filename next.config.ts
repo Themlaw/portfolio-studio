@@ -81,6 +81,18 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: `frame-ancestors 'self'; ${PUBLIC_CSP}` },
         ],
       },
+      // Vignettes de l'écran Thèmes (`/fr?vignette=…`, cadre de même origine). src/proxy.ts pose déjà ces en-têtes sur la réponse ; avec Next
+      // 16.4, le serveur de DÉVELOPPEMENT y rejoue les règles de ce fichier d'après le cookie d'aperçu du NAVIGATEUR (que la vignette n'a pas)
+      // et remettait DENY : vignette bloquée (batterie `themes`, B9). Même cadre « même origine » que ci-dessus, déclaré aussi ici. Un visiteur
+      // qui ajoute `?vignette=` à une adresse publique obtient un cadre de même origine seulement, jamais un cadre depuis un autre site.
+      {
+        source: "/:locale(fr|en)",
+        has: [{ type: "query", key: "vignette" }],
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: `frame-ancestors 'self'; ${PUBLIC_CSP}` },
+        ],
+      },
     ];
   },
   // La médiathèque a changé d'adresse (phase 4b).
