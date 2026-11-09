@@ -196,7 +196,8 @@ ok("X4 le journal est dans un fichier à part : portfolio.db n'a pas de table ed
 /* ---- stdout --------------------------------------------------------------------------------------------------------------------- */
 if (serverLines()) {
   const parsed = serverLines().map((l) => JSON.parse(l));
-  const edits = parsed.filter((l) => l.t === "edit");
+  // PR #64 : les connexions et téléchargements écrivent aussi une ligne {"t":"edit"} (type « compte » / « telechargement », sans durée) : O1 vise les écritures.
+  const edits = parsed.filter((l) => l.t === "edit" && l.type !== "compte" && l.type !== "telechargement");
   ok("O1 stdout : une ligne JSON {\"t\":\"edit\"} par écriture, courte, avec action, résultat, version, durée", edits.length >= 6 && edits.every((l) => l.a && l.r && l.v && typeof l.ms === "number" && JSON.stringify(l).length < 450), `${edits.length} lignes ; ${serverLines()[0]}`);
   ok("O2 …et une ligne {\"t\":\"client\"} par erreur du navigateur", parsed.some((l) => l.t === "client" && l.a === "client.error") && parsed.some((l) => l.t === "client" && l.a === "client.save"));
   const aud = edits.map((l) => l.aud).filter((x) => typeof x === "number");
