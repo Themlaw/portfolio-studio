@@ -11,6 +11,7 @@
  */
 import { createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { normalizeIp } from "./auth/client-ip";
 import { devSecret } from "./auth/dev-secret";
 import { isDevMode } from "./dev-mode";
 
@@ -85,6 +86,7 @@ export function contactIpHash(value: string): string {
 
 /** Préfixe réseau d'une IP : /24 en IPv4 (y compris IPv4 dans IPv6), /64 en IPv6 ; null si illisible. */
 export function ipPrefix(ip: string): string | null {
+  ip = normalizeIp(ip);
   const v4 = /^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/i.exec(ip);
   if (v4) return `${v4[1]}.${v4[2]}.${v4[3]}.0/24`;
   if (!ip.includes(":") || !/^[0-9a-f:]+$/i.test(ip)) return null;

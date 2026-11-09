@@ -27,7 +27,7 @@
 import { and, count, eq, gt, inArray, isNull, lt } from "drizzle-orm";
 
 import { readAuthConfig } from "@/lib/auth/config";
-import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
+import { clientIpFromForwarded, normalizeIp, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { builtinContactForm, ContactFormSchema, DEFAULT_FORM_ID, FORM_BLOCK_TYPES, isFormBlock, MESSAGES_CAP, validateSubmission } from "@/lib/contact-form";
 import { checkContactToken, consumeContactToken, contactIpHash, ipPrefix, prefixCount, prefixRecord, sweepDue } from "@/lib/contact-guard";
 import { getDb, schema } from "@/lib/db";
@@ -64,7 +64,7 @@ function sameOrigin(req: Request): boolean {
 /** Empreintes (HMAC) de l'IP client (calculée comme pour l'authentification) et de son préfixe /24 ou /64. */
 function clientKeys(req: Request): { ip: string; prefix: string } {
   const ip = clientIpFromForwarded(req.headers.get("x-forwarded-for"), readAuthConfig().trustedProxyHops) ?? UNKNOWN_IP;
-  return { ip: contactIpHash(`ip:${ip}`), prefix: contactIpHash(`net:${ipPrefix(ip) ?? ip}`) };
+  return { ip: contactIpHash(`ip:${normalizeIp(ip)}`), prefix: contactIpHash(`net:${ipPrefix(ip) ?? ip}`) };
 }
 
 /** Corps lu en flux, coupé dès que MAX_BODY octets sont dépassés ; null si trop gros. */

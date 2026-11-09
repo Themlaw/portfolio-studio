@@ -26,12 +26,29 @@ export function clientIpFromForwarded(xff: string | null, hops: number): string 
 }
 
 /**
+ * Forme canonique d'une adresse pour compter : minuscules, et toute IPv4 écrite en IPv6 (« ::ffff:1.2.3.4 », « ::ffff:102:304 »,
+ * « 0:0:0:0:0:ffff:102:304 », « 0000:...:ffff:0102:0304 ») redevient l'IPv4 pointée. Sans cela, la forme hexadécimale d'une même
+ * adresse tombait dans un autre seau (contournement des plafonds par adresse et par réseau). Forme illisible : rendue telle quelle.
+ */
+export function normalizeIp(ip: string): string {
+  const raw = ip.trim().toLowerCase();
+  const hex = /^(?:(?:0{1,4}:){5}|::)ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(raw);
+  if (hex) {
+    const hi = parseInt(hex[1], 16);
+    const lo = parseInt(hex[2], 16);
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  const dotted = /^(?:(?:0{1,4}:){5}|::)ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(raw);
+  return dotted ? dotted[1] : raw;
+}
+
+/**
  * Clé des compteurs de connexion pour une IP (docs/SECURITE.md §2.4) : une IPv4 telle quelle, une IPv6 réduite à son préfixe
  * /64 (un seul abonné en a 2^64 : compter adresse par adresse ne freinait rien). Une IPv4 écrite en IPv6 (::ffff:1.2.3.4)
  * redevient l'IPv4. Forme illisible : la chaîne telle quelle (jamais d'exception).
  */
 export function ipBucket(ip: string): string {
-  const raw = ip.trim().toLowerCase();
+  const raw = normalizeIp(ip);
   if (!raw.includes(":")) return raw;
   const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(raw);
   if (mapped) return mapped[1];

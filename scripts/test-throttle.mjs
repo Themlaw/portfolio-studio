@@ -33,6 +33,7 @@ const same64 = ["2001:db8:1:2:3:4:5:6", "2001:db8:1:2::1", "2001:0db8:0001:0002:
 ok("T1 IPv6 : toutes les adresses d'un même /64 → une seule clé", new Set(same64).size === 1 && same64[0] === "2001:db8:1:2::/64", same64.join(" | "));
 ok("T1b IPv6 : un autre /64 → une autre clé", ipBucket("2001:db8:1:3::1") !== same64[0], ipBucket("2001:db8:1:3::1"));
 ok("T1c IPv4 et IPv4 écrite en IPv6 : l'IPv4", ipBucket("198.51.100.7") === "198.51.100.7" && ipBucket("::ffff:198.51.100.7") === "198.51.100.7");
+ok("T1c2 IPv4 écrite en IPv6 hexadécimale ou développée : la même clé que l'IPv4 pointée", ["::ffff:c633:6407", "::FFFF:C633:6407", "0:0:0:0:0:ffff:c633:6407", "0000:0000:0000:0000:0000:ffff:c633:6407"].every((v) => ipBucket(v) === "198.51.100.7") && ipBucket("::ffff:c633:6407") === ipBucket("198.51.100.7"), ["::ffff:c633:6407", "0:0:0:0:0:ffff:c633:6407"].map(ipBucket).join(" | "));
 ok("T1d formes courtes (::1, fe80::1, ::)", ipBucket("::1") === "0:0:0:0::/64" && ipBucket("fe80::1") === "fe80:0:0:0::/64" && ipBucket("::") === "0:0:0:0::/64");
 ok("T1e forme illisible : rendue telle quelle, sans exception", ipBucket("1::2::3") === "1::2::3" && ipBucket("zz::1") === "zz::1" && ipBucket("0.0.0.0") === "0.0.0.0");
 

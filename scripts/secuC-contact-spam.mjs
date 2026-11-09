@@ -86,7 +86,7 @@ ok("T7b contournement : majuscules, forme développée, autre hôte du /64 : mê
 const w6n = await wave("v", ["2001:db8:1:3::1"]);
 ok("T7c (témoin) un autre /64 n'est pas pénalisé", w6n[0].status === 200 || !hasTokens, `statut ${w6n[0].status}`);
 const wh = await wave("h", ["::ffff:c633:64f0"]);
-info(`IPv4 mappée écrite en hexadécimal (::ffff:c633:64f0 = 198.51.100.240) : statut ${wh[0].status} (${wh[0].status === 200 ? "hors du seau /24 : forme non normalisée, seulement atteignable si le proxy écrit l'adresse ainsi" : "bloquée"})`);
+ok("T6c contournement : la même plage présentée en IPv4 mappée HEXADÉCIMALE (::ffff:c633:64f0) tombe dans le même seau /24", wh[0].status !== 200, `statut ${wh[0].status}`);
 
 // Nettoyage des valeurs.
 const toks = [await contactToken(F2), await contactToken(F2), await contactToken(F2)];
