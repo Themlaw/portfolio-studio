@@ -642,7 +642,10 @@ ok("A2f /media garde sa CSP (sandbox) et XFO", (r.headers.get("content-security-
     [pub, adm].every((x) => x.headers.get("strict-transport-security") === "max-age=31536000; includeSubDomains"),
     `${pub.headers.get("strict-transport-security")} / ${adm.headers.get("strict-transport-security")}`,
   );
-  ok("A2t page publique toujours en cache malgré la CSP (ISR)", /s-maxage/.test(pub.headers.get("cache-control") ?? ""), pub.headers.get("cache-control") ?? "");
+  // Lot 118 : les pages publiques sont servies « public, max-age=0, must-revalidate » (revalidées par tout cache placé devant) ; elles restent
+  // préparées à l'avance (ISR : x-nextjs-prerender, x-nextjs-cache) et jamais « private » ni « no-store » : la CSP publique n'a pas de nonce par requête.
+  const pubCache = pub.headers.get("cache-control") ?? "";
+  ok("A2t page publique toujours en cache malgré la CSP (ISR : préparée à l'avance, jamais private ni no-store)", /^public\b/.test(pubCache) && !/private|no-store/.test(pubCache) && (pub.headers.get("x-nextjs-prerender") === "1" || /^(HIT|MISS|STALE)$/.test(pub.headers.get("x-nextjs-cache") ?? "")), `${pubCache} | prerender ${pub.headers.get("x-nextjs-prerender")} | cache ${pub.headers.get("x-nextjs-cache")}`);
   const icons = [];
   for (const u of ["/site-icon/icon.svg", "/site-icon/32.png", "/site-icon/192.png", "/favicon.ico"]) {
     const res = await http(u);
