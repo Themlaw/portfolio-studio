@@ -56,6 +56,8 @@ export async function GET(request: Request, { params }: Params) {
     const opened = await openKitPart(file, part).catch(() => null);
     if (!opened) return json(404, { ok: false, ready: false, message: "Le kit n'est pas encore prêt." });
     const name = (await kitParts(null)).find((p) => p.role === part)!.file;
+    // #64 : une partie du kit (le .psd tel quel) est un téléchargement comme l'archive : journalisée de la même façon.
+    recordEvent({ action: "download:kit", type: "telechargement", user: session.user.id, result: "ok", label: `Partie du kit Photoshop téléchargée (${part})`, target: theme.id });
     return new Response(Readable.toWeb(opened.stream) as ReadableStream, {
       headers: {
         "Content-Type": "image/vnd.adobe.photoshop",

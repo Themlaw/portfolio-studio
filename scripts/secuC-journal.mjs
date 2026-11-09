@@ -109,6 +109,40 @@ if (run("L")) {
   await full.arrayBuffer();
   await sleep(500);
   ok("L6b (témoin) le téléchargement complet est journalisé", logRows(d, "select count(*) n from edit_log where action = 'download:backup'")[0].n > n1, `statut ${full.status}`);
+  // #64 : une partie du kit (?part=) est un téléchargement : journalisée comme l'archive. Kit factice (zip « stocké », octets quelconques :
+  // aucun vrai PSD n'est ouvert), posé là où le site le cherche pour un thème prédéfini.
+  {
+    const { spawnSync } = await import("node:child_process");
+    const { crc32 } = await import("node:zlib");
+    const { dirname } = await import("node:path");
+    const kp = spawnSync(process.execPath, ["--import", "tsx", path.join(S.ROOT, "scripts/lib/secuC-kitpath.mjs"), "galerie-lumineuse"], { env: { ...process.env, DATA_DIR: d }, cwd: S.ROOT, encoding: "utf8" });
+    const zipPath = kp.stdout.trim().split("\n").pop();
+    if (kp.status !== 0 || !zipPath.endsWith(".zip")) info(`L6c non évalué : chemin du kit introuvable (${kp.stderr.slice(0, 120)})`);
+    else {
+      const files = ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"];
+      const loc = [], cen = [];
+      let off = 0;
+      for (const name of files) {
+        const data = Buffer.alloc(300, 8), nm = Buffer.from(name), crc = crc32(data);
+        const h = Buffer.alloc(30);
+        h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt32LE(crc, 14); h.writeUInt32LE(data.length, 18); h.writeUInt32LE(data.length, 22); h.writeUInt16LE(nm.length, 26);
+        const c = Buffer.alloc(46);
+        c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt32LE(crc, 16); c.writeUInt32LE(data.length, 20); c.writeUInt32LE(data.length, 24); c.writeUInt16LE(nm.length, 28); c.writeUInt32LE(off, 42);
+        loc.push(h, nm, data); cen.push(c, nm);
+        off += 30 + nm.length + data.length;
+      }
+      const cd = Buffer.concat(cen), end = Buffer.alloc(22);
+      end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+      mkdirSync(dirname(zipPath), { recursive: true });
+      writeFileSync(zipPath, Buffer.concat([...loc, cd, end]));
+      const kitRows = () => logRows(d, "select count(*) n from edit_log where action = 'download:kit' and target = 'galerie-lumineuse'")[0].n;
+      const k0 = kitRows();
+      const kr = await http("/admin/api/theme-kit/galerie-lumineuse?part=decor", { jar: j2 });
+      const kb = (await kr.arrayBuffer()).byteLength;
+      await sleep(500);
+      ok("L6c un téléchargement d'une partie du kit (?part=decor) est journalisé", kr.status === 200 && kb === 300 && kitRows() > k0, `statut ${kr.status}, ${kb} octets, ${kitRows() - k0} entrée(s) de journal`);
+    }
+  }
   const pw = await http("/api/auth/change-password", { jar, method: "POST", body: { currentPassword: ADMIN.password, newPassword: "nouveau-mot-de-passe-du-test-43", revokeOtherSessions: false } });
   await sleep(800);
   ok("L3 le changement de mot de passe est journalisé", logRows(d).some((r) => r.action === "auth:change-password"), `statut ${pw.status}`);

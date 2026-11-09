@@ -67,8 +67,9 @@ async function serve(request: Request, { params }: Params, head: boolean) {
   if (range) headers.set("Content-Range", `bytes ${start}-${end}/${info.size}`);
   const status = range ? 206 : 200;
   if (head || length === 0) return new Response(null, { status, headers });
-  // Journal (P5) : une archive contient toute la base. Une reprise (Range au-delà du début) n'ajoute pas d'entrée.
-  if (start === 0) recordEvent({ action: "download:backup", type: "telechargement", user, result: "ok", label: "Sauvegarde téléchargée", target: name });
+  // Journal (P5) : une archive contient toute la base. #64 : une reprise (Range: bytes=1-) est journalisée aussi, sinon un simple
+  // en-tête Range suffisait à télécharger toute la base sans trace ; son libellé dit à partir de quel octet.
+  recordEvent({ action: "download:backup", type: "telechargement", user, result: "ok", label: start === 0 ? "Sauvegarde téléchargée" : `Sauvegarde téléchargée (reprise à l'octet ${start})`, target: name });
   const stream = createReadStream(file, { start, end, highWaterMark: 256 * 1024 });
   return new Response(Readable.toWeb(stream) as ReadableStream, { status, headers });
 }
