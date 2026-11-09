@@ -30,6 +30,28 @@ data
 **/id_dsa*
 **/id_ecdsa*
 **/id_ed25519*
+# Autres noms usuels de secrets (#50 complément) : identifiants réseau, clouds, trousseaux, états Terraform
+**/.netrc
+**/.pgpass
+**/.htpasswd
+**/.git-credentials
+**/.aws
+**/.ssh
+**/.gnupg
+**/*.jks
+**/*.keystore
+**/*.p8
+**/*.p7b
+**/*.kdbx
+**/*.crt
+**/*.cer
+**/*.token
+**/credentials*
+**/secrets*
+**/service-account*
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
 # Bases SQLite hors de data/ (copies, bases de test)
 **/*.db
 **/*.db-wal

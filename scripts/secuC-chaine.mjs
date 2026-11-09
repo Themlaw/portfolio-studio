@@ -62,8 +62,8 @@ if (run("K")) {
   const wf = rd(".github/workflows/docker.yml") ?? "";
   const cacheTo = [...wf.matchAll(/cache-to:\s*(\S+)/g)].map((m) => m[1]);
   ok("K2 le cache BuildKit exporté par la CI est en mode=min (jamais la couche « COPY . . »)", cacheTo.length > 0 && cacheTo.every((c) => /(^|,)mode=min(,|$)/.test(c)), `cache-to : ${cacheTo.join(" ") || "(aucun)"}`);
-  const more = [".netrc", ".aws/credentials", "release.jks", "server.crt", "secrets.json", "service-account.json", ".ssh/config", "credentials.json"].filter(has);
-  info(`autres noms de secrets qui entreraient encore dans le contexte (hors liste de la PR) : ${more.join(", ") || "aucun"}`);
+  const more = [".netrc", ".aws/credentials", "release.jks", "app.keystore", "AuthKey_ABC.p8", "server.crt", "secrets.json", "secrets.yml", "service-account.json", "service-account-prod.json", ".ssh/config", "x/.ssh/id", "credentials.json", ".htpasswd", "vault.kdbx", "api.token", "x/.git-credentials", ".pgpass", "terraform.tfstate", "prod.tfvars", "id_rsa"].filter(has);
+  ok("K3 (#50) les autres noms usuels de secrets (.netrc, .aws, .ssh, .jks, .p8, credentials*, secrets*, service-account*, .htpasswd…) n'entrent pas dans le contexte", more.length === 0, more.join(", "));
 }
 
 /* ------------------------------------------------------------ E : #49 -- */
@@ -120,6 +120,7 @@ if (run("E")) {
   ok("E5 sans RUNNER_TEMP, un DATA_DIR hors de /tmp (base de dev) n'est pas effacé", alive(loose) && r2.status === 2, `${alive(loose) ? "intacte" : "EFFACÉE"}, code ${r2.status}`);
   rmSync(home, { recursive: true, force: true });
   info("limite connue : sans RUNNER_TEMP la racine autorisée est /tmp tout entier (un DATA_DIR=/tmp/<n'importe quoi> reste effaçable) ; TOCTOU entre le contrôle (realpath) et le rm -rf non fermé");
+
   rmSync(base, { recursive: true, force: true });
   // Chemins /tmp fixes restants dans les scripts de test.
   const fixed = [];
