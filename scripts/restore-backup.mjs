@@ -257,6 +257,26 @@ async function walkDirs(root) {
   return out;
 }
 
+const SCRUBBED_TABLES = ["session", "verification", "rate_limit"];
+/** Vide les tables de secrets de la base restaurée. Ne jette jamais : renvoie { ok, removed } ou { ok:false, reason } (affiché en clair). */
+async function scrubRestoredDb(file) {
+  try {
+    const { default: Database } = await import("better-sqlite3");
+    const db = new Database(file);
+    try {
+      let removed = 0;
+      const has = db.prepare("select 1 from sqlite_master where type = 'table' and name = ?");
+      for (const t of SCRUBBED_TABLES) if (has.get(t)) removed += db.prepare(`delete from "${t}"`).run().changes;
+      db.pragma("wal_checkpoint(TRUNCATE)");
+      return { ok: true, removed };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return { ok: false, reason: String(e?.message ?? e).slice(0, 160) };
+  }
+}
+
 export async function restore(archive, dataArg) {
   const info = await stat(dataArg).catch(() => null);
   if (!info?.isDirectory()) throw new Error(`dossier de données introuvable : ${dataArg}`);
@@ -279,6 +299,7 @@ export async function restore(archive, dataArg) {
     for (const rel of [...DB_FILES, path.basename(previous), ...files, path.join("cache", "crops"), ...OWNED_DIRS]) await assertNoSymlink(dataDir, rel);
     // Tout est lu et vérifié : on change enfin quelque chose. L'ancienne base est rangée, pas effacée.
     let moved = 0;
+    let scrub = null;
     for (const f of DB_FILES) {
       if (await lstat(path.join(dataDir, f)).catch(() => null)) {
         await assertNoSymlink(dataDir, f);
@@ -296,6 +317,9 @@ export async function restore(archive, dataArg) {
       await assertNoSymlink(dataDir, name);
       await rename(path.join(work, name), to);
     }
+    // #58 : une sauvegarde d'avant le nettoyage contient les sessions, jetons de vérification et compteurs d'essais de l'époque :
+    // restaurée telle quelle, elle rouvrirait des sessions volées. On les vide dans la base restaurée (tables absentes tolérées).
+    scrub = await scrubRestoredDb(path.join(dataDir, "portfolio.db"));
     // Dossiers créés en root : rendus au propriétaire des données.
     // Cache des recadrages : indexé par IDENTIFIANT de média, que la base restaurée a pu réattribuer à d'autres images : on le vide.
     await assertNoSymlink(dataDir, path.join("cache", "crops"));
@@ -306,7 +330,7 @@ export async function restore(archive, dataArg) {
         for (const p of [path.join(dataDir, d), ...(await walkDirs(path.join(dataDir, d)))]) await lchown(p, owner.uid, owner.gid).catch(() => {});
       }
     }
-    return { files: files.length, previous: moved ? previous : null };
+    return { files: files.length, previous: moved ? previous : null, scrub };
   } finally {
     await rm(work, { recursive: true, force: true });
   }
@@ -338,6 +362,8 @@ async function main() {
   const out = await restore(archive, dataDir);
   console.log(`Restauré : ${out.files} fichier(s) dans ${dataDir}.`);
   if (out.previous) console.log(`Ancienne base rangée dans ${out.previous} (à supprimer une fois la restauration vérifiée).`);
+  if (out.scrub?.ok) console.log(`Sessions, jetons de vérification et compteurs d'essais de la sauvegarde vidés (${out.scrub.removed} ligne(s)) : tout le monde devra se reconnecter.`);
+  else console.warn(`ATTENTION : sessions de la sauvegarde NON vidées (${out.scrub?.reason ?? "inconnu"}). Une session volée avant la sauvegarde resterait valide : vide les tables session, verification et rate_limit de portfolio.db avant de redémarrer.`);
   console.log("Redémarre le site : il régénère lui-même les variantes d'images manquantes.");
 }
 
