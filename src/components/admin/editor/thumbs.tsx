@@ -56,6 +56,13 @@ const THUMBS: Record<string, React.ReactNode> = {
       <path d="M20 44 38 26 50 38 58 31 76 44Z" fill={INK} />
     </>
   ),
+  steps: (
+    <>
+      <rect x="10" y="8" width="34" height="38" rx="2" fill={SOFT} />
+      <rect x="52" y="8" width="34" height="38" rx="2" fill={INK} />
+      <rect x="47" y="5" width="2.5" height="44" rx="1" fill={ACCENT} />
+    </>
+  ),
   "free-board": (
     <>
       <rect x="10" y="9" width="76" height="42" rx="2" fill="none" stroke={SOFT} strokeWidth="1.2" strokeDasharray="3 2" />

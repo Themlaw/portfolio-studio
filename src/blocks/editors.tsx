@@ -36,6 +36,7 @@ import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
 import { applyFreeLook, applyFreeOp, cropOf, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
+import { MAX_STEPS, STEPS_MODE_HINTS, STEPS_MODE_LABELS, STEPS_MODES, STEPS_VIEW_LABELS, STEPS_VIEWS, stepsMode, stepsView } from "./etapes";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
 import { soundOf, VIDEO_SOUND_HINTS, VIDEO_SOUND_OPTIONS } from "./video-sound";
@@ -662,6 +663,56 @@ export function ImageEditor() {
         ]}
         onChange={(v) => set("fit", v === "auto" ? undefined : v)}
       />
+    </>
+  );
+}
+
+export function EtapesEditor() {
+  const { value, onChange, errors, context } = useBlockEditor();
+  const set = useSet(value, onChange);
+  const mode = stepsMode(value);
+  type Step = { media?: number; label?: L; caption?: L };
+  const items = (Array.isArray(value.items) ? value.items : []) as Step[];
+  const max = mode === "compare" ? 2 : MAX_STEPS;
+  const setItems = (next: typeof items) => set("items", next);
+  const word = mode === "turn" ? "Vue" : mode === "compare" ? "Image" : "Étape";
+  return (
+    <>
+      <Select
+        label="Lecture"
+        help={STEPS_MODE_HINTS[mode]}
+        value={mode}
+        options={STEPS_MODES.map((m) => ({ value: m, label: STEPS_MODE_LABELS[m] }))}
+        onChange={(v) => set("mode", v ?? "compare")}
+        error={errorAt(errors, "mode")}
+      />
+      {mode === "steps" && (
+        <Select label="Présentation" value={stepsView(value)} options={STEPS_VIEWS.map((v) => ({ value: v, label: STEPS_VIEW_LABELS[v] }))} onChange={(v) => set("view", v === "tabs" ? undefined : v)} error={errorAt(errors, "view")} />
+      )}
+      <FormatSelect label="Format commun des images" help="Toutes les images sont recadrées pareil, au centre. Libre : le format de la première." />
+      {mode === "compare" && (
+        <TextField label="Position de départ du curseur (0 à 100)" value={value.start === undefined ? "" : String(value.start)} onChange={(v) => set("start", v.trim() === "" || Number.isNaN(Number(v)) ? undefined : Math.max(0, Math.min(100, Math.round(Number(v)))))} error={errorAt(errors, "start")} />
+      )}
+      <ListField
+        label={mode === "compare" ? "Les deux images (avant, puis après)" : mode === "turn" ? "Les vues, dans l'ordre du tour" : "Les étapes, dans l'ordre"}
+        help={`${items.length} sur ${max} au plus.`}
+        items={items}
+        onChange={(next) => setItems(next.slice(0, max))}
+        make={(): Step => ({})}
+        addLabel={`+ ${word}`}
+        itemLabel={(i) => (mode === "compare" ? (i === 0 ? "Avant" : "Après") : `${word} ${i + 1}`)}
+        error={errorAt(errors, "items")}
+        render={(item, update, i) => (
+          <>
+            <MediaPicker label="Image" value={item.media} onChange={(v) => update({ ...item, media: v })} error={errorAt(errors, `items.${i}.media`)} context={context} />
+            <TextI18n label="Titre (facultatif)" value={l(item.label)} onChange={(v) => update({ ...item, label: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.label`)} />
+            <TextareaI18n label="Légende (facultative)" value={l(item.caption)} onChange={(v) => update({ ...item, caption: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.caption`)} />
+          </>
+        )}
+      />
+      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
     </>
   );
 }

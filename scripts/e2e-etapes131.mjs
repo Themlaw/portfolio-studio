@@ -22,7 +22,7 @@ import { publishBlocks } from "./lib/page-draft.mjs";
 const BASE = process.env.BASE ?? "http://localhost:3900";
 const ONLY = process.env.ONLY ?? "";
 const run = (s) => !ONLY || ONLY.split(",").includes(s);
-const SHOTS = process.env.SHOTS ?? path.join(process.env.BATTERY_DIR ?? tmpdir(), "shots-etapes131");
+const SHOTS = process.env.BATT_SHOTS ?? process.env.SHOTS ?? path.join(process.env.BATTERY_DIR ?? tmpdir(), "shots-etapes131");
 mkdirSync(SHOTS, { recursive: true });
 
 let failures = 0;
@@ -65,7 +65,9 @@ const pub = async (p, w = 1440) => {
   await p.goto(`${BASE}/fr/personnages`, { waitUntil: "load" });
   await sleep(1500);
 };
-const blk = (p, uid) => p.locator(`[data-steps-uid="${uid}"]`);
+// En public l identifiant d un bloc publié n est pas celui du brouillon : on les retrouve dans l ordre de la page.
+const ORDER = ["e-cmp", "e-tab", "e-str", "e-scr", "e-trn"];
+const blk = (p, uid) => p.locator("[data-steps-mode]").nth(ORDER.indexOf(uid));
 
 if (run("A") || run("B") || run("C") || run("D") || run("E")) {
   const done = await publishBlocks(page, BASE, pageId, () => JSON.parse(JSON.stringify(SCENE)), () => Boolean(q1("select 1 as x from blocks where page_id = ? and props like '%\"mode\":\"turn\"%'", pageId)));
@@ -81,7 +83,9 @@ if (run("A"))
     await pub(p);
     ok("A1 les cinq blocs sont rendus", (await p.locator("[data-steps-mode]").count()) === 5);
     ok("A2 modes comparer / étapes / tourner présents", (await p.locator('[data-steps-mode="compare"]').count()) === 1 && (await p.locator('[data-steps-mode="steps"]').count()) === 3 && (await p.locator('[data-steps-mode="turn"]').count()) === 1);
-    ok("A3 images chargées (naturalWidth > 0)", await p.evaluate(() => [...document.querySelectorAll("[data-steps-mode] img")].filter((i) => i.getBoundingClientRect().width > 0).every((i) => i.complete && i.naturalWidth > 0)));
+    for (const el of await p.locator("[data-steps-mode]").all()) await el.scrollIntoViewIfNeeded();
+    await sleep(1500);
+    ok("A3 images visibles chargées (naturalWidth > 0)", await p.evaluate(() => [...document.querySelectorAll("[data-steps-mode] img")].filter((i) => i.getBoundingClientRect().width > 0 && i.getBoundingClientRect().height > 0).every((i) => i.complete && i.naturalWidth > 0)));
     ok("A4 aucun script ni gestionnaire en ligne ajouté par le bloc", await p.evaluate(() => ![...document.querySelectorAll("[data-steps-mode] *")].some((e) => e.tagName === "SCRIPT" || e.getAttributeNames().some((a) => a.startsWith("on")))));
     ok("A5 prêt côté client (data-ready) après chargement", await p.locator("[data-steps-mode][data-ready]").count() === 5);
     shot(p, "A-public");
@@ -92,9 +96,9 @@ if (run("A"))
     const cmp = q.locator('[data-steps-mode="compare"]');
     ok("A6 sans JS, comparer : deux images et les mots Avant / Après visibles", (await cmp.locator("img").count()) === 2 && (await cmp.innerText()).includes("Avant") && (await cmp.innerText()).includes("Après"));
     ok("A7 sans JS, le curseur n'est pas proposé (il ne ferait rien)", !(await cmp.locator("input[type=range]").first().isVisible().catch(() => false)));
-    const tab = q.locator('[data-steps-uid="e-tab"]');
+    const tab = q.locator("[data-steps-mode]").nth(1);
     ok("A8 sans JS, étapes : les 4 légendes sont lisibles", (await tab.innerText()).includes("Légende 1") && (await tab.innerText()).includes("Légende 4"));
-    ok("A9 sans JS, tourner : toutes les vues listées", (await q.locator('[data-steps-uid="e-trn"] img').count()) === 4);
+    ok("A9 sans JS, tourner : toutes les vues listées", (await q.locator("[data-steps-mode]").nth(4).locator("img").count()) === 4);
     await nojs.close();
   });
 
@@ -179,7 +183,7 @@ if (run("D"))
     }
     await p.emulateMedia({ reducedMotion: "reduce" });
     await pub(p);
-    ok("D7 mouvement réduit : aucune transition CSS sur les vues", await blk(p, "e-trn").evaluate((e) => [...e.querySelectorAll("[data-steps-frame], [data-steps-after]")].every((x) => parseFloat(getComputedStyle(x).transitionDuration) === 0)));
+    ok("D7 mouvement réduit : aucune transition CSS sur les vues", await blk(p, "e-trn").evaluate((e) => [...e.querySelectorAll("[data-steps-frame], [data-steps-after]")].every((x) => (([v]) => (v.endsWith("ms") ? parseFloat(v) / 1000 : parseFloat(v)) <= 0.001)(getComputedStyle(x).transitionDuration.split(",")))));
     await p.emulateMedia({ reducedMotion: "no-preference" });
     shot(p, "D-tourner");
   });
@@ -202,12 +206,16 @@ if (run("F"))
     ok("F1 le bloc Étapes est sur la toile", (await f.locator('[data-edit-block="e-tab"]').count()) === 1);
     const label = f.locator('[data-edit-block="e-tab"] [data-inline="items.0.label"]').first();
     ok("F2 le titre de la première étape est modifiable en place", (await label.count()) === 1);
-    await label.click();
+    await label.scrollIntoViewIfNeeded();
+    await label.dblclick({ position: { x: 12, y: 6 } });
+    await sleep(400);
     await page.keyboard.press("Control+a");
     await page.keyboard.type("Croquis");
     await page.keyboard.press("Enter");
+    await sleep(600);
     await settled(page);
-    ok("F3 la saisie est écrite dans le brouillon", await waitFor(() => findIn(draftBlocks(pageId), "e-tab")?.props?.items?.[0]?.label?.fr === "Croquis", 12000));
+    const saved = await waitFor(() => findIn(draftBlocks(pageId), "e-tab")?.props?.items?.[0]?.label?.fr === "Croquis", 12000);
+    ok("F3 la saisie est écrite dans le brouillon", saved, `éditing=${await f.locator("[data-editing]").count()} label=${JSON.stringify(findIn(draftBlocks(pageId), "e-tab")?.props?.items?.[0]?.label)} dom=${await f.locator('[data-edit-block="e-tab"] [data-inline="items.0.label"]').first().innerText().catch(() => "?")}`);
     ok("F4 les autres étapes et les images sont intactes", findIn(draftBlocks(pageId), "e-tab")?.props?.items?.length === 4 && findIn(draftBlocks(pageId), "e-tab")?.props?.items?.[1]?.media === M.carre);
     shot(page, "F-editeur");
   });

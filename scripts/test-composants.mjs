@@ -60,7 +60,7 @@ test("regroupement : ordre Texte, Projets, Images et vidéos, Grilles, Autres ; 
   const names = (g) => [...g.starters, ...g.entries].map((e) => e.label);
   assert.deepEqual(names(groups[0]), ["Texte", "Titre", "Titre + texte"]);
   assert.deepEqual(names(groups[1]), ["Projet"]);
-  assert.deepEqual(names(groups[2]), ["Image", "Vidéo", "Planche libre"]);
+  assert.deepEqual(names(groups[2]), ["Image", "Vidéo", "Planche libre", "Étapes"]);
   // Lot 27 : « Grille » et « Contact » proposent leurs modèles sous leur carte (pas de cartes à part).
   assert.deepEqual(names(groups[3]), ["Grille"]);
   assert.deepEqual(groups[3].entries[0].models.map((m) => m.short), ["Avec 3 images", "Avec des vidéos"]);
