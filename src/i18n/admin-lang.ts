@@ -31,3 +31,6 @@ export const intlLocale = (lang: AdminLang): string => (lang === "en" ? "en-GB" 
 export function makeAdminTranslator(lang: AdminLang, messages: AdminMessages, namespace?: string) {
   return createTranslator({ locale: intlLocale(lang), messages: messages as never, namespace: namespace as never, onError: () => {}, getMessageFallback: ({ namespace: ns, key }) => `${ns ? `${ns}.` : ""}${key}` }) as unknown as (key: string, values?: Record<string, string | number | Date>) => string;
 }
+
+/** Traducteur d'un espace de noms (serveur : getAdminT ; composant client : useTranslations). Passé aux modules purs, qui n'importent pas next-intl. */
+export type AdminT = (key: string, values?: Record<string, string | number | Date>) => string;
