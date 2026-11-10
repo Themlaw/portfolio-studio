@@ -136,7 +136,7 @@ doit donc être **tirée par l'hôte** (ou mieux, par une autre machine), jamais
 la clé privée n'est PAS sur le serveur (gestionnaire de mots de passe, clé USB).
 
 Une fois, sur un poste de confiance : `age-keygen -o portfolio-backup.key` (garder ce fichier hors du serveur) ; noter la ligne
-`Public key: age1…`. Sur l'hôte (hote-de-prod) : `apt install age`, puis un script lancé par cron, par exemple `/usr/local/sbin/portfolio-offsite.sh` :
+`Public key: age1…`. Sur l'hôte : `apt install age`, puis un script lancé par cron, par exemple `/usr/local/sbin/portfolio-offsite.sh` :
 
 ```sh
 #!/bin/sh

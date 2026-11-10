@@ -28,3 +28,18 @@ infra LICENSE
 # Images du tutoriel admin : régénérées par scripts/tuto-shots.mjs sur un PSD SYNTHETIQUE (scripts/make-fixture-psd.mts)
 # et un site de démonstration fictif ; leurs anciennes versions sont retirées de l'historique (forbidden.txt).
 media public/admin/tuto/*
+
+# --- AJOUTS secu-v100 (a relire par la coordinatrice) : valeurs de TEST synthetiques, relues une par une ---
+# .npmrc : `ignore-scripts=true` (lot securite #48), aucun jeton ; detecte seulement par son nom.
+forbidden .npmrc
+# Tests d attaque : secrets, mots de passe et e-mails SYNTHETIQUES (example.test, SYNTH-..., 0123456789abcdef).
+secret scripts/e2e-secuA.mjs
+secret scripts/secuB-ffmpeg.mjs
+secret scripts/secuC-journal.mjs
+secret scripts/test-auth.mjs
+email scripts/e2e-secuA.mjs
+# Espaces de noms SVG / DOCTYPE du W3C dans des SVG de test ; adresse IP privee d EXEMPLE dans un test de spam.
+infra scripts/secuB-svg.mjs
+infra scripts/secuC-contact-spam.mjs
+# Lien vers le site de l outil de chiffrement age (documentation).
+infra docs/SAUVEGARDES.md
