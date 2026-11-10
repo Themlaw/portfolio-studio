@@ -120,5 +120,13 @@ if (fr && en) {
   ok("E4 AdminIntl : fournisseur imbriqué + magasin de module", /NextIntlClientProvider/.test(intl) && /useSyncExternalStore/.test(intl));
 }
 
+/* ---- F. messages serveur synchrones (130c) : langue posée par la garde, français hors requête ---- */
+{
+  const guard = read("src/lib/auth/guard.ts");
+  ok("F1 la garde (requireAdmin, assertAdmin) pose la langue du compte pour les messages serveur", (guard.match(/primeAdminLang\(/g) ?? []).length >= 2);
+  const m = await import("../src/i18n/admin-msg.ts").catch(() => null);
+  ok("F2 src/i18n/admin-msg.ts : français hors requête, anglais sur demande", Boolean(m) && m.currentAdminLang() === "fr" && m.adminT("sortable")("theItem") === "l'élément" && m.adminT("sortable", "en")("theItem") !== "l'élément");
+}
+
 console.log(failures === 0 ? "\nTout est vert." : `\n${failures} échec(s).`);
 process.exit(failures === 0 ? 0 : 1);
