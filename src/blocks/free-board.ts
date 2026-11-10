@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 
+import { animSlotFields } from "../lib/animation/sheet";
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
 import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS } from "../lib/look";
 
@@ -52,6 +53,8 @@ export const FreeItemSchema = z.object({
   sound: z.enum(SLOT_VIDEO_SOUNDS).optional(),
   /** Image d'attente choisie pour une vidéo (identifiant de la médiathèque) ; absent = celle de la vidéo. */
   poster: z.number().int().positive().optional(),
+  /** Lot 132 : animation image par image : cadence (6 / 8 / 12 / 24) et boucle (`false` = un tour) de CETTE image. Absent = rendu d'avant. */
+  ...animSlotFields,
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 

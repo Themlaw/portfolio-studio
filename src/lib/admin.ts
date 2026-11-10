@@ -2,6 +2,7 @@
  * Lectures de l'admin : directes (sans cache Next), l'admin étant toujours
  * rendue à la demande. Aucun composant n'importe Drizzle : tout passe ici.
  */
+import { animOf } from "@/lib/animation/sheet";
 import { and, asc, count, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { orderCollectionPages, orderEntryPages } from "@/blocks/collection-pages";
@@ -311,6 +312,8 @@ export type AdminMediaRow = {
   tags: MediaTag[];
   /** Mise à la corbeille (ms), ou null. */
   deletedAt: number | null;
+  /** Lot 132 : animation image par image (bande WebP) : nombre d'images et taille d'une image. Absent pour tout autre média. */
+  anim?: { frames: number; fw: number; fh: number };
 };
 
 /** Vignette d'un média : plus petite variante WebP, sinon le fichier lui-même (seed). */
@@ -352,6 +355,7 @@ function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: numb
     videoSrc: mp4 ? mediaUrl(mp4.key) : null,
     tags,
     deletedAt: m.deletedAt ? m.deletedAt.getTime() : null,
+    ...(m.kind === "image" && animOf(m.variants) ? { anim: animOf(m.variants)! } : {}),
   };
 }
 

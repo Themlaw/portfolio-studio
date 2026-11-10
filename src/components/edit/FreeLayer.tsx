@@ -525,6 +525,10 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
     // Une vidéo (lot 116) : repère posé par le rendu (en mode Lecteur il n'y a pas de <video> dans la boîte).
     const isVideo = itemEl.dataset.freeLecture !== undefined;
     const videoNow = isVideoMode(itemEl.dataset.freeLecture) ? itemEl.dataset.freeLecture : "loop";
+    // Animation image par image (lot 132) : repères posés par le rendu.
+    const isAnim = itemEl.dataset.freeFps !== undefined;
+    const fpsNow = Number(itemEl.dataset.freeFps) || 8;
+    const loopNow = itemEl.dataset.freeLoop !== "once";
     const hasPoster = Boolean(itemEl.dataset.freePoster);
     const hasAudio = itemEl.dataset.freeAudio === "1";
     const soundNow = itemEl.dataset.freeSound === "off" ? "off" : "on";
@@ -615,6 +619,23 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
               >
                 {imageBgCss(style.bg) && <span className="sm-swatch" data-testid="free-imgbg-swatch" style={{ background: imageBgCss(style.bg) ?? undefined }} aria-hidden="true" />}
                 Fond image
+              </button>
+            )}
+            {isAnim && (
+              <span className="pe-seg" role="group" aria-label="Cadence de l'animation" data-testid="free-anim-fps">
+                <span className="pe-seg-label" aria-hidden="true">
+                  Images/s
+                </span>
+                {[6, 8, 12, 24].map((f) => (
+                  <button key={f} type="button" aria-pressed={fpsNow === f} data-free-fps-set={f} onClick={() => sendFreeLook(ref, sel.id, { fps: f as 6 | 8 | 12 | 24 })}>
+                    {f}
+                  </button>
+                ))}
+              </span>
+            )}
+            {isAnim && (
+              <button type="button" aria-pressed={loopNow} data-testid="free-anim-loop" title="Jouer en boucle (sinon un seul tour)" onClick={() => sendFreeLook(ref, sel.id, { loop: !loopNow })}>
+                Boucle
               </button>
             )}
             {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-lecture-mode" attr="data-free-lecture-set" />}

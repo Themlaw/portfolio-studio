@@ -522,6 +522,16 @@
    "tags",
    "texte19a"
   ],
+  "src/app/admin/api/animation/route.ts": [
+   "admin76",
+   "crop17d-http",
+   "icones121",
+   "interaction034b",
+   "kithttp",
+   "kitpartie122",
+   "secuA",
+   "secuB"
+  ],
   "src/app/admin/api/editeur/session/route.ts": [
    "secuA"
   ],
@@ -587,6 +597,7 @@
    "priseenmain57"
   ],
   "src/app/admin/highlight.css": [
+   "animation132",
    "couleur110",
    "couleur110a",
    "couleur110b",
@@ -668,6 +679,7 @@
   ],
   "src/app/admin/surface-menu.css": [
    "17b",
+   "animation132",
    "backup85",
    "cadre95",
    "cadremotif58",
@@ -685,7 +697,6 @@
    "fond32",
    "fondcontenu47",
    "fondimage41",
-   "fondtexte21",
    "logo84",
    "lot11",
    "opacite90",
@@ -740,6 +751,14 @@
    "lot11",
    "popover65",
    "state"
+  ],
+  "src/app/animation.css": [
+   "animation132",
+   "barres38",
+   "cadres62",
+   "medias",
+   "medias-firefox",
+   "video36"
   ],
   "src/app/api/admin/sauvegardes/[name]/route.ts": [
    "admin76",
@@ -886,6 +905,7 @@
   ],
   "src/app/medias.css": [
    "17b",
+   "animation132",
    "barres38",
    "cadremotif58",
    "cadres62",
@@ -901,7 +921,6 @@
    "icones121",
    "images25",
    "interaction034b",
-   "langue126",
    "logo84",
    "lot11",
    "medias",
@@ -1075,6 +1094,7 @@
   ],
   "src/blocks/FreeBoardBlock.tsx": [
    "17b",
+   "animation132",
    "barres38",
    "blocs27",
    "cadres62",
@@ -1416,6 +1436,14 @@
    "interaction034b",
    "video127"
   ],
+  "src/components/AnimatedSheet.tsx": [
+   "animation132",
+   "barres38",
+   "cadres62",
+   "medias",
+   "medias-firefox",
+   "video36"
+  ],
   "src/components/AnimationShowcase.tsx": [
    "17b",
    "barres38",
@@ -1493,6 +1521,7 @@
    "unif75"
   ],
   "src/components/ContactButton.tsx": [
+   "animation132",
    "blocs27",
    "chrome24",
    "contact125",
@@ -1604,6 +1633,7 @@
    "themes"
   ],
   "src/components/Lightbox.tsx": [
+   "animation132",
    "chrome24",
    "crop17d",
    "crop17g",
@@ -1625,7 +1655,6 @@
    "retours68",
    "secuA",
    "textes70",
-   "video116",
    "visionneuse44",
    "vitesse54"
   ],
@@ -1648,6 +1677,7 @@
    "textes70"
   ],
   "src/components/LoopVideo.tsx": [
+   "animation132",
    "barres38",
    "cadres62",
    "chrome24",
@@ -1680,6 +1710,7 @@
    "titres128"
   ],
   "src/components/MediaFrame.tsx": [
+   "animation132",
    "cadre34",
    "couleur110",
    "couleur110a",
@@ -1981,6 +2012,7 @@
    "visionneuse44"
   ],
   "src/components/ViewerScope.tsx": [
+   "animation132",
    "icones121",
    "interaction034b",
    "logo84",
@@ -2072,6 +2104,10 @@
    "icones121",
    "interaction034b",
    "retours68"
+  ],
+  "src/components/admin/AnimationUploader.tsx": [
+   "kit53",
+   "priseenmain57"
   ],
   "src/components/admin/BackupPanel.tsx": [
    "admin",
@@ -3519,6 +3555,7 @@
    "v013"
   ],
   "src/components/hero/HeroParallax.tsx": [
+   "animation132",
    "chrome24",
    "crop17d",
    "crop17g",
@@ -3599,6 +3636,7 @@
    "v013"
   ],
   "src/components/rail-step.ts": [
+   "animation132",
    "defilement99",
    "defilement99-firefox",
    "kit",
@@ -3664,6 +3702,31 @@
    "reglages105",
    "secuCcontact",
    "secuCcontenu"
+  ],
+  "src/lib/animation/boil.ts": [
+   "animation132",
+   "cadremotif58",
+   "cadres62",
+   "couleur110",
+   "couleur110a",
+   "couleur110b",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "logo84",
+   "logocadres49",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "parite99",
+   "retours68"
+  ],
+  "src/lib/animation/receive.ts": [
+   "secuA"
+  ],
+  "src/lib/animation/sheet.ts": [
+   "animation132"
   ],
   "src/lib/auth/client.ts": [
    "admin76",
@@ -4037,7 +4100,7 @@
    "restes77",
    "retours68",
    "secuBsvg",
-   "surface66"
+   "secuCjournal"
   ],
   "src/lib/kit/build.ts": [
    "backup85",
@@ -4115,7 +4178,8 @@
   "src/lib/kit/parts.ts": [
    "kit",
    "kithttp",
-   "kitpartie122"
+   "kitpartie122",
+   "secuCjournal"
   ],
   "src/lib/kit/resolve.ts": [
    "kithttp"
@@ -4139,6 +4203,7 @@
    "palogo17f",
    "parite99",
    "popover65",
+   "secuCjournal",
    "themes55",
    "video127"
   ],
@@ -4259,6 +4324,7 @@
    "secuB"
   ],
   "src/lib/viewer.ts": [
+   "animation132",
    "contact125",
    "mediaframe64",
    "planchelibre42",
@@ -4289,8 +4355,8 @@
   ],
   "src/themes/css.ts": [
    "admin",
+   "animation132",
    "cadre34",
-   "cadre95",
    "cartes17c",
    "couleurps29",
    "couleurs19b",
@@ -4535,9 +4601,9 @@
    "pied86"
   ],
   "src/themes/variants.css": [
+   "animation132",
    "cadre95",
    "cadremotif58",
-   "carrousel31f",
    "couleur110",
    "couleur110a",
    "couleur110b",

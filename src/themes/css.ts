@@ -11,6 +11,7 @@ import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
 import { airVariables } from "./backdrop-air";
 import { resolvePalette, type PaletteColors } from "./palette";
 import { applySitePalette, type SitePalette } from "./site-palette";
+import { boilCounts, boilCss } from "@/lib/animation/boil";
 import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
 
 /** Image d'un asset du kit : SVG, ou AVIF + WebP (image-set). Chemins validés par le schéma. */
@@ -103,6 +104,14 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
       v["--t-kit-stroke-cap"] = `${Math.min(49, (50 * kit.stroke.h) / kit.stroke.w).toFixed(3)}%`;
     }
   }
+  // Lot 132 : dessins alternés (boiling line), seulement s'il y en a.
+  const boil = boilCounts(kit);
+  for (const el of ["stroke", "signature", "frame"] as const) {
+    if (!boil[el]) continue;
+    kit.boil![el]!.slice(0, boil[el]).forEach((d, i) => {
+      v[`--t-kit-boil-${el}-${i + 1}`] = el === "frame" || (el === "signature" && kit.signature?.colors) ? kitImage(d) : kitMask(d);
+    });
+  }
   for (const [key, name] of ICONS) {
     const icon = kit.icons?.[key];
     if (!icon) continue;
@@ -146,6 +155,8 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.frame) a["data-kit-frame"] = "";
   if (kit.stroke) a["data-kit-stroke"] = "";
   if (kit.stroke?.color) a["data-kit-stroke-color"] = "";
+  const boiled = Object.keys(boilCounts(kit));
+  if (boiled.length) a["data-kit-boil"] = boiled.join(" ");
   for (const [key, name] of ICONS) {
     if (!kit.icons?.[key]) continue;
     a[`data-kit-icon-${name}`] = "";
@@ -308,7 +319,7 @@ export function themeToCss(theme: Theme): string {
   const decls = Object.entries(themeVariables(theme))
     .map(([k, v]) => `${k}:${v};`)
     .join("");
-  return `:root{color-scheme:${themeScheme(theme)};${decls}}`.replace(/</g, "\\3c ");
+  return `:root{color-scheme:${themeScheme(theme)};${decls}}${boilCss(theme.assets.kit)}`.replace(/</g, "\\3c ");
 }
 
 /**

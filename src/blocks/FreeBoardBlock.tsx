@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 
 import { getTranslations } from "next-intl/server";
 
+import AnimatedSheet from "@/components/AnimatedSheet";
 import { LoopClick } from "@/components/LoopVideo";
 import MediaFrame from "@/components/MediaFrame";
 import Picture from "@/components/Picture";
@@ -73,7 +74,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
           const viewer =
-            zoom && !m.video
+            zoom && !m.video && !m.anim
               ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, [alt, openLabel].filter(Boolean).join(" — "))
               : {};
           const style = {
@@ -92,7 +93,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               className="free-item"
               style={style}
               {...viewer}
-              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
+              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), ...(m.anim ? { "data-free-fps": String(it.fps ?? 8), "data-free-loop": it.loop === false ? "once" : "loop" } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
               {m.video && modeOf(it) === "player" ? (
                 <PlayerFrame
@@ -121,6 +122,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
                 <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio} {...(m.video ? { "data-video-mode": "loop", ...soundAttrs(video) } : {})}>
                   {m.video ? (
                     <LoopClick video={video!} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} poster={poster?.url} />
+                  ) : m.anim ? (
+                    <AnimatedSheet src={m.url} meta={m.anim} fps={it.fps} loop={it.loop} alt={alt} />
                   ) : (
                     <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
                   )}

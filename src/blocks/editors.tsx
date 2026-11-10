@@ -632,10 +632,24 @@ export function GridEditor() {
 export function ImageEditor() {
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
+  // Lot 132 : une animation image par image règle sa cadence ici (6 / 8 / 12 / 24 i/s) et sa boucle ; une image ordinaire n'a rien de plus.
+  const animated = Boolean(context.media.find((m) => m.id === value.mediaId)?.anim);
   return (
     <>
       <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
       <MediaPicker label="Image" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
+      {animated && (
+        <>
+          <Select
+            label="Cadence de l'animation"
+            help="Images par seconde. Hors écran, l'animation s'arrête ; avec « réduire les animations » activé sur l'appareil du visiteur, elle montre sa première image."
+            value={String((value.fps as number | undefined) ?? 8)}
+            options={[6, 8, 12, 24].map((f) => ({ value: String(f), label: `${f} images par seconde` }))}
+            onChange={(v) => set("fps", v && Number(v) !== 8 ? Number(v) : undefined)}
+          />
+          <Toggle label="Jouer en boucle" checked={value.loop !== false} onChange={(v) => set("loop", v ? undefined : false)} />
+        </>
+      )}
       <TextI18n label="Titre sous l'image (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
       <TextareaI18n label="Légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
       <TextI18n label="Date (facultative)" help="Texte libre court, par exemple « 2026 » ou « mars 2026 »." value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />

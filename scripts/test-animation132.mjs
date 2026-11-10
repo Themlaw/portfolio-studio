@@ -166,6 +166,23 @@ await test("boiling line : kit.boil facultatif, sans lui rien ne change", async 
   assert.ok(!parse({ stroke: [{ svg: "/media/kit/../x.svg", w: 1, h: 1 }] }).success);
 });
 
+await test("planche libre : réglages fps / loop par image (media-look)", async () => {
+  const { applyFreeLook, freeItems } = await import("../src/blocks/free-board.ts");
+  const { MediaPatchSchema, applyMediaPatch } = await import("../src/lib/edit/media-look.ts");
+  const board = { format: "4:3", phone: "scale", items: [{ id: "a1", media: 3, x: 1, y: 1, w: 30, rot: 0, z: 0 }, { id: "b2", media: 4, x: 50, y: 1, w: 30, rot: 0, z: 1 }] };
+  assert.ok(MediaPatchSchema.safeParse({ fps: 12 }).success && MediaPatchSchema.safeParse({ loop: false }).success);
+  assert.ok(!MediaPatchSchema.safeParse({ fps: 7 }).success);
+  const set = applyFreeLook(board, "a1", { fps: 24, loop: false });
+  assert.ok("props" in set);
+  assert.deepEqual([freeItems(set.props)[0].fps, freeItems(set.props)[0].loop, freeItems(set.props)[1].fps], [24, false, undefined]);
+  const back = applyFreeLook(set.props, "a1", { fps: 8, loop: true });
+  assert.ok("props" in back && !("fps" in back.props.items[0]) && !("loop" in back.props.items[0]), "les défauts ne s'écrivent jamais");
+  const gone = applyFreeLook(set.props, "a1", { fps: null, loop: null });
+  assert.ok("props" in gone && !("fps" in gone.props.items[0]));
+  assert.ok("error" in applyMediaPatch(undefined, { fps: 12 }), "ailleurs que dans la planche libre : refusé");
+  assert.ok("error" in applyMediaPatch(undefined, { fps: 12 }, "slot-1"));
+});
+
 await test("journal : la route d'envoi d'une animation a son libellé", async () => {
   const { SPECS } = await import("../src/lib/journal/catalog.ts");
   assert.equal(SPECS["route:animation"]?.type, "import");
