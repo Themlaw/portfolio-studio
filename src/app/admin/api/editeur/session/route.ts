@@ -6,6 +6,7 @@
  * indicateur `portfolio-admin` (posé par le proxy sur l'admin) existe : les
  * visiteurs n'interrogent jamais la session.
  */
+import { getAdminLang, getAdminT } from "@/i18n/admin-server";
 import { getAdminSession } from "@/lib/auth/guard";
 import { isNull } from "drizzle-orm";
 
@@ -40,5 +41,7 @@ export async function GET(request: Request) {
       if (page) editUrl = `/admin/pages/${page.id}/editer?langue=${locale}`;
     }
   }
-  return Response.json({ admin: true, editUrl }, { headers: NO_STORE });
+  // Lot 130b : le bouton « Modifier cette page » parle la langue d'interface du compte (le site public ne porte pas le catalogue d'admin).
+  const label = (await getAdminT("canvasPreview"))("editThisPage");
+  return Response.json({ admin: true, editUrl, label, lang: await getAdminLang() }, { headers: NO_STORE });
 }

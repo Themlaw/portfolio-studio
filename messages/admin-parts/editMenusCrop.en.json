@@ -1,0 +1,18 @@
+{
+  "h_n": "top edge",
+  "h_s": "bottom edge",
+  "h_e": "right edge",
+  "h_w": "left edge",
+  "h_ne": "top-right corner",
+  "h_nw": "top-left corner",
+  "h_se": "bottom-right corner",
+  "h_sw": "bottom-left corner",
+  "cropIcon": "Crop the icon",
+  "cropImage": "Crop the image",
+  "help": "Drag the handles (corners and edges) to choose the part to keep; drag the rectangle to move it. {square, select, true {The icon is square: } other {The page frame takes its format. }}The original image is not changed.",
+  "formats": "Crop format",
+  "recenter": "Re-centre",
+  "whole": "Whole image",
+  "closeNoSave": "Close without saving",
+  "save": "Save the crop"
+}

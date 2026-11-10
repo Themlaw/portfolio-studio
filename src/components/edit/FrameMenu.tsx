@@ -13,6 +13,7 @@
  * `look.slotLook[slug].frame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
  * `Popover` ancré au bouton). Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
+import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 
 import { parseColor } from "@/lib/color";
@@ -90,6 +91,7 @@ const FRAME_ACCEPT = "image/png,image/webp,image/avif,image/svg+xml,.png,.webp,.
 
 /** Un seul choix + (bande) épaisseur et couleur. `value` absent = pas de choix (suit le site) ; `onChange(undefined)` y revient. */
 export function FrameControls({ value, onChange, what = "photo" }: { value: Frame | undefined; onChange: (next: Frame | undefined) => void; what?: "photo" | "vidéo" }) {
+  const t = useTranslations("editFrameMenu");
   const kit = themeHasFrame();
   // Sans choix, ce qui s'affiche est le réglage du site : une photo suit « sur toutes les photos », une vidéo n'a jamais de cadre.
   const implicit: Choice = what === "photo" && kit && siteFramesAll() ? "theme" : "none";
@@ -115,12 +117,12 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
       body.append("file", file);
       const res = await fetch("/admin/api/cadres", { method: "POST", body });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; message?: string; entry?: FrameEntry } | null;
-      if (!json?.ok || !json.entry) return setProblem(json?.message ?? "L'envoi a échoué. Réessaie avec un autre fichier.");
+      if (!json?.ok || !json.entry) return setProblem(json?.message ?? t("uploadFailed"));
       liveFrameRule(json.entry);
       setImported((cur) => [...cur, frameChoiceOf(json.entry!)]);
       onChange({ kind: "custom", id: json.entry.id });
     } catch {
-      setProblem("L'envoi a échoué. Réessaie avec un autre fichier.");
+      setProblem(t("uploadFailed"));
     } finally {
       setImporting(null);
     }
@@ -148,27 +150,27 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
   // Un jeton masqué comme doublon est remplacé par sa jumelle, qui s'affiche cochée : la valeur enregistrée n'est jamais touchée.
   const storedColor = value?.color;
   const twinOfStored = isPalette(storedColor) ? plan.twin[storedColor] : undefined;
-  const colorName = !bandOn ? "" : value.color === undefined ? "Couleur par défaut" : isPalette(value.color) ? PALETTE_LABELS[value.color] : "Couleur libre";
+  const colorName = !bandOn ? "" : value.color === undefined ? t("defaultColor") : isPalette(value.color) ? PALETTE_LABELS[value.color] : t("customColor");
   return (
     <div className="fr" data-testid="frame-controls">
-      <span className="tc-seg fr-kinds" role="radiogroup" aria-label={`Cadre de la ${what}`}>
+      <span className="tc-seg fr-kinds" role="radiogroup" aria-label={t(what === "photo" ? "frameOfPhoto" : "frameOfVideo")}>
         {kinds.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={shown === k} data-frame-kind={k} onClick={() => shown !== k && choose(k)}>
             {FRAME_KIND_LABELS[k]}
           </button>
         ))}
       </span>
-      {shown === "none" && <p className="sm-hint">{what === "photo" ? "Cette photo n'a pas de cadre." : "Cette vidéo n'a pas de cadre."}</p>}
+      {shown === "none" && <p className="sm-hint">{t(what === "photo" ? "noFramePhoto" : "noFrameVideo")}</p>}
       {shown === "theme" && (
         <p className="sm-hint">
-          {kit ? `Le cadre dessiné dans ton thème entoure ${what === "photo" ? "la photo" : "la vidéo"}. Il ne change ni la taille ni la place.` : "Ton thème actuel ne dessine pas de cadre : rien ne s'affiche."}
-          {!value && " (Réglage du site : cadre du thème sur toutes les photos.)"}
+          {kit ? t(what === "photo" ? "themeFramePhoto" : "themeFrameVideo") : t("noThemeFrame")}
+          {!value && t("siteSetting")}
         </p>
       )}
       {shown === "custom" && (
         <div className="fr-custom" data-testid="frame-custom">
           {library.length > 0 ? (
-            <div className="fr-lib" role="radiogroup" aria-label="Cadres de la bibliothèque">
+            <div className="fr-lib" role="radiogroup" aria-label={t("libraryAria")}>
               {library.map((c) => (
                 <button key={c.id} type="button" role="radio" aria-checked={value?.kind === "custom" && value.id === c.id} className="fr-thumb" data-frame-id={c.id} title={c.name} onClick={() => onChange({ kind: "custom", id: c.id })}>
                   <span className="fr-thumb-img" aria-hidden="true" style={{ backgroundImage: `url("${c.thumb}")` }} />
@@ -177,11 +179,11 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
               ))}
             </div>
           ) : (
-            <p className="sm-hint">Ta bibliothèque de cadres est vide : importe un premier cadre.</p>
+            <p className="sm-hint">{t("libraryEmpty")}</p>
           )}
-          {value?.kind === "custom" && !library.some((c) => c.id === value.id) && <p className="sm-hint" data-testid="frame-missing">Ce cadre n&apos;est plus dans la bibliothèque : choisis-en un autre.</p>}
+          {value?.kind === "custom" && !library.some((c) => c.id === value.id) && <p className="sm-hint" data-testid="frame-missing">{t("missing")}</p>}
           <button type="button" className="sm-link" data-testid="frame-import" disabled={importing !== null} onClick={() => fileInput.current?.click()}>
-            {importing ? `Envoi de « ${importing} »…` : "+ Importer un cadre"}
+            {importing ? t("uploading", { name: importing }) : t("import")}
           </button>
           {problem && (
             <p className="sm-hint" role="alert" data-testid="frame-import-error">
@@ -205,8 +207,8 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
       {bandOn && (
         <>
           <div className="tc-row">
-            <span className="sm-label">Épaisseur</span>
-            <span className="tc-seg" role="radiogroup" aria-label="Épaisseur du cadre">
+            <span className="sm-label">{t("thickness")}</span>
+            <span className="tc-seg" role="radiogroup" aria-label={t("frameThickness")}>
               {FRAME_WIDTHS.map((w) => (
                 <button key={w} type="button" role="radio" aria-checked={(value.width ?? FRAME_DEFAULT_WIDTH) === w} data-frame-width={w} onClick={() => patch({ width: w })}>
                   {FRAME_WIDTH_LABELS[w]}
@@ -215,14 +217,14 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
             </span>
           </div>
           <div className="tc-row">
-            <span className="sm-label">Couleur</span>
-            <span className="tc-swatches" role="radiogroup" aria-label="Couleur du cadre">
+            <span className="sm-label">{t("color")}</span>
+            <span className="tc-swatches" role="radiogroup" aria-label={t("frameColor")}>
               <button
                 type="button"
                 role="radio"
                 aria-checked={value.color === undefined || twinOfStored === "default"}
-                aria-label="Couleur par défaut"
-                title="Couleur par défaut : celle du texte du thème (dans une carte ou sur un fond de couleur : celle du texte de la carte)"
+                aria-label={t("defaultColor")}
+                title={t("defaultColorHelp")}
                 className="tc-swatch"
                 data-frame-color="default"
                 style={{ background: frameColorCss(undefined) }}
@@ -247,34 +249,35 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
           </div>
           <p className="sm-hint fr-color-name" data-testid="frame-color-name">
             {colorName}
-            {value.color === undefined && ` (${PALETTE_LABELS[FRAME_DEFAULT_COLOR].toLowerCase()} du thème)`}
+            {value.color === undefined && t("defaultOfTheme", { color: PALETTE_LABELS[FRAME_DEFAULT_COLOR].toLowerCase() })}
           </p>
         </>
       )}
       {value && what === "photo" && kit && (
         <button type="button" className="sm-link" data-testid="frame-follow-site" onClick={() => onChange(undefined)}>
-          Suivre le réglage du site
+          {t("followSite")}
         </button>
       )}
     </div>
   );
 }
 
-/** Valeur courte du cadre posé sur le bloc (lot 90) ; rien tant que le bloc suit le thème. */
-export function frameValue(frame: Frame | undefined): string | undefined {
-  if (!frame) return undefined;
-  return { none: "aucun", theme: "thème", band: "bordure", custom: "perso" }[frame.kind];
+/** Valeur courte du cadre posé sur le bloc (lot 90) : son genre (traduit à l'affichage, `value_<genre>`) ; rien tant que le bloc suit le thème. */
+export function frameValue(frame: Frame | undefined): Frame["kind"] | undefined {
+  return frame?.kind;
 }
 
 /** Bouton « Cadre » de la barre d'outils d'une image : le libellé, puis la valeur posée en texte gris (rien : le bloc suit le thème). */
 export function FrameButton({ uid, open, onToggle, what = "photo" }: { uid: string; open: boolean; onToggle: () => void; what?: "photo" | "vidéo" }) {
+  const t = useTranslations("editFrameMenu");
   const frame = lookOf(uid).frame;
-  const value = frameValue(frame);
+  const kind = frameValue(frame);
+  const value = kind ? t(`value_${kind}`) : undefined;
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="frame-button" title={what === "vidéo" ? "Cadre autour de la vidéo" : "Cadre autour de la photo"} onClick={onToggle}>
-      Cadre{" "}
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="frame-button" title={t(what === "vidéo" ? "buttonVideoTitle" : "buttonPhotoTitle")} onClick={onToggle}>
+      {t("button")}{" "}
       {value && (
-        <span className="sm-value" data-testid="frame-value" title={`Cadre : ${value}`}>
+        <span className="sm-value" data-testid="frame-value" title={t("valueTitle", { value })}>
           · {value}
         </span>
       )}
@@ -288,9 +291,10 @@ export function FrameButton({ uid, open, onToggle, what = "photo" }: { uid: stri
  * écriture `item-media-look`), image de carrousel (`look.slotLook[slug].frame`) et image de Planche libre (`items[].frame`).
  */
 export default function FrameWindow({ anchor, value, onChange, onClose, what = "photo", testId }: { anchor: PopoverAnchor; value: Frame | undefined; onChange: (next: Frame | undefined) => void; onClose: () => void; what?: "photo" | "vidéo"; testId?: string }) {
+  const t = useTranslations("editFrameMenu");
   const [cur, setCur] = useLocalValue(value);
   return (
-    <Popover anchor={anchor} label={`Cadre de la ${what}`} testId={testId} onClose={onClose}>
+    <Popover anchor={anchor} label={t(what === "photo" ? "frameOfPhoto" : "frameOfVideo")} testId={testId} onClose={onClose}>
       <FrameControls
         value={cur}
         onChange={(next) => {

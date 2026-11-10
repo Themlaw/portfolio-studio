@@ -8,6 +8,7 @@ import { viewerAttrs } from "@/lib/viewer";
 
 import { localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
 import { withSound } from "./video-sound";
+import { editI18n } from "./edit-i18n";
 
 /** Identifiant YouTube (11 caractères) : il finit dans l'URL d'une iframe. */
 const youtubeId = /^[\w-]{11}$/;
@@ -46,6 +47,7 @@ export const videoSingleSchema = z.object({
 
 /** UNE vidéo (v0.13). Sans vidéo : rien en public, « Choisir une vidéo » sur la toile. */
 export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<typeof videoSingleSchema>; ctx: BlockContext }) {
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.gridCanvas) });
   const [hosted, artwork, poster] = await Promise.all([
     getMedia(props.mediaId),
     props.slot && !props.mediaId ? getArtwork(props.slot, ctx.locale) : null,
@@ -97,18 +99,18 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
       styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style, captionTitle: textStyle(ctx, "captionTitle").style, captionDate: textStyle(ctx, "captionDate").style }}
     />
   ) : ctx.edit ? (
-    <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
-      <span>Dépose une vidéo ici</span>
+    <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang={lang}>
+      <span>{ta("dropVideo")}</span>
       <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
-        Choisir dans la médiathèque
+        {ta("pickFromLibrary")}
       </button>
     </div>
   ) : ctx.gridCanvas && ctx.cell ? (
     // Case vide d'une grille de planche (ancienne donnée) : le même choix que pour une place libre.
-    <div className="pe-media-empty pe-media-video" lang="fr">
-      <span>Case vide</span>
+    <div className="pe-media-empty pe-media-video" lang={lang}>
+      <span>{ta("emptyCell")}</span>
       <button type="button" className="pe-empty-action" data-edit-cell-media="video">
-        + Vidéo
+        {ta("addVideo")}
       </button>
     </div>
   ) : null;

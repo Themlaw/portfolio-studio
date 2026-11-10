@@ -1,0 +1,104 @@
+{
+  "gridLayout": {
+    "auto": "Automatique",
+    "1": "1 grand",
+    "1+2": "1 grand + 2 petits dessous",
+    "2": "2 côte à côte",
+    "3": "3 côte à côte",
+    "2x2": "4 petits (2 × 2)",
+    "4": "4 en ligne",
+    "2+1": "2 petits + 1 grand",
+    "portrait-left": "Portrait à gauche + 2 à droite",
+    "portrait-right": "Portrait à droite + 2 à gauche",
+    "custom": "Sur mesure"
+  },
+  "autoHint": "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.",
+  "keepShapeHint": "Format Libre : les images d'une rangée prennent la même hauteur. Pour garder les grandes cases de cet agencement, choisis un format (Carré, 4:3…).",
+  "justifyHint": "Format Libre : les images d'une même rangée ont la même hauteur, sans être recadrées.",
+  "boardItem": {
+    "label": {
+      "strip": "Images qui défilent",
+      "grid": "Grille",
+      "image": "Image",
+      "video-single": "Vidéo",
+      "free-board": "Planche libre",
+      "rich-text": "Texte"
+    },
+    "hint": {
+      "strip": "Les images du projet en bande, qui défile sur le côté.",
+      "grid": "Des images ou des vidéos rangées en colonnes.",
+      "image": "Une image seule, jusqu'à la pleine largeur.",
+      "video-single": "Une vidéo de ta médiathèque.",
+      "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
+      "rich-text": "Un paragraphe, avec un titre si tu veux."
+    }
+  },
+  "boxPreset": {
+    "small": "Petite",
+    "medium": "Moyenne",
+    "large": "Grande",
+    "full": "Pleine largeur"
+  },
+  "videoMode": {
+    "label": {
+      "loop": "Boucle",
+      "player": "Lecteur"
+    },
+    "hint": {
+      "loop": "Boucle : la vidéo tourne en boucle, sans le son. Un clic la met en pause, un autre la relance.",
+      "player": "Lecteur : un clic ouvre la vidéo en grand, avec ses commandes et le son."
+    },
+    "option": {
+      "loop": "Boucle (sans le son)",
+      "player": "Lecteur (s'ouvre en grand)"
+    }
+  },
+  "videoSound": {
+    "label": {
+      "on": "Activé",
+      "off": "Coupé"
+    },
+    "hint": {
+      "on": "Son activé : la vidéo parle dès que le visiteur la lance (le navigateur l'exige après un clic).",
+      "off": "Son coupé : la vidéo démarre sans le son, le bouton son le remet."
+    }
+  },
+  "freeFormat": {
+    "16:9": "16:9",
+    "3:2": "3:2",
+    "4:3": "4:3",
+    "1:1": "Carré",
+    "free": "Hauteur libre"
+  },
+  "freePhone": {
+    "scale": "À l'échelle",
+    "stack": "Empilées"
+  },
+  "tileSize": {
+    "small": "Petite",
+    "medium": "Moyenne",
+    "large": "Grande"
+  },
+  "group": {
+    "text": "Texte",
+    "projects": "Projets",
+    "media": "Images et vidéos",
+    "grids": "Grilles",
+    "other": "Autres"
+  },
+  "collection": {
+    "characters": "Personnages",
+    "backgrounds": "Décors",
+    "animation": "Animation"
+  },
+  "headOps": {
+    "addTitle": "+ Titre",
+    "removeTitle": "Retirer le titre",
+    "addSubtitle": "+ Sous-titre",
+    "removeSubtitle": "Retirer le sous-titre",
+    "putAbove": "Mettre dessus",
+    "putBelow": "Mettre dessous",
+    "outside": "Hors de l'image",
+    "onImage": "Sur l'image"
+  }
+}

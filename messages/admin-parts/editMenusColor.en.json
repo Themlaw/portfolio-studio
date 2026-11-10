@@ -1,0 +1,22 @@
+{
+  "custom": "Custom colour",
+  "choose": "Choose the colour",
+  "currentAria": "Current colour {hex}",
+  "currentTitle": "Current {hex}",
+  "prevAria": "Go back to the previous colour {prev}",
+  "prevTitle": "Previous {prev}: click to go back",
+  "currentPrev": "Current / previous",
+  "opacity": "Opacity",
+  "opacityAria": "Opacity: left and right arrows",
+  "code": "Colour code",
+  "codeTitle": "Paste a colour code: hexadecimal (with #), rgb or hsl",
+  "sample": "Aa Sample text",
+  "notMeasurable": "Readability cannot be measured here.",
+  "onThemeBg": "{verdict} on the theme background.",
+  "recentGroup": "Recent colours",
+  "recent": "Recent",
+  "recentOne": "Recent colour {c}",
+  "backToTheme": "Back to the theme",
+  "remove": "Remove the colour",
+  "close": "Close"
+}

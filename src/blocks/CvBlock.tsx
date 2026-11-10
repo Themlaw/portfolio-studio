@@ -9,6 +9,7 @@ import { downloadName } from "@/lib/pdf/limits";
 import { FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
 import { inline, localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const cvSchema = z.object({
   /** PDF de la médiathèque (pages rendues en images à l'envoi). */
@@ -40,6 +41,7 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
   const pdf = media?.pdf ?? null;
   if (!pdf && !ctx.edit) return null;
   const t = await getTranslations({ locale: ctx.locale, namespace: "cv" });
+  const { ta, lang } = await editI18n(ctx);
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   const title = props.title ? tr(props.title, ctx.locale) : "";
   const alt = media?.alt ? tr(media.alt, ctx.locale) : "";
@@ -54,17 +56,17 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
         <div className="max-w-2xl">
           {/* Étiquette, titre, présentation : des champs qui n'existent que s'ils ont été demandés (lot 27). */}
           {shown(props.eyebrow) && (
-            <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
+            <Eyebrow {...inline(ctx, "eyebrow")} {...ph(ta("label"))}>
               {tr(props.eyebrow!, ctx.locale)}
             </Eyebrow>
           )}
           {shown(props.title) && (
-            <h2 className="mt-3 font-display text-[clamp(2rem,5vw,3.25rem)] text-ink" {...inline(ctx, "title")} {...ph("Titre")}>
+            <h2 className="mt-3 font-display text-[clamp(2rem,5vw,3.25rem)] text-ink" {...inline(ctx, "title")} {...ph(ta("title"))}>
               {title}
             </h2>
           )}
           {shown(props.intro) && (
-            <p className="mt-4 text-base leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...ph("Présentation")}>
+            <p className="mt-4 text-base leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...ph(ta("intro"))}>
               {tr(props.intro!, ctx.locale)}
             </p>
           )}
@@ -91,11 +93,11 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
             texts={{ page: t.raw("page") as string, open: t.raw("open") as string, pages: t("pages") }}
           />
         ) : (
-          <span className="pe-media-empty pe-media-pdf" lang="fr">
-            <span>{media ? "Aperçu du PDF en préparation…" : "Dépose ton CV (PDF) ici"}</span>
+          <span className="pe-media-empty pe-media-pdf" lang={lang}>
+            <span>{media ? ta("cvPreparing") : ta("dropCv")}</span>
             {!media && (
               <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
-                Choisir dans la médiathèque
+                {ta("pickFromLibrary")}
               </button>
             )}
           </span>

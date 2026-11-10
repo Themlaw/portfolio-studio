@@ -58,20 +58,8 @@ const PRESETS: Record<Exclude<GridLayout, "custom" | "auto">, Preset> = {
 /** Cellules d'un motif (places libres de la toile). */
 export const GRID_PATTERN: Record<GridLayout, number> = { auto: 2, "1": 1, "1+2": 3, "2": 2, "3": 3, "2x2": 4, "4": 4, "2+1": 3, "portrait-left": 3, "portrait-right": 3, custom: 1 };
 
-/** Libellés simples (menu des agencements, info-bulles). */
-export const GRID_LAYOUT_LABELS: Record<GridLayout, string> = {
-  auto: "Automatique",
-  "1": "1 grand",
-  "1+2": "1 grand + 2 petits dessous",
-  "2": "2 côte à côte",
-  "3": "3 côte à côte",
-  "2x2": "4 petits (2 × 2)",
-  "4": "4 en ligne",
-  "2+1": "2 petits + 1 grand",
-  "portrait-left": "Portrait à gauche + 2 à droite",
-  "portrait-right": "Portrait à droite + 2 à gauche",
-  custom: "Sur mesure",
-};
+/** Libellés simples (menu des agencements, info-bulles), en français ; dans l'interface : `t("gridLayout." + layout)` (espace blockRegLabels). */
+export const GRID_LAYOUT_LABELS: Record<GridLayout, string> = FR_LABELS.gridLayout;
 
 /** Ce qui, dans les réglages d'une grille, décrit la disposition des cases. */
 export type GridShape = {
@@ -95,7 +83,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, M
 export const customCols = (shape: GridShape): number => clamp(shape.cols ?? DEFAULT_CUSTOM_COLS, 2, 4);
 
 /** Explication de l'agencement « Automatique » (fenêtre Réglages de la toile et panneau). */
-export const AUTO_HINT = "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.";
+export const AUTO_HINT = FR_LABELS.autoHint; // interface : t("autoHint")
 
 /**
  * Rangées justifiées (lot 37, étendues aux autres agencements aux lots 37b et 46) : le format de case « Libre » range les images par rangées de
@@ -114,7 +102,7 @@ export const keepsShape = (shape: GridShape): boolean => {
   if (shape.ratio !== undefined && shape.ratio !== "auto") return false;
   return ["1+2", "2+1", "portrait-left", "portrait-right"].includes(isGridLayout(shape.layout) ? shape.layout : "2");
 };
-export const KEEP_SHAPE_HINT = "Format Libre : les images d'une rangée prennent la même hauteur. Pour garder les grandes cases de cet agencement, choisis un format (Carré, 4:3…).";
+export const KEEP_SHAPE_HINT = FR_LABELS.keepShapeHint; // interface : t("keepShapeHint")
 
 /**
  * « Seule sur sa ligne » de chacune des `n` premières images, en rangées justifiées : le drapeau `alone` ; en « Sur mesure »
@@ -134,7 +122,7 @@ export function aloneFlags(shape: GridShape, n: number): boolean[] {
 
 
 /** Explication du format « Libre » en rangées justifiées (fenêtre Réglages et panneau). */
-export const JUSTIFY_HINT = "Format Libre : les images d'une même rangée ont la même hauteur, sans être recadrées.";
+export const JUSTIFY_HINT = FR_LABELS.justifyHint; // interface : t("justifyHint")
 
 /** Format minimal pris en compte dans une rangée (en dessous, la case deviendrait trop fine). */
 const JUSTIFY_MIN_RATIO = 0.25;
@@ -288,6 +276,10 @@ export function placeCells(cols: number, cells: Span[], mirror = false): { col: 
 /* ---- Opérations de la toile et du panneau -------------------------------------------------------------- */
 
 export type GridChild = { uid: string; type: string; props: Record<string, unknown> };
+import type { AdminT } from "@/i18n/admin-lang";
+
+import { FR_LABELS, problemMsg } from "./block-msg";
+
 type Props = Record<string, unknown>;
 
 export type GridModelOp =
@@ -329,8 +321,10 @@ export function adaptSpan(ratio: number, cols: number): Span {
  * Applique une opération aux réglages d'une grille (`children` compris) : nouveaux réglages, ou un message en
  * français. Les tailles de cases (`spans`) suivent toujours l'ordre des images, même sous un agencement prédéfini
  * (revenir à « Sur mesure » les retrouve).
+ * `t` (espace blockRegProblems) : langue du message d'erreur ; sans lui, le français.
  */
-export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | null | undefined)[]): { props: Props } | { error: string } {
+export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | null | undefined)[], t?: AdminT): { props: Props } | { error: string } {
+  const E = (key: Parameters<typeof problemMsg>[0], values?: Record<string, string | number>) => problemMsg(key, values, t);
   const list = kids(props);
   const n = list.length;
   /** Réglages vus avec les formats des médias (« Automatique ») : la disposition calculée devient « Sur mesure » sans changer. */
@@ -383,25 +377,25 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       return { props: next };
     }
     case "remove": {
-      if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
+      if (op.index < 0 || op.index >= n) return { error: E("cellGone") };
       return { props: withOrder(Array.from({ length: n }, (_, i) => i).filter((i) => i !== op.index)) };
     }
     case "swap": {
-      if (op.a < 0 || op.b < 0 || op.a >= n || op.b >= n) return { error: "Cette case n'existe plus." };
+      if (op.a < 0 || op.b < 0 || op.a >= n || op.b >= n) return { error: E("cellGone") };
       const order = Array.from({ length: n }, (_, i) => i);
       [order[op.a], order[op.b]] = [order[op.b], order[op.a]];
       return { props: withOrder(order) };
     }
     case "move": {
-      if (op.from < 0 || op.from >= n || op.to < 0 || op.to >= n) return { error: "Cette case n'existe plus." };
+      if (op.from < 0 || op.from >= n || op.to < 0 || op.to >= n) return { error: E("cellGone") };
       const order = Array.from({ length: n }, (_, i) => i);
       const [x] = order.splice(op.from, 1);
       order.splice(op.to, 0, x);
       return { props: withOrder(order) };
     }
     case "alone": {
-      if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
-      if (!isJustified(props as GridShape)) return { error: "« Seule sur sa ligne » demande le format Libre." };
+      if (op.index < 0 || op.index >= n) return { error: E("cellGone") };
+      if (!isJustified(props as GridShape)) return { error: E("aloneNeedsFree") };
       if (props.layout === "custom") {
         // « Sur mesure » : seule sur sa ligne = largeur sur toutes les colonnes ; avec les autres = une colonne.
         const cols = customCols(props as GridShape);
@@ -415,7 +409,7 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
         const pattern = gridCells(props as GridShape, n);
         if (pattern.cells[op.index].w >= pattern.cols) {
           if (op.alone) return { props };
-          if (props.layout === "1") return { error: "Avec « 1 grand », chaque image occupe sa ligne. Choisis un autre agencement." };
+          if (props.layout === "1") return { error: E("oneLarge") };
           const base = { ...props, ...toCustom(shaped(props), n) };
           const spans = spansOf(base, n);
           spans[op.index] = { ...spans[op.index], w: 1 };
@@ -430,7 +424,7 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       return { props: next };
     }
     case "span": {
-      if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
+      if (op.index < 0 || op.index >= n) return { error: E("cellGone") };
       const base = props.layout === "custom" ? { ...props } : { ...props, ...toCustom(shaped(props), n) };
       const cols = customCols(base as GridShape);
       const spans = spansOf(base, n);
@@ -439,7 +433,7 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       return { props: { ...base, layout: "custom", cols, spans } };
     }
     case "adapt": {
-      if (n === 0) return { error: "Ajoute d'abord des images." };
+      if (n === 0) return { error: E("addImagesFirst") };
       const cols = props.layout === "custom" ? customCols(props as GridShape) : DEFAULT_CUSTOM_COLS;
       const spans = Array.from({ length: n }, (_, i) => adaptSpan(op.ratios[i] ?? 1.5, cols));
       const next: Props = { ...props, layout: "custom", cols, spans };
@@ -447,9 +441,9 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       return { props: next };
     }
     case "put": {
-      if (op.index < 0 || op.index > n) return { error: "Cette case n'existe plus." };
+      if (op.index < 0 || op.index > n) return { error: E("cellGone") };
       if (op.index === n) {
-        if (n >= MAX_GRID_CELLS) return { error: `${MAX_GRID_CELLS} cases au plus par grille.` };
+        if (n >= MAX_GRID_CELLS) return { error: E("gridCellsMax", { max: MAX_GRID_CELLS }) };
         return { props: { ...props, children: [...list, op.child], ...(hasSpans ? { spans: [...sp(), { w: 1, h: 1 }] } : {}), ...(Array.isArray(props.alone) ? { alone: [...aloneOf(), false] } : {}) } };
       }
       const old = list[op.index];
@@ -466,15 +460,15 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
     }
     case "video-mode": {
       const kid = list[op.index];
-      if (!kid) return { error: "Cette case n'existe plus." };
-      if (kid.type !== "video-single") return { error: "Cette case n'est pas une vidéo." };
+      if (!kid) return { error: E("cellGone") };
+      if (kid.type !== "video-single") return { error: E("notVideo") };
       if (kid.props.mode === op.mode) return { props };
       return { props: { ...props, children: list.map((c, i) => (i === op.index ? { ...c, props: { ...c.props, mode: op.mode } } : c)) } };
     }
     case "video-sound": {
       const kid = list[op.index];
-      if (!kid) return { error: "Cette case n'existe plus." };
-      if (kid.type !== "video-single") return { error: "Cette case n'est pas une vidéo." };
+      if (!kid) return { error: E("cellGone") };
+      if (kid.type !== "video-single") return { error: E("notVideo") };
       if ((kid.props.sound === "off") === (op.sound === "off")) return { props };
       const { sound: _old, ...rest } = kid.props;
       void _old;

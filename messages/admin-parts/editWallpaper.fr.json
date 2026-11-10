@@ -1,0 +1,10 @@
+{
+  "empty": "Aucun papier peint pour l'instant. Importe tes motifs dans « Thèmes » → « Papiers peints » (menu de gauche), puis recharge cette page.",
+  "label": "Papier peint",
+  "missing": "Ce papier peint n'est plus dans la bibliothèque : choisis-en un autre.",
+  "size": "Taille",
+  "patternSize": "Taille du motif",
+  "opacity": "Opacité",
+  "patternOpacity": "Opacité du motif",
+  "reset": "Reprendre les réglages du motif"
+}

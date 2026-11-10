@@ -1,0 +1,19 @@
+{
+  "secondCreated": "Second theme created: “{name}” (under “My old themes”)",
+  "useModel": "Use this template",
+  "adoptOld": "Make it my theme",
+  "publishVersion": "Publish this version",
+  "sentenceMine": "You are preparing <strong>{name}</strong> (version {version}, draft): it is not online yet (your visitors still see “{live}”).",
+  "sentenceOther": "You are preparing the theme <strong>{name}</strong>: it is not online yet (your visitors still see “{live}”).",
+  "stop": "Stop the preview",
+  "replaceTitle": "Replace my theme (version {version}) with {name}?",
+  "replace": "Replace",
+  "second": "Create a second theme",
+  "replaceText": "You will be able to go back to version {version}.",
+  "replaceNote": "“Replace” adds a new version to My theme (version {version} stays in the history). Your site does not change until you publish.",
+  "publishFresh": "Version {version} of My theme created: put it online?",
+  "publishTitle": "Publish version {version} of “{name}”?",
+  "swap": "My theme: v{version}",
+  "publishNote": "All your visitors will see this version right away, on every page.",
+  "publishLater": "Otherwise it stays a draft: you will find it in the editor and on the Themes screen."
+}

@@ -10,21 +10,23 @@
  * (page, case de grille, composant de planche), `look.slotLook[place].sound` d'une place de carrousel, `sound` d'une ligne de la Planche libre.
  */
 
+import { FR_LABELS } from "./block-msg";
+
 export type VideoSound = "on" | "off";
 export const VIDEO_SOUNDS: VideoSound[] = ["on", "off"];
 export const isVideoSound = (v: unknown): v is VideoSound => v === "on" || v === "off";
 
+/** Options du panneau dans la langue de `tl` (espace blockRegLabels). */
+export const videoSoundOptions = (tl: (key: string) => string): { value: VideoSound; label: string }[] => VIDEO_SOUNDS.map((m) => ({ value: m, label: tl(`videoSound.label.${m}`) }));
+
 /** Réglage d'une vidéo : sans réglage (ou valeur inconnue), activé. */
 export const soundOf = (props: Record<string, unknown> | undefined): VideoSound => (props?.sound === "off" ? "off" : "on");
 
-export const VIDEO_SOUND_LABELS: Record<VideoSound, string> = { on: "Activé", off: "Coupé" };
-export const VIDEO_SOUND_HINTS: Record<VideoSound, string> = {
-  on: "Son activé : la vidéo parle dès que le visiteur la lance (le navigateur l'exige après un clic).",
-  off: "Son coupé : la vidéo démarre sans le son, le bouton son le remet.",
-};
+export const VIDEO_SOUND_LABELS: Record<VideoSound, string> = FR_LABELS.videoSound.label; // interface : t("videoSound.label." + sound)
+export const VIDEO_SOUND_HINTS: Record<VideoSound, string> = FR_LABELS.videoSound.hint; // interface : t("videoSound.hint." + sound)
 export const VIDEO_SOUND_OPTIONS: { value: VideoSound; label: string }[] = [
-  { value: "on", label: "Activé" },
-  { value: "off", label: "Coupé" },
+  { value: "on", label: FR_LABELS.videoSound.label.on },
+  { value: "off", label: FR_LABELS.videoSound.label.off },
 ];
 
 /**

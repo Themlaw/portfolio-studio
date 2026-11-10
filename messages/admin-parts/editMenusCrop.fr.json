@@ -1,0 +1,18 @@
+{
+  "h_n": "bord haut",
+  "h_s": "bord bas",
+  "h_e": "bord droit",
+  "h_w": "bord gauche",
+  "h_ne": "coin haut droit",
+  "h_nw": "coin haut gauche",
+  "h_se": "coin bas droit",
+  "h_sw": "coin bas gauche",
+  "cropIcon": "Cadrer l'icône",
+  "cropImage": "Cadrer l'image",
+  "help": "Tire les poignées (coins et bords) pour choisir la partie à garder ; glisse le rectangle pour le déplacer. {square, select, true {L'icône est carrée : } other {Le cadre de la page prend son format. }}L'image d'origine n'est pas modifiée.",
+  "formats": "Format du recadrage",
+  "recenter": "Recentrer",
+  "whole": "Image entière",
+  "closeNoSave": "Fermer sans enregistrer",
+  "save": "Enregistrer le cadrage"
+}

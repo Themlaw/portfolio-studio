@@ -102,7 +102,7 @@ export function scanFile(file, source = readFileSync(file, "utf8")) {
   const isKeyArg = (n) => {
     const p = n.parent;
     if (ts.isBinaryExpression(p) && /^[!=]==?$/.test(p.operatorToken.getText())) return true;
-    if (ts.isCallExpression(p) && p.arguments[0] === n) return /^(t[A-Za-z0-9]*|[\w.]*\.t|getAdminT|useTranslations|[\w]*\.(rich|raw|has|markup))$/.test(p.expression.getText());
+    if (ts.isCallExpression(p) && p.arguments[0] === n) return /^(t[a-z]?|t[A-Z][A-Za-z0-9]*|[\w.]*\.t|getAdminT|useTranslations|[\w]*\.(rich|raw|has|markup))$/.test(p.expression.getText());
     return false;
   };
   // visite récursive avec saut des console.*

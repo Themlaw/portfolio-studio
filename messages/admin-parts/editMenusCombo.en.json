@@ -1,0 +1,8 @@
+{
+  "placeholder": "Search for an existing project, or create a new one",
+  "fresh": "Not on a page yet",
+  "onPage": "Already on a page",
+  "newProject": "New project",
+  "newHint": "(unnamed: you'll name it afterwards)",
+  "draft": "(created on this page)"
+}

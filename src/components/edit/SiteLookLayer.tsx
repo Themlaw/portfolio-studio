@@ -17,6 +17,7 @@
  *   logo lui-même (image ou signature). Le plafond (menu, bord de l'écran) est celui que SiteHeader mesure : la poignée ne va pas plus loin
  *   que le logo.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { acceptToCanvas, EDIT_MSG } from "@/lib/edit/protocol";
@@ -135,6 +136,8 @@ function setLogoX(next: number) {
 
 export default function SiteLookLayer({ headerSelected, dragging }: { headerSelected: boolean; dragging: boolean }) {
   const [role, setRole] = useState<BaseKey | null>(null);
+  const t = useTranslations("editMenusSiteLook");
+  const lang = useLocale().slice(0, 2);
   const [overHeader, setOverHeader] = useState(false);
   const [dragSize, setDragSize] = useState<number | null>(null);
   const drag = useRef<{ y: number; size: number } | null>(null);
@@ -234,7 +237,7 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
   };
 
   return (
-    <div className="pe-layer pe-sitelook-layer" lang="fr">
+    <div className="pe-layer pe-sitelook-layer" lang={lang}>
       <HighlightBoxes found={found} />
       {showHandle && brandRect && (
         <button
@@ -242,13 +245,13 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
           role="slider"
           className="sl-logo-handle"
           data-testid="logo-handle"
-          aria-label="Taille du logo : flèches haut et bas, glisser vers le bas pour agrandir"
+          aria-label={t("sizeAria")}
           aria-orientation="vertical"
           aria-valuemin={LOGO_SIZE_MIN}
           aria-valuemax={LOGO_SIZE_MAX}
           aria-valuenow={size}
-          aria-valuetext={`${size} pixels`}
-          title="Taille du logo : glisse vers le bas pour l'agrandir"
+          aria-valuetext={t("pixels", { count: size })}
+          title={t("sizeTitle")}
           style={{ top: visBottom + window.scrollY - 9, left: brandRect.right + window.scrollX - 9 }}
           onPointerDown={(e) => {
             e.preventDefault();
@@ -289,13 +292,13 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
           role="slider"
           className="sl-logo-xhandle"
           data-testid="logo-xhandle"
-          aria-label="Position du logo : flèches gauche et droite, glisser de côté pour le déplacer"
+          aria-label={t("posAria")}
           aria-orientation="horizontal"
           aria-valuemin={xb.min}
           aria-valuemax={xb.max}
           aria-valuenow={xNow}
-          aria-valuetext={`${xNow} pixels`}
-          title="Position du logo : glisse de côté pour le déplacer"
+          aria-valuetext={t("pixels", { count: xNow })}
+          title={t("posTitle")}
           style={{ top: (visTop + visBottom) / 2 + window.scrollY - 9, left: brandRect.left + window.scrollX - 9 }}
           onPointerDown={(e) => {
             e.preventDefault();

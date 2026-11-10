@@ -1,0 +1,10 @@
+{
+  "starterText": "Texte",
+  "starterTextDesc": "Un paragraphe seul : ni titre, ni étiquette.",
+  "starterTitle": "Titre",
+  "starterTitleDesc": "Un titre seul, avec une étiquette facultative.",
+  "starterTitleText": "Titre + texte",
+  "starterTitleTextDesc": "Un titre et un paragraphe dessous.",
+  "sampleTextProblem": "Remplace le texte d'exemple de ce bloc Texte (ou supprime-le).",
+  "sampleTitleProblem": "Remplace le texte d'exemple de ce titre (ou supprime-le)."
+}

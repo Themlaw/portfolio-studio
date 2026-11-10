@@ -62,6 +62,9 @@ function tagPosition(n: TutoNote, b: number[], shot: Shot): { x: number; y: numb
 
 function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
   const t = useTranslations("kitTutorial");
+  const tt = useTranslations("themeTuto");
+  const alt = tt(`${slide.id}.alt`);
+  const labelOf = (n: TutoNote) => tt(`${slide.id}.note_${n.box}`);
   const shot = SHOTS[slide.image];
   const id = useId();
   if (!shot) return null;
@@ -70,10 +73,10 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
   return (
     <>
       <figure className="a-tuto-figure" style={{ aspectRatio: `${shot.w} / ${shot.h}`, ["--ratio" as string]: String(shot.w / shot.h) }}>
-        <button type="button" className="a-tuto-zoomable" onClick={onZoom} aria-label={t("zoomImage", { alt: slide.alt })}>
+        <button type="button" className="a-tuto-zoomable" onClick={onZoom} aria-label={t("zoomImage", { alt })}>
           <picture>
             <source srcSet={`/admin/tuto/${slide.image}.avif`} type="image/avif" />
-            <img src={`/admin/tuto/${slide.image}.webp`} alt={slide.alt} width={shot.w} height={shot.h} decoding="async" data-tuto-image />
+            <img src={`/admin/tuto/${slide.image}.webp`} alt={alt} width={shot.w} height={shot.h} decoding="async" data-tuto-image />
           </picture>
         </button>
         <svg className="a-tuto-notes" viewBox={`0 0 ${shot.w} ${shot.h}`} preserveAspectRatio="none" aria-hidden="true">
@@ -108,7 +111,7 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
           return (
             <span key={n.box} aria-hidden="true">
               <span className="a-tuto-tag" data-place={n.at ? "at" : (n.place ?? "top")} style={{ left: pct(t.x, shot.w), top: pct(t.y, shot.h) }}>
-                {n.label}
+                {labelOf(n)}
               </span>
               {/* Petit écran : numéro hors du cadre, légende sous l'image. */}
               <span className="a-tuto-badge" style={{ left: pct(b[0], shot.w), top: pct(b[1], shot.h) }}>
@@ -117,12 +120,12 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
             </span>
           );
         })}
-        <figcaption className="sr-only">{slide.alt}</figcaption>
+        <figcaption className="sr-only">{alt}</figcaption>
       </figure>
       {notes.length > 0 && (
         <ol className="a-tuto-legend" aria-hidden="true">
           {notes.map((n) => (
-            <li key={n.box}>{n.label}</li>
+            <li key={n.box}>{labelOf(n)}</li>
           ))}
         </ol>
       )}
@@ -134,6 +137,7 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
 /** Bouton qui ouvre le tuto. `themeId` : thème du bouton « Télécharger le kit » (slide 2). `fromTheme` : ouvert depuis l'écran d'un thème (slide 13 : « Renvoyer le kit »). */
 export default function KitTutorial({ themeId, fromTheme = false, label, quiet = false }: { themeId: string; fromTheme?: boolean; label?: string; quiet?: boolean }) {
   const t = useTranslations("kitTutorial");
+  const tt = useTranslations("themeTuto");
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -263,11 +267,11 @@ export default function KitTutorial({ themeId, fromTheme = false, label, quiet =
             </div>
             <div className="a-tuto-text">
               <h2 id={titleId} tabIndex={-1} data-tuto-title>
-                {slide.title}
+                {tt(`${slide.id}.title`)}
               </h2>
               <ul>
-                {slide.bullets.map((b) => (
-                  <li key={b}>{b}</li>
+                {Array.from({ length: slide.bullets }, (_, i) => (
+                  <li key={i}>{tt(`${slide.id}.b${i + 1}`)}</li>
                 ))}
               </ul>
               {slide.action === "download" && (
@@ -285,10 +289,10 @@ export default function KitTutorial({ themeId, fromTheme = false, label, quiet =
             </div>
           </div>
           {zoom && (
-            <div className="a-tuto-zoom" role="dialog" aria-label={t("zoomedImage", { alt: slide.alt })} onClick={() => setZoom(false)}>
+            <div className="a-tuto-zoom" role="dialog" aria-label={t("zoomedImage", { alt: tt(`${slide.id}.alt`) })} onClick={() => setZoom(false)}>
               <picture>
                 <source srcSet={`/admin/tuto/${slide.image}.avif`} type="image/avif" />
-                <img src={`/admin/tuto/${slide.image}.webp`} alt={slide.alt} data-tuto-zoom />
+                <img src={`/admin/tuto/${slide.image}.webp`} alt={tt(`${slide.id}.alt`)} data-tuto-zoom />
               </picture>
               <button type="button" className="a-btn" autoFocus onClick={() => setZoom(false)}>
                 {t("closeImage")}
@@ -306,7 +310,7 @@ export default function KitTutorial({ themeId, fromTheme = false, label, quiet =
             <ol className="a-tuto-dots">
               {TUTO_SLIDES.map((s, i) => (
                 <li key={s.id}>
-                  <button type="button" className="a-tuto-dot" aria-label={t("slideLabel", { n: i + 1, title: s.title })} aria-current={i === index ? "step" : undefined} onClick={() => go(i)} />
+                  <button type="button" className="a-tuto-dot" aria-label={t("slideLabel", { n: i + 1, title: tt(`${s.id}.title`) })} aria-current={i === index ? "step" : undefined} onClick={() => go(i)} />
                 </li>
               ))}
             </ol>

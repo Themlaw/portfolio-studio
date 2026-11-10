@@ -10,20 +10,22 @@
  * place, ×, glisser, « + Ajouter un lien », « + Réseau »), contrôlées par le
  * même schéma que le serveur avant tout envoi.
  */
+import { useTranslations } from "next-intl";
 import { useId } from "react";
 
 import { Toggle } from "@/app/admin/_fields";
 import SocialsEditor from "@/components/admin/SocialsEditor";
 
+import type { AdminT } from "@/i18n/admin-lang";
 import type { FromCanvas } from "@/lib/edit/protocol";
 import { editedKind, navKeyOf, NETWORKS, SiteSnapSchema, socialKind, socialKeys, uniqueKeys, type Network, type SiteSnap } from "@/lib/site-schema";
 
 type Result = { snap: SiteSnap; done?: string } | { error: string };
 type Page = { id: number; title: string };
 
-function checked(snap: SiteSnap, done?: string): Result {
+function checked(snap: SiteSnap, t: AdminT, done?: string): Result {
   const parsed = SiteSnapSchema.safeParse(snap);
-  return parsed.success ? { snap: parsed.data, ...(done ? { done } : {}) } : { error: parsed.error.issues[0]?.message ?? "Valeur invalide." };
+  return parsed.success ? { snap: parsed.data, ...(done ? { done } : {}) } : { error: parsed.error.issues[0]?.message ?? t("invalid") };
 }
 const clone = (s: SiteSnap): SiteSnap => JSON.parse(JSON.stringify(s));
 /**
@@ -44,13 +46,14 @@ function moved<T>(list: T[], from: number, to: number): T[] | null {
 }
 
 /** Texte de l'en-tête ou du pied modifié en place. */
-export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-text" }>): Result {
+/** `t` : traducteur de l'espace « editorPanelsSite » (messages affichés dans la bulle de l'éditeur). */
+export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-text" }>, t: AdminT): Result {
   const next = clone(snap);
   const value = msg.value.trim();
   switch (msg.field) {
     case "name":
       // Le nom français est obligatoire ; l'anglais vide reprend le français.
-      if (!value && msg.locale === "fr") return { error: "Le nom du site ne peut pas être vide." };
+      if (!value && msg.locale === "fr") return { error: t("nameEmpty") };
       next.identity.name = { ...next.identity.name, [msg.locale]: value.slice(0, 80) };
       break;
     case "email":
@@ -62,9 +65,9 @@ export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-
       break;
     case "nav": {
       const item = next.nav[rankFor(navKeysOf(next), msg.index, msg.key)];
-      if (!item) return { error: "Ce lien n'existe plus : recharge l'éditeur." };
+      if (!item) return { error: t("linkGoneReload") };
       if (item.kind === "link") {
-        if (!value) return { error: "Le texte d'un lien ne peut pas être vide." };
+        if (!value) return { error: t("linkLabelEmpty") };
         item.label = { ...item.label, [msg.locale]: value.slice(0, 60) };
       } else {
         // Vide : le lien reprend le titre de la page.
@@ -75,58 +78,58 @@ export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-
       break;
     }
   }
-  return checked(next);
+  return checked(next, t);
 }
 
 /** Opération sur le menu ou les réseaux venue de la toile. */
-export function applySiteOp(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-op" }>, pages: Page[]): Result {
+export function applySiteOp(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-op" }>, pages: Page[], t: AdminT): Result {
   const next = clone(snap);
   switch (msg.op) {
     case "nav-remove": {
       const at = rankFor(navKeysOf(next), msg.index, msg.key);
-      if (!next.nav[at]) return { error: "Ce lien n'existe plus." };
+      if (!next.nav[at]) return { error: t("linkGone") };
       next.nav.splice(at, 1);
-      return checked(next, "Lien retiré du menu");
+      return checked(next, t, t("linkRemoved"));
     }
     case "nav-move": {
       const list = moved(next.nav, rankFor(navKeysOf(next), msg.index, msg.key), msg.to);
-      if (!list) return { error: "Déplacement impossible." };
+      if (!list) return { error: t("moveImpossible") };
       next.nav = list;
-      return checked(next);
+      return checked(next, t);
     }
     case "nav-add-page": {
-      if (!pages.some((p) => p.id === msg.pageId)) return { error: "Cette page n'existe plus." };
-      if (next.nav.some((i) => i.kind === "page" && i.pageId === msg.pageId)) return { error: "Cette page est déjà dans le menu." };
+      if (!pages.some((p) => p.id === msg.pageId)) return { error: t("pageGone") };
+      if (next.nav.some((i) => i.kind === "page" && i.pageId === msg.pageId)) return { error: t("pageInMenu") };
       next.nav.push({ kind: "page", pageId: msg.pageId });
-      return checked(next, "Lien ajouté au menu");
+      return checked(next, t, t("linkAdded"));
     }
     case "nav-add-link":
       next.nav.push({ kind: "link", href: msg.href, label: { fr: msg.label, en: msg.label } });
-      return checked(next, "Lien ajouté au menu");
+      return checked(next, t, t("linkAdded"));
     case "social-remove": {
       const at = rankFor(socialKeys(next.socials), msg.index, msg.key);
-      if (!next.socials[at]) return { error: "Ce réseau n'existe plus." };
+      if (!next.socials[at]) return { error: t("socialGone") };
       next.socials.splice(at, 1);
-      return checked(next, "Réseau retiré");
+      return checked(next, t, t("socialRemoved"));
     }
     case "social-move": {
       const list = moved(next.socials, rankFor(socialKeys(next.socials), msg.index, msg.key), msg.to);
-      if (!list) return { error: "Déplacement impossible." };
+      if (!list) return { error: t("moveImpossible") };
       next.socials = list;
-      return checked(next);
+      return checked(next, t);
     }
     case "social-edit": {
       const s = next.socials[rankFor(socialKeys(next.socials), msg.index, msg.key)];
-      if (!s) return { error: "Ce réseau n'existe plus." };
+      if (!s) return { error: t("socialGone") };
       s.href = msg.href;
       const kind = editedKind(s.kind, msg.href);
       if (kind) s.kind = kind;
-      return checked(next, "Lien du réseau modifié");
+      return checked(next, t, t("socialEdited"));
     }
     case "social-add": {
       const network = (NETWORKS as readonly string[]).includes(msg.network) ? (msg.network as Network) : "other";
       next.socials.push({ label: msg.label, href: msg.href, kind: socialKind(network, msg.href) });
-      return checked(next, "Réseau ajouté");
+      return checked(next, t, t("socialAdded"));
     }
   }
 }
@@ -166,38 +169,38 @@ export default function SiteEditor({
   /** La modification est appliquée par l'éditeur au dernier état écrit (pas à `snap`, peut-être en retard). */
   onChange: (change: (s: SiteSnap) => void) => void;
 }) {
+  const t = useTranslations("editorPanelsSite");
   const set = onChange;
-  const title = (id: number) => pages.find((p) => p.id === id)?.title ?? `page ${id}`;
+  const title = (id: number) => pages.find((p) => p.id === id)?.title ?? t("pageFallback", { id });
   const free = pages.filter((p) => !snap.nav.some((i) => i.kind === "page" && i.pageId === p.id));
   return (
     <div className="ve-settings" data-testid="site-editor">
       <header className="ve-settings-head">
-        <h2>{which === "header" ? "En-tête" : "Pied de page"}</h2>
+        <h2>{which === "header" ? t("header") : t("footer")}</h2>
       </header>
       <p className="ve-site-note">
-        <strong>Commun à toutes les pages.</strong> Ces changements restent en brouillon, partagé par toutes les pages, et s&apos;appliquent à tout le site quand tu
-        publies n&apos;importe quelle page.
+        <strong>{t("commonBold")}</strong> {t("commonNote")}
       </p>
       <fieldset className="ve-site-fields">
-        <Text label="Nom du site (FR)" value={snap.identity.name.fr} onCommit={(v) => v.trim() && set((s) => void (s.identity.name.fr = v.trim()))} help="Logo de l'en-tête, ouverture, profil, pied de page, titre des pages." />
-        <Text label="Nom du site (EN)" value={snap.identity.name.en} placeholder={snap.identity.name.fr} onCommit={(v) => set((s) => void (s.identity.name.en = v.trim()))} help="Vide : le nom français est repris." />
-        <Text label="Métier (FR)" value={snap.identity.role.fr} onCommit={(v) => set((s) => void (s.identity.role.fr = v))} />
-        <Text label="Métier (EN)" value={snap.identity.role.en} onCommit={(v) => set((s) => void (s.identity.role.en = v))} />
+        <Text label={t("nameFr")} value={snap.identity.name.fr} onCommit={(v) => v.trim() && set((s) => void (s.identity.name.fr = v.trim()))} help={t("nameHelp")} />
+        <Text label={t("nameEn")} value={snap.identity.name.en} placeholder={snap.identity.name.fr} onCommit={(v) => set((s) => void (s.identity.name.en = v.trim()))} help={t("nameEnHelp")} />
+        <Text label={t("roleFr")} value={snap.identity.role.fr} onCommit={(v) => set((s) => void (s.identity.role.fr = v))} />
+        <Text label={t("roleEn")} value={snap.identity.role.en} onCommit={(v) => set((s) => void (s.identity.role.en = v))} />
         {which === "footer" && (
           <>
-            <Text label="E-mail" type="email" value={snap.identity.email} onCommit={(v) => set((s) => void (s.identity.email = v.trim()))} />
-            <Text label="Mention (FR)" value={snap.identity.credit.fr} onCommit={(v) => set((s) => void (s.identity.credit.fr = v))} />
-            <Text label="Mention (EN)" value={snap.identity.credit.en} onCommit={(v) => set((s) => void (s.identity.credit.en = v))} />
+            <Text label={t("email")} type="email" value={snap.identity.email} onCommit={(v) => set((s) => void (s.identity.email = v.trim()))} />
+            <Text label={t("creditFr")} value={snap.identity.credit.fr} onCommit={(v) => set((s) => void (s.identity.credit.fr = v))} />
+            <Text label={t("creditEn")} value={snap.identity.credit.en} onCommit={(v) => set((s) => void (s.identity.credit.en = v))} />
           </>
         )}
 
-        <h3 className="ve-sub">Menu</h3>
+        <h3 className="ve-sub">{t("menu")}</h3>
         <ol className="ve-list">
           {snap.nav.map((item, i) => (
             <li key={`${item.kind}-${item.kind === "page" ? item.pageId : item.href}-${i}`} className="ve-list-row">
               <span className="ve-list-main">
                 <Text
-                  label={item.kind === "page" ? `Lien vers « ${title(item.pageId)} » (FR)` : `Lien libre ${item.href} (FR)`}
+                  label={item.kind === "page" ? t("linkToPage", { title: title(item.pageId) }) : t("freeLink", { href: item.href })}
                   value={item.label?.fr ?? ""}
                   placeholder={item.kind === "page" ? title(item.pageId) : ""}
                   onCommit={(v) =>
@@ -210,13 +213,13 @@ export default function SiteEditor({
                 />
               </span>
               <span className="ve-list-tools">
-                <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => set((s) => void (s.nav = moved(s.nav, i, i - 1) ?? s.nav))}>
+                <button type="button" className="a-icon-btn" aria-label={t("up")} disabled={i === 0} onClick={() => set((s) => void (s.nav = moved(s.nav, i, i - 1) ?? s.nav))}>
                   ↑
                 </button>
-                <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === snap.nav.length - 1} onClick={() => set((s) => void (s.nav = moved(s.nav, i, i + 1) ?? s.nav))}>
+                <button type="button" className="a-icon-btn" aria-label={t("down")} disabled={i === snap.nav.length - 1} onClick={() => set((s) => void (s.nav = moved(s.nav, i, i + 1) ?? s.nav))}>
                   ↓
                 </button>
-                <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer du menu" onClick={() => set((s) => void s.nav.splice(i, 1))}>
+                <button type="button" className="a-icon-btn a-danger-text" aria-label={t("removeFromMenu")} onClick={() => set((s) => void s.nav.splice(i, 1))}>
                   ✕
                 </button>
               </span>
@@ -226,10 +229,10 @@ export default function SiteEditor({
         {free.length > 0 && (
           <div className="a-field">
             <label className="a-label" htmlFor="ve-nav-add">
-              Ajouter une page au menu
+              {t("addPage")}
             </label>
             <select id="ve-nav-add" className="a-input a-select" value="" onChange={(e) => e.target.value && set((s) => void s.nav.push({ kind: "page", pageId: Number(e.target.value) }))}>
-              <option value="">— Choisir une page —</option>
+              <option value="">{t("choosePage")}</option>
               {free.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}
@@ -239,11 +242,11 @@ export default function SiteEditor({
           </div>
         )}
 
-        <h3 className="ve-sub">Réseaux</h3>
+        <h3 className="ve-sub">{t("networks")}</h3>
         {which === "header" && (
           <Toggle
-            label="Icônes des réseaux dans l'en-tête"
-            help="Avant FR / EN, icônes seules ; dans le menu sur téléphone."
+            label={t("headerSocials")}
+            help={t("headerSocialsHelp")}
             checked={snap.identity.headerSocials === true}
             onChange={(on) =>
               set((s) => {
@@ -255,7 +258,7 @@ export default function SiteEditor({
           />
         )}
         <SocialsEditor items={snap.socials} onChange={(socials) => set((s) => void (s.socials = socials))} />
-        <p className="ve-hint">Sur la page : survole un lien ou un réseau pour le retirer ou le déplacer, « + Ajouter un lien » et « + Réseau » pour en ajouter.</p>
+        <p className="ve-hint">{t("onPage")}</p>
       </fieldset>
     </div>
   );

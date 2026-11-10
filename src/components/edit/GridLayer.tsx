@@ -15,10 +15,11 @@
  * Tout passe par le message `grid-op` (repères : grid-dom.ts) ; l'éditeur l'applique au brouillon de la page ou à la planche
  * du projet (Annuler / Rétablir comme tout le reste). Rien de ceci n'existe en public.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { formatOptions } from "@/lib/images/formats";
-import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, type GridLayout } from "@/blocks/grid-layouts";
+import { GRID_LAYOUTS, keepsShape, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
 import FrameWindow from "./FrameMenu";
 import ImageBgWindow from "./ImageBgMenu";
@@ -29,7 +30,7 @@ import type { ImageBg } from "@/lib/look";
 import { hasFondWrapper, postIntent } from "./optimistic";
 import FondMenu, { FondButton } from "./FondMenu";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
-import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
+import { VIDEO_MODES } from "@/blocks/video-mode";
 import VideoSoundSeg from "./VideoSoundSeg";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -40,10 +41,10 @@ const docRect = (el: Element): Rect => {
 };
 
 const GAPS: { value: string; label: string; title: string }[] = [
-  { value: "none", label: "Aucun", title: "Aucun espace entre les images" },
-  { value: "tight", label: "S", title: "Petit espace" },
-  { value: "normal", label: "M", title: "Espace moyen" },
-  { value: "wide", label: "L", title: "Grand espace" },
+  { value: "none", label: "gapNone", title: "gapNoneTitle" },
+  { value: "tight", label: "S", title: "gapSmall" },
+  { value: "normal", label: "M", title: "gapMedium" },
+  { value: "wide", label: "L", title: "gapLarge" },
 ];
 
 /** Envoie une opération de grille à l'éditeur. */
@@ -80,8 +81,9 @@ function cellBarTop(r: Rect, stuck: number): number {
 
 /** Menu « Taille » d'une case : quatre mots simples (frère de la barre, jamais son enfant : la barre a un `transform`). */
 function SizeMenu({ anchor, onClose, children }: { anchor: PopoverAnchor; onClose: () => void; children: React.ReactNode }) {
+  const t = useTranslations("editMenusGrid");
   return (
-    <Popover anchor={anchor} className="pe-gridmenu pe-gridmenu-ratios" role="menu" label="Taille de la case" onClose={onClose}>
+    <Popover anchor={anchor} className="pe-gridmenu pe-gridmenu-ratios" role="menu" label={t("sizeOfCell")} onClose={onClose}>
       {children}
     </Popover>
   );
@@ -104,6 +106,8 @@ function settingsTarget(t: SettingsFor): { grid: HTMLElement; bar: HTMLElement |
 
 /** Fenêtre « Réglages » de la grille : blanche, au style de la fenêtre « Aa » (classes `sm tc`, tokens `--lk-*`). */
 function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref: GridRef; anchor: PopoverAnchor; onClose: () => void }) {
+  const t = useTranslations("editMenusGrid");
+  const tl = useTranslations("blockRegLabels");
   // Échap ferme la fenêtre et rien d'autre : la grille reste choisie (sinon le même Échap remonterait aussi au parent).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -125,51 +129,51 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
   const auto = layout === "auto";
   const set = (patch: Omit<Extract<GridCanvasOp, { op: "set" }>, "op">) => send(gref, { op: "set", ...patch });
   return (
-    <Popover anchor={anchor} className="sm tc pe-gs" label="Réglages de la grille" testId="gridsettings" onClose={onClose} ignoreDismiss={(t) => Boolean(t.closest("[data-grid-settings-button]"))}>
+    <Popover anchor={anchor} className="sm tc pe-gs" label={t("settings")} testId="gridsettings" onClose={onClose} ignoreDismiss={(el) => Boolean(el.closest("[data-grid-settings-button]"))}>
       <div className="pe-gs-head">
-        <span className="pe-gs-title">Réglages de la grille</span>
-        <button type="button" className="pe-gs-close" aria-label="Fermer" data-testid="gridsettings-close" onClick={onClose}>
+        <span className="pe-gs-title">{t("settings")}</span>
+        <button type="button" className="pe-gs-close" aria-label={t("close")} data-testid="gridsettings-close" onClick={onClose}>
           ✕
         </button>
       </div>
       <div className="pe-gs-block">
         <span className="sm-label pe-gs-label" id="pe-gs-layout">
-          Agencement
+          {t("layout")}
         </span>
         <div className="pe-gs-layouts" role="radiogroup" aria-labelledby="pe-gs-layout" data-testid="gridbar-layout">
           {GRID_LAYOUTS.map((l) => (
-            <button key={l} type="button" role="radio" aria-checked={layout === l} aria-label={GRID_LAYOUT_LABELS[l]} title={GRID_LAYOUT_LABELS[l]} data-layout={l} className="pe-gm-layout pe-gs-layout" onClick={() => set({ layout: l })}>
+            <button key={l} type="button" role="radio" aria-checked={layout === l} aria-label={tl(`gridLayout.${l}`)} title={tl(`gridLayout.${l}`)} data-layout={l} className="pe-gm-layout pe-gs-layout" onClick={() => set({ layout: l })}>
               <GridLayoutIcon layout={l} />
-              <span>{GRID_LAYOUT_LABELS[l]}</span>
+              <span>{tl(`gridLayout.${l}`)}</span>
             </button>
           ))}
         </div>
         {keepsShape({ layout, ratio: grid.dataset.ratio }) && (
           <p className="sm-hint" data-testid="gridsettings-keep-hint">
-            {KEEP_SHAPE_HINT}
+            {tl("keepShapeHint")}
           </p>
         )}
         {(auto || (grid.hasAttribute("data-justify") && !keepsShape({ layout, ratio: grid.dataset.ratio }))) && (
           <p className="sm-hint" data-testid="gridsettings-auto-hint">
-            {grid.hasAttribute("data-justify") ? JUSTIFY_HINT : AUTO_HINT}
+            {grid.hasAttribute("data-justify") ? tl("justifyHint") : tl("autoHint")}
           </p>
         )}
       </div>
       <div className="tc-row pe-gs-row">
         <span className="sm-label" id="pe-gs-gap">
-          Espace entre les images
+          {t("gap")}
         </span>
         <span className="pe-gs-seg" role="radiogroup" aria-labelledby="pe-gs-gap" data-testid="gridbar-gap">
           {GAPS.map((g) => (
-            <button key={g.value} type="button" role="radio" aria-checked={gap === g.value} data-gap={g.value} title={g.title} aria-label={g.title} onClick={() => set({ gap: g.value as "none" | "tight" | "normal" | "wide" })}>
-              {g.label}
+            <button key={g.value} type="button" role="radio" aria-checked={gap === g.value} data-gap={g.value} title={t(g.title)} aria-label={t(g.title)} onClick={() => set({ gap: g.value as "none" | "tight" | "normal" | "wide" })}>
+              {g.value === "none" ? t("gapNone") : g.label}
             </button>
           ))}
         </span>
       </div>
       <div className="pe-gs-block">
         <span className="sm-label pe-gs-label" id="pe-gs-ratio">
-          Format des cases
+          {t("ratio")}
         </span>
         <div className="pe-gs-seg pe-gs-ratios" role="radiogroup" aria-labelledby="pe-gs-ratio" data-testid="gridbar-ratio">
           {/* Les mêmes formats que le panneau ; un ancien format déjà choisi (4:5, 16:9) reste coché au lieu de ne rien montrer. */}
@@ -179,12 +183,12 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
             </button>
           ))}
         </div>
-        <p className="sm-hint">Les vidéos gardent leur format 16:9.</p>
+        <p className="sm-hint">{t("videoRatioHint")}</p>
       </div>
       {(custom || auto) && (
         <div className="tc-row pe-gs-row">
           <span className="sm-label" id="pe-gs-cols">
-            Colonnes
+            {t("columns")}
           </span>
           <span className="pe-gs-seg" role="radiogroup" aria-labelledby="pe-gs-cols" data-testid="gridbar-cols">
             {[2, 3, 4].map((c) => (
@@ -194,32 +198,32 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
             ))}
           </span>
           {custom && (
-            <button type="button" role="switch" aria-checked={mirrored} data-testid="gridbar-mirror" title="Inverser la gauche et la droite" onClick={() => set({ mirror: !mirrored })}>
-              Inverser
+            <button type="button" role="switch" aria-checked={mirrored} data-testid="gridbar-mirror" title={t("mirrorTitle")} onClick={() => set({ mirror: !mirrored })}>
+              {t("mirror")}
             </button>
           )}
         </div>
       )}
       <div className="tc-row pe-gs-row pe-gs-actions">
-        <button type="button" data-testid="gridbar-add" title="Ajouter une image ou une vidéo à la suite" onClick={() => send(gref, { op: "pick", index: count })}>
-          + Case
+        <button type="button" data-testid="gridbar-add" title={t("addTitle")} onClick={() => send(gref, { op: "pick", index: count })}>
+          {t("addCell")}
         </button>
         {!auto && (
-          <button type="button" data-testid="gridbar-adapt" disabled={count === 0} title="Donne à chaque case la forme de son image : un portrait sur deux rangées, un panorama sur toute la largeur" onClick={() => send(gref, { op: "adapt" })}>
-            Adapter aux images
+          <button type="button" data-testid="gridbar-adapt" disabled={count === 0} title={t("adaptTitle")} onClick={() => send(gref, { op: "adapt" })}>
+            {t("adapt")}
           </button>
         )}
         <button
           type="button"
           className="pe-gs-more"
           data-testid="gridsettings-more"
-          title="Ouvre le panneau de gauche : alignement, titre, espace au-dessus…"
+          title={t("moreTitle")}
           onClick={() => {
             window.dispatchEvent(new CustomEvent("pe:open-panel", { detail: { uid: gref.uid, ...(gref.board ? { board: gref.board } : {}) } }));
             onClose();
           }}
         >
-          Plus de réglages…
+          {t("more")}
         </button>
       </div>
     </Popover>
@@ -229,6 +233,9 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
 type CellDrag = { grid: HTMLElement; ref: GridRef; from: number; x: number; y: number; target: number | null; active: boolean };
 
 export default function GridLayer({ selected, dragging, announce }: { selected: string | null; dragging: boolean; announce: (s: string) => void }) {
+  const t = useTranslations("editMenusGrid");
+  const tl = useTranslations("blockRegLabels");
+  const lang = useLocale().slice(0, 2);
   const [tick, setTick] = useState(0);
   const [hover, setHover] = useState<HTMLElement | null>(null);
   const [frameFor, setFrameFor] = useState<{ uid: string } | null>(null);
@@ -367,10 +374,10 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       const filled = cellsOf(d.grid).filter((c) => c.hasAttribute("data-edit-cell")).length;
       if (d.target < filled) {
         send(d.ref, { op: "swap", a: d.from, b: d.target });
-        announce(`Les images des cases ${d.from + 1} et ${d.target + 1} sont échangées.`);
+        announce(t("swapped", { from: d.from + 1, to: d.target + 1 }));
       } else if (d.from !== filled - 1) {
         send(d.ref, { op: "move", from: d.from, to: filled - 1 });
-        announce(`L'image de la case ${d.from + 1} passe en dernier.`);
+        announce(t("movedLast", { from: d.from + 1 }));
       }
     };
     const up = () => end(true);
@@ -386,7 +393,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       document.removeEventListener("pointercancel", cancel, true);
       document.removeEventListener("keydown", esc, true);
     };
-  }, [announce]);
+  }, [announce, t]);
 
   if (dragging) return null;
   void tick;
@@ -439,7 +446,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       <div
         className="pe-cellbar"
         role="toolbar"
-        aria-label={`Case ${n}`}
+        aria-label={t("cellLabel", { n })}
         data-testid="cellbar"
         data-cell={uid}
         // Collée au haut de l'image (sous le fil d'Ariane de la case choisie), à gauche ; si le haut sort de l'écran, elle reste dans
@@ -454,8 +461,8 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           className="pe-cb-handle"
           role="button"
           tabIndex={0}
-          aria-label={`Déplacer la case ${n} : glisse-la sur une autre case pour échanger les deux images`}
-          title="Glisse sur une autre case pour échanger les deux images"
+          aria-label={t("handleLabel", { n })}
+          title={t("handleTitle")}
           data-testid="cell-handle"
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -471,16 +478,16 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
         </span>
         {media && (
           <button type="button" className="pe-cb-btn" data-cb="replace" onClick={() => send(gref, { op: "pick", index })}>
-            Remplacer
+            {t("replace")}
           </button>
         )}
         <button type="button" className="pe-cb-btn pe-cb-danger" data-cb="remove" onClick={() => send(gref, { op: "remove", index })}>
-          Retirer
+          {t("remove")}
         </button>
         {type === "video-single" && cell.querySelector("[data-video-mode]") && (
-          <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="cell-video-mode">
+          <span className="pe-seg" role="group" aria-label={t("videoMode")} data-testid="cell-video-mode">
             <span className="pe-seg-label" aria-hidden="true">
-              Lecture
+              {t("videoModeShort")}
             </span>
             {VIDEO_MODES.map((m) => (
               <button
@@ -489,10 +496,10 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
                 className="pe-cb-btn"
                 data-cb={`video-${m}`}
                 aria-pressed={cell.querySelector("[data-video-mode]")?.getAttribute("data-video-mode") === m}
-                title={VIDEO_MODE_HINTS[m]}
+                title={tl(`videoMode.hint.${m}`)}
                 onClick={() => send(gref, { op: "video-mode", index, mode: m })}
               >
-                {VIDEO_MODE_LABELS[m]}
+                {tl(`videoMode.label.${m}`)}
               </button>
             ))}
           </span>
@@ -511,7 +518,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
         {image && (
           <>
             <button type="button" className="pe-cb-btn" data-cb="crop" onClick={() => window.dispatchEvent(new CustomEvent("pe:crop", { detail: { cell: uid } }))}>
-              Cadrer
+              {t("crop")}
             </button>
           </>
         )}
@@ -527,7 +534,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             setFrameFor((f) => (f?.uid === uid ? null : { uid }));
           }}
         >
-          Cadre
+          {t("frame")}
         </button>
         )}
         {image && (
@@ -538,7 +545,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
               data-cb="imgbg"
               aria-haspopup="dialog"
               aria-expanded={imgBgFor?.uid === uid}
-              title="Fond derrière l'image (utile pour un PNG détouré)"
+              title={t("bgTitle")}
               onClick={() => {
                 const spot = { uid };
                 const wasOpen = imgBgFor?.uid === uid;
@@ -549,7 +556,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
                 setImgBgFor(wasOpen ? null : spot);
               }}
             >
-              Fond image
+              {t("bg")}
             </button>
           </>
         )}
@@ -577,7 +584,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           aria-expanded={sizeMenu?.uid === uid}
           onClick={() => setSizeMenu((m) => (m?.uid === uid ? null : { uid }))}
         >
-          Taille ▾
+          {t("size")}
         </button>
       </div>
         {sizeMenu?.uid === uid && (
@@ -585,8 +592,8 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             {justified
               ? (
                   [
-                    ["alone", "Seule sur sa ligne", true],
-                    ["with-others", "Avec les autres", false],
+                    ["alone", t("alone"), true],
+                    ["with-others", t("withOthers"), false],
                   ] as const
                 ).map(([k, label, value]) => (
                   <button key={k} type="button" role="menuitemradio" aria-checked={alone === value} className="pe-gm-ratio" data-cb={k} onClick={() => { send(gref, { op: "alone", index, alone: value }); setSizeMenu(null); }}>
@@ -595,10 +602,10 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
                 ))
               : (
               [
-                ["wider", "Plus large", w >= maxW, { dw: 1 }],
-                ["narrower", "Moins large", w <= 1, { dw: -1 }],
-                ["taller", "Plus haute", h >= 2, { dh: 1 }],
-                ["shorter", "Moins haute", h <= 1, { dh: -1 }],
+                ["wider", t("wider"), w >= maxW, { dw: 1 }],
+                ["narrower", t("narrower"), w <= 1, { dw: -1 }],
+                ["taller", t("taller"), h >= 2, { dh: 1 }],
+                ["shorter", t("shorter"), h <= 1, { dh: -1 }],
               ] as const
             ).map(([k, label, off, step]) => (
               <button key={k} type="button" role="menuitem" className="pe-gm-ratio" data-cb={k} disabled={off} onClick={() => { send(gref, { op: "span", index, ...step }); setSizeMenu(null); }}>
@@ -616,7 +623,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const filledCount = drag ? cellsOf(drag.grid).filter((c) => c.hasAttribute("data-edit-cell")).length : 0;
 
   return (
-    <div className="pe-layer pe-grid-layer" lang="fr">
+    <div className="pe-layer pe-grid-layer" lang={lang}>
       {numbered.flatMap((g) =>
         cellsOf(g)
           .filter((c) => c.hasAttribute("data-edit-cell") && c !== hoverCell)
@@ -669,13 +676,13 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
         const free = dragTarget.hasAttribute("data-edit-cell-free");
         return (
           <div className="pe-cell-target" data-testid="cell-target" style={{ top: r.top, left: r.left, width: r.width, height: r.height }} aria-hidden="true">
-            <span>{free ? `Passe en dernier (case ${filledCount})` : `Échange avec la case ${cellIndex(dragTarget) + 1}`}</span>
+            <span>{free ? t("toLast", { n: filledCount }) : t("swapWith", { n: cellIndex(dragTarget) + 1 })}</span>
           </div>
         );
       })()}
       {drag?.active && (
         <div className="pe-cell-ghost" style={{ transform: `translate(${drag.x + 14}px, ${drag.y + 10}px)` }} aria-hidden="true">
-          Case {drag.from + 1}
+          {t("ghost", { n: drag.from + 1 })}
         </div>
       )}
     </div>

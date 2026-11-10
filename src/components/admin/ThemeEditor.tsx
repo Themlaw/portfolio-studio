@@ -21,7 +21,8 @@ import { useCallback, useEffect, useId, useRef, useState, useTransition, type Re
 
 import { activateThemeAction, closeEditSessionAction, duplicateThemeAction, saveThemeAction } from "@/app/admin/(espace)/themes/actions";
 import { ColorsPanel, GUIDED_ROLES } from "./editor/SiteLookPanel";
-import { pairsReadability, ratioTip } from "@/components/edit/readability";
+import { pairsReadability } from "@/components/edit/readability";
+import { useReadability } from "@/components/edit/useReadability";
 import { themeTypeCss } from "@/lib/look";
 import { customNuances, roundLevelOf, ROUND_LEVELS, spaceLevelOf, SPACE_LEVELS } from "@/themes/guided";
 import { themeAttributes, themeToCss } from "@/themes/css";
@@ -193,6 +194,7 @@ const stepOf = (v: unknown): StepId => STEPS.find((s) => s.id === v)?.id ?? "cou
 /** Lisibilité en une ligne (« Lisible » / « Difficile à lire sur le fond »), le détail dépliable. Jamais bloquant. */
 function Readability({ colors, palette }: { colors: Theme["tokens"]["color"]; palette: Theme["tokens"]["palette"] }) {
   const t = useTranslations("themeEditor");
+  const read = useReadability();
   const pairs = sitePalettePairs(colors, palette, undefined);
   const bad = pairs.filter((p) => !p.ok);
   return (
@@ -212,8 +214,8 @@ function Readability({ colors, palette }: { colors: Theme["tokens"]["color"]; pa
         <summary>{t("seeDetail")}</summary>
         <ul>
           {pairs.map((p) => (
-            <li key={p.label} data-ok={p.ok} title={ratioTip(p.ratio)}>
-              {t("pairLine", { mark: p.ok ? "✓" : "✗", label: p.label, verdict: pairsReadability([p]).label })}
+            <li key={p.label} data-ok={p.ok} title={read.tip(p.ratio)}>
+              {t("pairLine", { mark: p.ok ? "✓" : "✗", label: p.label, verdict: read.word(pairsReadability([p])) })}
             </li>
           ))}
         </ul>

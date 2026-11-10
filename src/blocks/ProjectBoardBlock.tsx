@@ -17,6 +17,7 @@ import { captionCss, projectCaptionStyles } from "./caption-style";
 import { stripProject } from "./strip-project";
 import { isProjectStrip, itemEmpty, MAX_BOARD_ITEMS, ownLayoutOf, ownTextOf, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const projectBoardSchema = z.object({
   /**
@@ -128,6 +129,7 @@ function stripDates(props: Record<string, unknown>, locale: BlockContext["locale
  */
 export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer<typeof projectBoardSchema>; ctx: BlockContext }) {
   const eager = claimEager(2);
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit) });
   const slug = props.project ?? ctx.project;
   const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection, ownLayoutOf(props), ownTextOf(props)) : null;
   if (project) {
@@ -203,15 +205,15 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.
   if (ctx.parent && !props.project) {
     return (
-      <section className="shell py-[var(--t-board-pad)]" lang="fr">
+      <section className="shell py-[var(--t-board-pad)]" lang={lang}>
         <p className="pe-wait" data-edit-board-wait="">
-          Bloc Projet : choisis d&apos;abord le projet.
+          {ta("chooseProjectFirst")}
         </p>
       </section>
     );
   }
   return (
-    <section className="shell py-[var(--t-board-pad)]" data-edit-board-new="" lang="fr">
+    <section className="shell py-[var(--t-board-pad)]" data-edit-board-new="" lang={lang}>
       <div className="pe-board-new-space" style={{ minHeight: 320 }} />
     </section>
   );

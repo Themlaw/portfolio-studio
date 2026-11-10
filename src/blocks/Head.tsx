@@ -3,6 +3,7 @@ import Eyebrow from "@/components/Eyebrow";
 import { hasText } from "./optional-fields";
 import { headOpsFor, headTag, headVisible, type Head as HeadData, type HeadWhere } from "./head";
 import { inline, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 /** Taille d'un titre de composant selon son niveau (clamp, comme les autres titres : téléphone sans débordement) ; la taille se règle ensuite avec « Aa ». */
 const SIZE = {
@@ -21,9 +22,10 @@ const SIZE = {
  * `scope` : repère de la portée « Tout le projet » (bloc Projet seulement, `data-pscope` de la planche du même bloc, lot 120) : le titre de la page
  * autour d'une planche se règle avec les titres de ce projet.
  */
-export default function Head({ head, ctx, level, cell = false, scope }: { head: HeadData | undefined; ctx: BlockContext; level: number; cell?: boolean; scope?: string }) {
+export default async function Head({ head, ctx, level, cell = false, scope }: { head: HeadData | undefined; ctx: BlockContext; level: number; cell?: boolean; scope?: string }) {
   const edit = Boolean(ctx.edit);
   if (!head || !headVisible(head, edit)) return null;
+  const { ta } = await editI18n(ctx);
   const at = head.at ?? "above";
   const tag = headTag(level);
   const Tag = tag === "h2" ? "h2" : tag === "h3" ? "h3" : "h4";
@@ -33,12 +35,12 @@ export default function Head({ head, ctx, level, cell = false, scope }: { head: 
   return (
     <div className={`comp-head${at === "over" ? " comp-head-over" : ""}${frame}`} data-at={at} {...(cell ? { "data-cell": "" } : {})} {...(scope ? { "data-pscope": scope, "data-head-board": "" } : {})}>
       {showEyebrow && (
-        <Eyebrow {...inline(ctx, "head.eyebrow")} {...(edit ? { "data-placeholder": "Sous-titre" } : {})}>
+        <Eyebrow {...inline(ctx, "head.eyebrow")} {...(edit ? { "data-placeholder": ta("subtitle") } : {})}>
           {head.eyebrow ? tr(head.eyebrow, ctx.locale) : ""}
         </Eyebrow>
       )}
       {showTitle && (
-        <Tag className={`comp-head-title font-display break-words ${SIZE[tag]}${at === "over" ? "" : " text-ink"}${showEyebrow ? " mt-3" : ""}`} {...inline(ctx, "head.title")} {...(edit ? { "data-placeholder": "Titre" } : {})}>
+        <Tag className={`comp-head-title font-display break-words ${SIZE[tag]}${at === "over" ? "" : " text-ink"}${showEyebrow ? " mt-3" : ""}`} {...inline(ctx, "head.title")} {...(edit ? { "data-placeholder": ta("title") } : {})}>
           {head.title ? tr(head.title, ctx.locale) : ""}
         </Tag>
       )}
@@ -50,9 +52,10 @@ export default function Head({ head, ctx, level, cell = false, scope }: { head: 
  * Pastilles « + Titre » & co d'un composant, sur la toile seulement (jamais dans le HTML public). Une ancre sans hauteur posée avant le composant :
  * elle ne change ni les espaces ni l'ordre du contenu ; les boutons se montrent au survol du bloc (CSS : le bloc suivant l'ancre est survolé).
  */
-export function HeadOps({ uid, type, props, ctx, where }: { uid: string; type: string; props: Record<string, unknown>; ctx: BlockContext; where: HeadWhere }) {
+export async function HeadOps({ uid, type, props, ctx, where }: { uid: string; type: string; props: Record<string, unknown>; ctx: BlockContext; where: HeadWhere }) {
   if (!ctx.edit) return null;
-  const ops = headOpsFor(type, props, where);
+  const { ta } = await editI18n(ctx, "blockRegLabels");
+  const ops = headOpsFor(type, props, where, ta);
   if (!ops.length) return null;
   return (
     <div className={`pe-head-anchor${where.cell ? "" : " shell"}`} data-head-for={uid} data-head-state={headState(props, where)}>

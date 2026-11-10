@@ -8,7 +8,8 @@ import { useEffect, useRef } from "react";
  * raccourci Échap — sauf pendant une saisie ou quand une fenêtre (visionneuse,
  * dialogue) est ouverte : Échap la ferme d'abord.
  */
-export default function PreviewExit() {
+/** `label` et `title` : textes de l'admin dans la langue d'interface, fournis par le bandeau (rendu serveur, hors du fournisseur de la toile). */
+export default function PreviewExit({ label, title }: { label: string; title: string }) {
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (window.top !== window) return;
@@ -25,8 +26,8 @@ export default function PreviewExit() {
   }, []);
   return (
     <form ref={form} method="post" action="/admin/apercu/quitter">
-      <button type="submit" aria-keyshortcuts="Escape" title="Quitter l'aperçu (Échap)">
-        Quitter l&apos;aperçu
+      <button type="submit" aria-keyshortcuts="Escape" title={title}>
+        {label}
       </button>
     </form>
   );

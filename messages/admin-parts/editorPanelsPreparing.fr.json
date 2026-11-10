@@ -1,0 +1,19 @@
+{
+  "secondCreated": "Second thème créé : « {name} » (dans « Mes anciens thèmes »)",
+  "useModel": "Utiliser ce modèle",
+  "adoptOld": "En faire mon thème",
+  "publishVersion": "Publier cette version",
+  "sentenceMine": "Tu prépares <strong>{name}</strong> (version {version}, brouillon) : elle n'est pas encore en ligne (tes visiteurs voient encore « {live} »).",
+  "sentenceOther": "Tu prépares le thème <strong>{name}</strong> : il n'est pas encore en ligne (tes visiteurs voient encore « {live} »).",
+  "stop": "Arrêter l'aperçu",
+  "replaceTitle": "Remplacer mon thème (version {version}) par {name} ?",
+  "replace": "Remplacer",
+  "second": "Créer un second thème",
+  "replaceText": "Tu pourras revenir à la version {version}.",
+  "replaceNote": "« Remplacer » ajoute une nouvelle version à Mon thème (la version {version} reste dans l'historique). Ton site ne change pas tant que tu ne publies pas.",
+  "publishFresh": "Version {version} de Mon thème créée : la mettre en ligne ?",
+  "publishTitle": "Publier la version {version} de « {name} » ?",
+  "swap": "Mon thème : v{version}",
+  "publishNote": "Tous tes visiteurs verront cette version dès maintenant, sur toutes les pages.",
+  "publishLater": "Sinon elle reste en brouillon : tu la retrouves dans l'éditeur et sur l'écran Thèmes."
+}

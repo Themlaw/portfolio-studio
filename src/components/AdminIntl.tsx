@@ -8,7 +8,9 @@
  * Jamais servi sans session admin : le catalogue n'est lu que par PreviewBanner, derrière isAdminPreview().
  */
 import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
+
+import { makeAdminTranslator, type AdminT } from "@/i18n/admin-lang";
 
 export type AdminIntlData = { locale: string; messages: AbstractIntlMessages };
 
@@ -23,6 +25,15 @@ const snapshot = () => current;
 /** Catalogue d'admin de la page courante (null hors vue admin). Pour EditOnly, qui est rendu dans l'arbre du site public. */
 export function useAdminIntlData(): AdminIntlData | null {
   return useSyncExternalStore(subscribe, snapshot, () => null);
+}
+
+/**
+ * Traducteur d'un espace de noms d'admin pour un attribut ou un texte posé HORS d'un <EditOnly> dans l'arbre du site (ex. un `data-placeholder`
+ * de la vue brouillon). Null tant que le catalogue n'est pas là (rendu serveur, première hydratation) : l'appelant n'écrit alors rien.
+ */
+export function useAdminTranslator(namespace: string): AdminT | null {
+  const data = useAdminIntlData();
+  return useMemo(() => (data ? makeAdminTranslator(data.locale.startsWith("en") ? "en" : "fr", data.messages as never, namespace) : null), [data, namespace]);
 }
 
 export function AdminIntlProvider({ locale, messages, children }: AdminIntlData & { children: ReactNode }) {

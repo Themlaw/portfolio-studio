@@ -12,6 +12,8 @@
  */
 import { imageBgCss } from "@/lib/look";
 
+import { useTranslations } from "next-intl";
+
 import { ImageBgControls } from "./ImageBgControls";
 import { lookOf } from "./LookLayer";
 import Popover, { type PopoverAnchor, useLocalValue } from "./Popover";
@@ -23,11 +25,12 @@ export { ImageBgControls, imageBgName } from "./ImageBgControls";
 
 /** Bouton « Fond image » de la barre d'outils d'une image : petit échantillon carré de la couleur du fond (rien : aucun fond). */
 export function ImageBgButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
+  const t = useTranslations("editMenusImageBg");
   const bg = imageBgCss(lookOf(uid).imageBg);
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)" onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="imgbg-button" title={t("buttonTitle")} onClick={onToggle}>
       {bg && <span className="sm-swatch" data-testid="imgbg-swatch" style={{ background: bg }} aria-hidden="true" />}
-      Fond image
+      {t("button")}
     </button>
   );
 }
@@ -38,9 +41,10 @@ export function ImageBgButton({ uid, open, onToggle }: { uid: string; open: bool
  * carrousel (`look.slotLook[slug].bg`), image de Planche libre (`items[].bg`).
  */
 export default function ImageBgWindow({ anchor, value, onChange, onClose, testId = "imgbg-menu" }: { anchor: PopoverAnchor; value: string | undefined; onChange: (next: string | undefined) => void; onClose: () => void; testId?: string }) {
+  const t = useTranslations("editMenusImageBg");
   const [cur, setCur] = useLocalValue(value);
   return (
-    <Popover anchor={anchor} label="Fond de l'image" testId={testId} onClose={onClose}>
+    <Popover anchor={anchor} label={t("title")} testId={testId} onClose={onClose}>
       <ImageBgControls
         value={cur}
         onChange={(next) => {

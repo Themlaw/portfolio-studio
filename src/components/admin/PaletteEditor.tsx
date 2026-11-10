@@ -12,7 +12,8 @@ import { useTranslations } from "next-intl";
 import { useId, useState, type CSSProperties, type ReactNode } from "react";
 
 import AdminColorPicker from "./AdminColorPicker";
-import { pairsReadability, ratioTip, readability } from "@/components/edit/readability";
+import { pairsReadability, readability } from "@/components/edit/readability";
+import { useReadability } from "@/components/edit/useReadability";
 import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/themes/color-format";
 import { AA, adjustToken, pairsForToken } from "@/themes/contrast";
 import { contrastRatio, isAuto, PALETTE_GROUPS, resolvePalette, ROLE_NAMES, setBase, setNuance, type BaseKey, type NuanceKey, type NuanceSpec, type PaletteKey, type ResolvedPalette } from "@/themes/palette";
@@ -55,6 +56,7 @@ type FieldProps = {
 
 export function ColorField({ tokenKey, label, help, free, value, contrastColors, onChange, serverError, lastEdited, nuance }: FieldProps) {
   const t = useTranslations("palette");
+  const read = useReadability();
   const id = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft ?? value;
@@ -104,13 +106,13 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
           onBlur={() => setDraft(null)}
         />
         {pairs.length > 0 && (
-          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => t("labelValue", { label: p.label, value: ratioTip(p.ratio) })).join("\n")}>
-            {failing.length ? "✗" : "✓"} {t("readability", { label: pairsReadability(pairs).label })}
+          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => t("labelValue", { label: p.label, value: read.tip(p.ratio) })).join("\n")}>
+            {failing.length ? "✗" : "✓"} {t("readability", { label: read.word(pairsReadability(pairs)) })}
           </span>
         )}
         {extra && (
-          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={t("labelValue", { label: extra.label, value: ratioTip(extra.ratio) })}>
-            {extraBad ? "✗" : "✓"} {t("extraReadability", { label: extra.label, value: readability(extra.ratio).label })}
+          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={t("labelValue", { label: extra.label, value: read.tip(extra.ratio) })}>
+            {extraBad ? "✗" : "✓"} {t("extraReadability", { label: extra.label, value: read.word(readability(extra.ratio)) })}
           </span>
         )}
       </div>
@@ -127,13 +129,13 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
       )}
       {!valid && <p className="a-field-error">{t("formatExpected", { format: free ? FREE_FORMAT_HINT : "#rrggbb" })}</p>}
       {extraBad && extra && (
-        <p className="a-field-error" role="alert" title={ratioTip(extra.ratio)}>
+        <p className="a-field-error" role="alert" title={read.tip(extra.ratio)}>
           {t("scrimBad")}
         </p>
       )}
       {blamed && (
         <div className="a-field-error" role="alert">
-          <p title={ratioTip(worst)}>
+          <p title={read.tip(worst)}>
             {t("insufficient", { list: failing.map((p) => p.label.toLowerCase()).join(", ") })}
           </p>
           {fixed ? (

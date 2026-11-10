@@ -15,6 +15,7 @@ import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
 import { BlockCaption, capHost, captionPart } from "./caption";
 import { childBlock, inline, localized, localizedText, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 
 export const gridSchema = z.object({
@@ -55,6 +56,7 @@ export const gridSchema = z.object({
  */
 export default async function GridBlock({ props, ctx, children }: { props: z.infer<typeof gridSchema>; ctx: BlockContext; children?: ReactNode }) {
   const cells = Children.toArray(children);
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.gridCanvas) });
   // Repères des cases (numéros, places libres, « + Image »…) : la toile d'une page, ou celle d'une grille de planche (lot 31d).
   const canvas = Boolean(ctx.edit || ctx.gridCanvas);
   // « Automatique » (lot 31e) : la taille de chaque case suit le format réel de son média, lu à chaque rendu (page publiée,
@@ -143,7 +145,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         </div>
       )}
       {showEyebrow && (
-        <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette" } : {})}>
+        <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": ta("label") } : {})}>
           {tr(props.eyebrow!, ctx.locale)}
         </Eyebrow>
       )}
@@ -151,7 +153,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         <h2
           className={`mt-3 font-display text-[clamp(1.75rem,4vw,2.75rem)] text-ink ${hasText(props.title) ? "mb-8" : ""}`}
           {...inline(ctx, "title")}
-          {...(ctx.edit ? { "data-placeholder": "Titre" } : {})}
+          {...(ctx.edit ? { "data-placeholder": ta("title") } : {})}
         >
           {tr(props.title!, ctx.locale)}
         </h2>
@@ -190,7 +192,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
               className="block-grid-cell"
               data-edit-cell-free=""
               data-cell-index={index}
-              lang="fr"
+              lang={lang}
               {...sizeAttrs(size)}
               {...justAttrs(cells.length + i)}
               {...(canvas ? { style: { ...(custom && !justified ? { "--w": size.w, "--h": size.h } : {}), ...(justAttrs(cells.length + i).style ?? {}), "--free-r": justified ? 1 : Math.max(0.2, (unit * size.w) / size.h) } as CSSProperties } : {})}
@@ -201,8 +203,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
                   {index + 1}
                 </span>
                 {/* Deux choix clairs (lot 25) : une image ou une vidéo de la médiathèque (ou de l'ordinateur), posée dans cette case. */}
-                <span className="pe-cell-media" role="group" aria-label={`Que mettre dans la case ${index + 1} ?`}>
-                  {([["image", "Image"], ["video", "Vidéo"]] as const).map(([k, label]) => (
+                <span className="pe-cell-media" role="group" aria-label={ta("cellQuestion", { n: index + 1 })}>
+                  {([["image", ta("image")], ["video", ta("video")]] as const).map(([k, label]) => (
                     <button key={k} type="button" className="pe-cell-pick" data-edit-cell-media={k}>
                       <span aria-hidden="true">+</span> {label}
                     </button>
@@ -210,10 +212,10 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
                 </span>
                 {ctx.edit && (
                   <>
-                    <span className="pe-cell-or">ou du texte</span>
+                    <span className="pe-cell-or">{ta("orText")}</span>
                     {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
                     <span className="pe-cell-choices">
-                      {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"], ["free", "Planche libre"]] as const).map(([k, label]) => (
+                      {([["text", ta("cellText")], ["title", ta("cellTitle")], ["title-text", ta("cellTitleText")], ["free", ta("cellFreeBoard")]] as const).map(([k, label]) => (
                         <button key={k} type="button" className="pe-cell-text" data-edit-cell-text={k}>
                           {label}
                         </button>

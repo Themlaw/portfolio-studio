@@ -1,0 +1,7 @@
+{
+  "good": "bonne",
+  "fair": "juste",
+  "poor": "insuffisante",
+  "text": "Lisibilité : {verdict}",
+  "tip": "Contraste {ratio}:1 (il faut au moins {need}:1)"
+}

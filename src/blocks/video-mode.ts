@@ -10,23 +10,25 @@
  * en boucle, vidéo longue en lecteur), le comportement d'avant.
  */
 
+import { FR_LABELS } from "./block-msg";
+
 export type VideoMode = "loop" | "player";
 export const VIDEO_MODES: VideoMode[] = ["loop", "player"];
 export const isVideoMode = (v: unknown): v is VideoMode => v === "loop" || v === "player";
 
 /** Libellés courts (barres de la toile). */
-export const VIDEO_MODE_LABELS: Record<VideoMode, string> = { loop: "Boucle", player: "Lecteur" };
+export const VIDEO_MODE_LABELS: Record<VideoMode, string> = FR_LABELS.videoMode.label; // interface : t("videoMode.label." + mode)
 /** Une phrase par mode (panneau). */
-export const VIDEO_MODE_HINTS: Record<VideoMode, string> = {
-  loop: "Boucle : la vidéo tourne en boucle, sans le son. Un clic la met en pause, un autre la relance.",
-  player: "Lecteur : un clic ouvre la vidéo en grand, avec ses commandes et le son.",
-};
+export const VIDEO_MODE_HINTS: Record<VideoMode, string> = FR_LABELS.videoMode.hint; // interface : t("videoMode.hint." + mode)
 
-/** Options du panneau (liste déroulante) d'un composant Vidéo. */
+/** Options du panneau (liste déroulante) d'un composant Vidéo (français ; interface : `t("videoMode.option." + value)`). */
 export const VIDEO_MODE_OPTIONS: { value: VideoMode; label: string }[] = [
-  { value: "loop", label: "Boucle (sans le son)" },
-  { value: "player", label: "Lecteur (s'ouvre en grand)" },
+  { value: "loop", label: FR_LABELS.videoMode.option.loop },
+  { value: "player", label: FR_LABELS.videoMode.option.player },
 ];
 
 /** Mode d'un composant Vidéo : sans réglage, le lecteur (le comportement d'avant). */
+/** Options du panneau dans la langue de `tl` (espace blockRegLabels). */
+export const videoModeOptions = (tl: (key: string) => string): { value: VideoMode; label: string }[] => VIDEO_MODES.map((m) => ({ value: m, label: tl(`videoMode.option.${m}`) }));
+
 export const modeOf = (props: Record<string, unknown> | undefined): VideoMode => (isVideoMode(props?.mode) ? props.mode : "player");

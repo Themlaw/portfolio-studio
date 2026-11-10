@@ -1,0 +1,23 @@
+{
+  "rowLabel": "Text background:",
+  "rowAria": "Text background",
+  "backdrop_none": "None",
+  "backdrop_shadow": "Soft shadow",
+  "backdrop_band": "Banner",
+  "backdrop_highlight": "Highlight",
+  "chosenColor": "chosen colour",
+  "auto": "Auto",
+  "dotLabel": "Background colour: {name}",
+  "lowTip": "Text hard to read on this background. {tip}",
+  "lowAria": "Text hard to read on this background ({verdict})",
+  "popAria": "Text background colour",
+  "colorLabel": "Background colour",
+  "otherColor": "Other colour…",
+  "keptColor": "Text colour chosen: kept, even if hard to read.",
+  "autoReadable": "The text becomes readable on its own on a background colour.",
+  "airLabel": "Background spacing:",
+  "airAria": "Background spacing",
+  "air_tight": "Tight",
+  "air_normal": "Normal",
+  "air_airy": "Airy"
+}

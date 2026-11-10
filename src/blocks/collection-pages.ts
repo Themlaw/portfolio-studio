@@ -7,6 +7,8 @@
  * la migration 0022 et les tests Node.
  */
 
+import { FR_LABELS } from "./block-msg";
+
 export type L = { fr: string; en: string };
 export type CollectionKey = "characters" | "backgrounds" | "animation";
 export const COLLECTION_KEYS: readonly CollectionKey[] = ["characters", "backgrounds", "animation"];
@@ -32,7 +34,8 @@ export type TileItem = { collection?: CollectionKey; pageId: number; eyebrow: L;
 export type EntryPage = { pageId: number; collection?: CollectionKey; eyebrow: L; title: L; intro: L };
 
 /** Nom des collections dans l'interface (mots de l'admin : COLLECTION_OPTIONS). */
-export const COLLECTION_NAMES: Record<CollectionKey, string> = { characters: "Personnages", backgrounds: "Décors", animation: "Animation" };
+/** Noms français (test, rendu serveur) ; dans l'interface : `t("collection." + clé)` (espace blockRegLabels). */
+export const COLLECTION_NAMES: Record<CollectionKey, string> = FR_LABELS.collection;
 const isMediaId = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
 export const TEXT_FIELDS = ["eyebrow", "title", "intro"] as const;
 export type TextField = (typeof TEXT_FIELDS)[number];
@@ -187,7 +190,8 @@ export const tileVisibility = (works: number, edit: boolean): "tile" | "notice" 
 /** Taille des images d'une tuile. */
 export type TileSize = "small" | "medium" | "large";
 export const TILE_SIZES: readonly TileSize[] = ["small", "medium", "large"];
-export const TILE_SIZE_LABELS: Record<TileSize, string> = { small: "Petite", medium: "Moyenne", large: "Grande" };
+/** Libellés français ; dans l'interface : `t("tileSize." + taille)` (espace blockRegLabels). */
+export const TILE_SIZE_LABELS: Record<TileSize, string> = FR_LABELS.tileSize;
 /** Colonnes (sur 12) de l'image, plafond de hauteur de l'image (en svh) et `sizes` de l'image. */
 export const TILE_GEOMETRY: Record<TileSize, { cols: number; cap: number; sizes: string }> = {
   small: { cols: 5, cap: 50, sizes: "(min-width: 768px) 42vw, 100vw" },

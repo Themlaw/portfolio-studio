@@ -17,7 +17,10 @@ import Database from "better-sqlite3";
 
 import { BLOCKS, blockCatalog } from "../src/blocks/registry.ts";
 import { pickerGroups } from "../src/blocks/groups.ts";
-import { STARTER_LIST } from "../src/blocks/help-text.ts";
+import { starterList } from "../src/blocks/help-text.ts";
+import { frT } from "./lib/admin-fr.mjs";
+
+const STARTER_LIST = starterList(frT("blockHelp"));
 import { fieldOpDef, FIELD_OP_NAMES, hasOptionalField, hasText, withOptionalField } from "../src/blocks/optional-fields.ts";
 import { contactSchema } from "../src/blocks/ContactBlock.tsx";
 import { defaultContactForm, isFormBlock, withContactForm } from "../src/lib/contact-form.ts";

@@ -1,5 +1,5 @@
 import { intlLocale } from "@/i18n/admin-lang";
-import { getAdminLang, getAdminMessages } from "@/i18n/admin-server";
+import { getAdminLang, getAdminMessages, getAdminT } from "@/i18n/admin-server";
 import { isDraftView } from "@/lib/draft-view";
 import { isAdminPreview } from "@/lib/page-preview";
 import { getPreviewTheme, isPreviewBannerHidden } from "@/lib/theme";
@@ -29,7 +29,9 @@ export default async function PreviewBanner() {
   if (!theme && !admin) return null;
   const drafts = admin && (await isDraftView());
   // Lot 130b : les commandes d'édition de la toile parlent la langue de l'interface d'admin (réglage du compte), pas celle du site.
-  const intl = admin ? { locale: intlLocale(await getAdminLang()), messages: (await getAdminMessages()) as never } : null;
+  const lang = await getAdminLang();
+  const intl = admin ? { locale: intlLocale(lang), messages: (await getAdminMessages()) as never } : null;
+  const t = await getAdminT("canvasPreview");
   if (await isPreviewBannerHidden()) return admin && intl ? <AdminIntlProvider {...intl}><PreviewBridgeLoader /></AdminIntlProvider> : null;
   return (
     <>
@@ -40,23 +42,23 @@ export default async function PreviewBanner() {
         </AdminIntlProvider>
       )}
       <div className="preview-banner-spacer" aria-hidden="true" />
-      <div className="preview-banner" role="status" lang="fr">
+      <div className="preview-banner" role="status" lang={lang}>
         <span>
           {theme ? (
             <>
-              Aperçu du thème : <strong>{theme.name}</strong>
+              {t("themePreview")} <strong>{theme.name}</strong>
             </>
           ) : drafts ? (
             <>
-              <strong>Aperçu du site</strong> : brouillons et pages non publiées visibles
+              <strong>{t("sitePreview")}</strong>{t("draftsVisible")}
             </>
           ) : (
             <>
-              <strong>Aperçu du site</strong> : pages non publiées visibles
+              <strong>{t("sitePreview")}</strong>{t("unpublishedVisible")}
             </>
           )}
         </span>
-        <PreviewExit />
+        <PreviewExit label={t("exit")} title={t("exitTitle")} />
       </div>
     </>
   );

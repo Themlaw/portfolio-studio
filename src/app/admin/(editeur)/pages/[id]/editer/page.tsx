@@ -51,7 +51,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       overlaySlugs={overlayProjectSlugs(Number(id))}
       paths={{ fr: self ? pathOf("fr", self.slug.fr) : "/fr", en: self ? pathOf("en", self.slug.en) : "/en" }}
       pages={pages.map(({ id, title }) => ({ id, title }))}
-      catalog={blockCatalog(Boolean(self?.special))}
+      catalog={blockCatalog(Boolean(self?.special), await getAdminT("blockReg"))}
       editors={blockEditors()}
       context={getEditorContext(Number(id))}
       siteName={siteNameFor(site.snap.identity.name, "fr") || "Portfolio"}

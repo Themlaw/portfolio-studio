@@ -16,6 +16,7 @@ import { getSiteView } from "@/lib/settings";
 
 import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, orderEntryPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type EntryPage, type TileItem } from "./collection-pages";
 import { collection, inline, localized, mediaRef, pageRef, textStyle, tr, type BlockContext, localizedText } from "./types";
+import { editI18n } from "./edit-i18n";
 
 const itemSchema = z.object({ collection: collection.optional(), pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText, mediaId: mediaRef.optional() });
 
@@ -57,6 +58,7 @@ export default async function CollectionTilesBlock({
   ctx: BlockContext;
 }) {
   const eager = claimEager(2);
+  const { ta } = await editI18n(ctx, "blockRegLabels");
   const t = await getTranslations("home.collections");
   const tg = await getTranslations("gallery");
   const size = tileSize(props.size);
@@ -113,7 +115,7 @@ export default async function CollectionTilesBlock({
     const works = await countCollection(row.collection);
     const visibility = tileVisibility(works, Boolean(ctx.edit));
     if (visibility !== "tile") {
-      if (visibility === "notice") tiles.push({ key: row.key, empty: true, collectionName: COLLECTION_NAMES[row.collection], pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
+      if (visibility === "notice") tiles.push({ key: row.key, empty: true, collectionName: ctx.edit ? ta(`collection.${row.collection}`) : COLLECTION_NAMES[row.collection], pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
       continue;
     }
     // Couverture choisie sur la tuile (une image de la médiathèque), sinon celle de la collection (œuvre « Couverture » de l'admin, ou la première).

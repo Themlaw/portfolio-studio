@@ -9,6 +9,7 @@
  * des crans bornés (src/lib/look.ts). Classes neutres `tc-*` : la toile
  * (look-layer.css) et le panneau (look-panel.css) les habillent.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
 import { fontLabel, fontStack, googleOf, PALETTE_DISPLAY, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
@@ -22,10 +23,9 @@ import MenuSelect from "./MenuSelect";
 
 import "@/app/admin/typo-controls.css";
 
-const WEIGHT_LABELS: Record<number, string> = { 100: "Fine", 200: "Très légère", 300: "Légère", 400: "Normale", 500: "Moyenne", 600: "Demi-grasse", 700: "Grasse", 800: "Très grasse", 900: "Noire" };
 const round = (n: number, d: number) => Math.round(n * 10 ** d) / 10 ** d;
 /** Espacement des lettres en mots : « Normal », sinon le nombre de crans (chaque cran = 0,01 em), l'em restant dans l'info-bulle. */
-const trackingText = (t: number) => (Math.round(t * 100) === 0 ? "Normal" : `${t > 0 ? "+" : "−"}${Math.abs(Math.round(t * 100))}`);
+const trackingText = (v: number, normal: string) => (Math.round(v * 100) === 0 ? normal : `${v > 0 ? "+" : "−"}${Math.abs(Math.round(v * 100))}`);
 
 export type TypoProps = {
   value: TextStyle;
@@ -46,7 +46,9 @@ export type TypoProps = {
   inheritedColor?: string;
 };
 
-export default function TypoControls({ value, onChange, installed, swatch, themeNames, resetLabel = "Réinitialiser", compact, palette, backdropBlocked, inheritedColor }: TypoProps) {
+export default function TypoControls({ value, onChange, installed, swatch, themeNames, resetLabel, compact, palette, backdropBlocked, inheritedColor }: TypoProps) {
+  const t = useTranslations("editMenusTypo");
+  const locale = useLocale();
   const [menu, setMenu] = useState(false);
   const fontButton = useRef<HTMLButtonElement>(null);
   const set = (patch: Partial<TextStyle>) => {
@@ -63,59 +65,59 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
   return (
     <div className="tc" data-compact={compact || undefined}>
       <div className="tc-row">
-        <button ref={fontButton} type="button" className="tc-font" aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((m) => !m)} title="Police">
-          <span className="tc-font-name">{value.font ? fontLabel(value.font) : "Police du style"}</span>
+        <button ref={fontButton} type="button" className="tc-font" aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((m) => !m)} title={t("fontTitle")}>
+          <span className="tc-font-name">{value.font ? fontLabel(value.font) : t("fontOfStyle")}</span>
           <span aria-hidden="true">▾</span>
         </button>
         <MenuSelect
-          label="Taille"
-          placeholder="Taille"
-          title="Taille du texte"
-          emptyLabel="Taille du thème"
+          label={t("size")}
+          placeholder={t("size")}
+          title={t("sizeTitle")}
+          emptyLabel={t("sizeTheme")}
           value={value.size ?? ""}
           options={SIZES.map((s) => ({ value: s, label: SIZE_LABELS[s] }))}
           onChange={(v) => set({ size: (v || undefined) as TextStyle["size"], ...(v ? {} : { scale: undefined }) })}
         />
-        <span className="tc-step" role="group" aria-label="Ajuster la taille">
-          <button type="button" aria-label="Plus petit" title={value.size ? "Plus petit (−5 %)" : "Choisis d'abord une taille"} disabled={!value.size || scale <= 0.5} onClick={() => set({ scale: round(Math.max(0.5, scale - 0.05), 2) === 1 ? undefined : round(Math.max(0.5, scale - 0.05), 2) })}>
+        <span className="tc-step" role="group" aria-label={t("sizeAdjust")}>
+          <button type="button" aria-label={t("smaller")} title={value.size ? t("smallerTitle") : t("pickSizeFirst")} disabled={!value.size || scale <= 0.5} onClick={() => set({ scale: round(Math.max(0.5, scale - 0.05), 2) === 1 ? undefined : round(Math.max(0.5, scale - 0.05), 2) })}>
             −
           </button>
           <output className="tc-num" aria-live="polite">{Math.round(scale * 100)} %</output>
-          <button type="button" aria-label="Plus grand" title={value.size ? "Plus grand (+5 %)" : "Choisis d'abord une taille"} disabled={!value.size || scale >= 2} onClick={() => set({ scale: round(Math.min(2, scale + 0.05), 2) === 1 ? undefined : round(Math.min(2, scale + 0.05), 2) })}>
+          <button type="button" aria-label={t("larger")} title={value.size ? t("largerTitle") : t("pickSizeFirst")} disabled={!value.size || scale >= 2} onClick={() => set({ scale: round(Math.min(2, scale + 0.05), 2) === 1 ? undefined : round(Math.min(2, scale + 0.05), 2) })}>
             +
           </button>
         </span>
         <MenuSelect
-          label="Graisse"
-          placeholder="Graisse"
-          title="Graisse"
-          emptyLabel="Graisse du thème"
+          label={t("weight")}
+          placeholder={t("weight")}
+          title={t("weight")}
+          emptyLabel={t("weightTheme")}
           value={value.weight ? String(value.weight) : ""}
           options={WEIGHTS.map((w) => {
             const missing = !weights.includes(w);
-            return { value: String(w), label: `${w} · ${WEIGHT_LABELS[w]}`, disabled: missing, hint: missing ? "absente" : undefined, style: { fontWeight: w, fontFamily: (value.font && fontStack(value.font)) || undefined } };
+            return { value: String(w), label: `${w} · ${t(`w${w}`)}`, disabled: missing, hint: missing ? t("missing") : undefined, style: { fontWeight: w, fontFamily: (value.font && fontStack(value.font)) || undefined } };
           })}
           onChange={(v) => set({ weight: v ? Number(v) : undefined })}
         />
-        <button type="button" className="tc-toggle tc-italic" aria-pressed={value.italic === true} title="Italique" onClick={() => set({ italic: value.italic ? undefined : true })}>
+        <button type="button" className="tc-toggle tc-italic" aria-pressed={value.italic === true} title={t("italic")} onClick={() => set({ italic: value.italic ? undefined : true })}>
           I
         </button>
-        <button type="button" className="tc-toggle tc-caps" aria-pressed={value.case === "upper"} title="Tout le texte en majuscules" onClick={() => set({ case: value.case === "upper" ? "normal" : "upper" })}>
-          Majuscules
+        <button type="button" className="tc-toggle tc-caps" aria-pressed={value.case === "upper"} title={t("capsTitle")} onClick={() => set({ case: value.case === "upper" ? "normal" : "upper" })}>
+          {t("caps")}
         </button>
-        <span className="tc-step tc-tracking" role="group" aria-label="Espacement des lettres" title={`Espacement des lettres : ${round(tracking, 2).toLocaleString("fr-FR")} em`}>
-          <span className="tc-step-label">Espacement des lettres</span>
-          <button type="button" aria-label="Resserrer les lettres" title="Resserrer les lettres" disabled={tracking <= -0.05} onClick={() => set({ tracking: round(Math.max(-0.05, tracking - 0.01), 2) })}>
+        <span className="tc-step tc-tracking" role="group" aria-label={t("tracking")} title={t("trackingTitle", { value: round(tracking, 2).toLocaleString(locale) })}>
+          <span className="tc-step-label">{t("tracking")}</span>
+          <button type="button" aria-label={t("tighten")} title={t("tighten")} disabled={tracking <= -0.05} onClick={() => set({ tracking: round(Math.max(-0.05, tracking - 0.01), 2) })}>
             −
           </button>
-          <output className="tc-num" aria-live="polite">{trackingText(tracking)}</output>
-          <button type="button" aria-label="Espacer les lettres" title="Espacer les lettres" disabled={tracking >= 0.4} onClick={() => set({ tracking: round(Math.min(0.4, tracking + 0.01), 2) })}>
+          <output className="tc-num" aria-live="polite">{trackingText(tracking, t("normal"))}</output>
+          <button type="button" aria-label={t("loosen")} title={t("loosen")} disabled={tracking >= 0.4} onClick={() => set({ tracking: round(Math.min(0.4, tracking + 0.01), 2) })}>
             +
           </button>
         </span>
       </div>
       <div className="tc-row">
-        <span className="tc-swatches" role="radiogroup" aria-label="Couleur">
+        <span className="tc-swatches" role="radiogroup" aria-label={t("color")}>
           {PALETTE_DISPLAY.map((c) => (
             <button
               key={c}
@@ -132,13 +134,13 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
           <ColorPicker value={value.color} onChange={(color) => set({ color })} swatch={swatch} />
           {value.color && (
             <span className="tc-color-name" data-testid="text-color-name">
-              {PALETTE_LABELS[value.color as PaletteColor] ?? "Couleur libre"}
+              {PALETTE_LABELS[value.color as PaletteColor] ?? t("freeColor")}
             </span>
           )}
         </span>
-        <span className="tc-seg" role="radiogroup" aria-label="Alignement">
+        <span className="tc-seg" role="radiogroup" aria-label={t("alignment")}>
           {(["left", "center", "right"] as const).map((a) => (
-            <button key={a} type="button" role="radio" aria-checked={value.align === a} title={a === "left" ? "À gauche" : a === "center" ? "Centré" : "À droite"} onClick={() => set({ align: value.align === a ? undefined : a })}>
+            <button key={a} type="button" role="radio" aria-checked={value.align === a} title={a === "left" ? t("alignLeft") : a === "center" ? t("alignCenter") : t("alignRight")} onClick={() => set({ align: value.align === a ? undefined : a })}>
               <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
                 {[1, 5, 9].map((y, i) => {
                   const w = i === 1 ? 8 : 12;
@@ -150,7 +152,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
           ))}
         </span>
         <button type="button" className="tc-reset" onClick={() => onChange(undefined)} disabled={!Object.keys(value).length}>
-          {resetLabel}
+          {resetLabel ?? t("reset")}
         </button>
       </div>
       <BackdropRow value={value} set={set} palette={palette} swatch={swatch} blocked={backdropBlocked} inheritedColor={inheritedColor} />

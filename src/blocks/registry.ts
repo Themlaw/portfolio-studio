@@ -9,12 +9,16 @@
 import { createElement, type ComponentType, type ReactNode } from "react";
 import { z } from "zod";
 
+import type { AdminT } from "@/i18n/admin-lang";
+
 import { initialExitProps } from "@/lib/db/seed-404";
 import { LookSchema } from "@/lib/look";
 import { markedProblem } from "@/lib/marked";
 import { BackgroundSchema } from "@/themes/fond";
 import { SurfaceSchema } from "@/themes/surface";
 
+import catalogFr from "../../messages/admin-parts/blockReg.fr.json";
+import { fillTemplate } from "./block-msg";
 
 import CollectionIntroBlock, { collectionIntroSchema } from "./CollectionIntroBlock";
 import CollectionProjectsBlock, { collectionProjectsSchema } from "./CollectionProjectsBlock";
@@ -70,6 +74,15 @@ import RichTextBlock, { richTextSchema } from "./RichTextBlock";
 import type { BlockContext } from "./types";
 import VideoBlock, { videoSchema } from "./VideoBlock";
 
+/**
+ * Textes du registre (noms, descriptions, résumés, messages de publication) : source = catalogue `blockReg` (messages/admin-parts).
+ * Le français sert aux tests, aux messages serveur sans traducteur et de valeur par défaut ; l'interface passe un traducteur
+ * (`blockCatalog(special, t)`, `blockTypeLabel(type, t)`, `ctx.t` de publishCheck), espace `blockReg`.
+ */
+const R = catalogFr;
+type PublishCtx = { project?: string; t?: AdminT };
+const pub = (ctx: PublishCtx | undefined, key: keyof typeof catalogFr.publish, values?: Record<string, string | number>) => (ctx?.t ? ctx.t(`publish.${key}`, values) : fillTemplate(R.publish[key], values));
+
 export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
   type: string;
   schema: S;
@@ -102,7 +115,7 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
    * Condition de publication en plus du schéma (un brouillon peut rester
    * incomplet, la page publiée non) : message d'erreur, ou null.
    */
-  publishCheck?: (props: Record<string, unknown>, ctx: { project?: string }) => string | null;
+  publishCheck?: (props: Record<string, unknown>, ctx: PublishCtx) => string | null;
   /**
    * Conteneur (v0.13) : types de composants acceptés (table de tree.ts).
    * Ses composants sont dans props.children.
@@ -132,7 +145,7 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
 
 function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "container">): BlockDefinition {
   const refs = BLOCK_REFS[def.type];
-  if (!refs) throw new Error(`Bloc « ${def.type} » : références non déclarées dans src/blocks/refs.ts`);
+  if (!refs) throw new Error(`Block "${def.type}": refs not declared in src/blocks/refs.ts`);
   const container = Object.hasOwn(CONTAINERS, def.type) ? CONTAINERS[def.type] : undefined;
   // Mise en page (lot 2) : tout bloc porte ses réglages `look` (src/lib/look.ts) ;
   // un réglage illisible est ignoré, il ne masque jamais le bloc.
@@ -178,12 +191,12 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: projectBoardSchema,
       Component: ProjectBoardBlock,
       Editor: ProjectBoardEditor,
-      label: "Projet",
-      description: "Un projet et ses images en bande : crée-le sur la page, ou reprends un projet existant.",
+      label: R.types["project-board"].label,
+      description: R.types["project-board"].description,
       defaults: {},
-      summary: "Projet · {project}",
+      summary: R.types["project-board"].summary,
       inline: [],
-      publishCheck: (props, ctx) => (props.project || ctx.project ? null : "Nomme ce projet, ou choisis-en un existant."),
+      publishCheck: (props, ctx) => (props.project || ctx.project ? null : pub(ctx, "projectName")),
     }),
     // Ancien conteneur (v0.13 à v0.18), retiré en v0.19 : la migration 0021 (src/lib/db/unwrap.ts) en déballe les composants.
     // Encore rendu s'il en reste un (page de plus de 40 blocs une fois déballé), jamais proposé ni créable.
@@ -192,15 +205,15 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: featuredProjectSchema,
       Component: FeaturedProjectBlock,
       Editor: FeaturedProjectEditor,
-      label: "Projet mis en avant (ancien)",
-      description: "Ancien bloc, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Projet…).",
+      label: R.types["featured-project"].label,
+      description: R.types["featured-project"].description,
       defaults: { children: [] },
-      summary: "{project} · {children} blocs",
+      summary: R.types["featured-project"].summary,
       inline: ["more.label"],
       deprecated: true,
-      publishCheck: (props) => {
+      publishCheck: (props, ctx) => {
         const more = props.more as { pageId?: number } | undefined;
-        return more && !more.pageId ? "Choisis la page du lien « voir plus »." : null;
+        return more && !more.pageId ? pub(ctx, "morePage") : null;
       },
     }),
     define({
@@ -210,13 +223,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: videoSingleSchema,
       Component: VideoSingleBlock,
       Editor: VideoSingleEditor,
-      label: "Vidéo",
-      description: "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
+      label: R.types["video-single"].label,
+      description: R.types["video-single"].description,
       defaults: { variant: "card", mode: "player" },
-      summary: "Vidéo · {title}",
+      summary: R.types["video-single"].summary,
       inline: ["eyebrow", "title", "description", "captionTitle", "captionDate"],
       mediaFields: [{ field: "mediaId", kind: "video" }],
-      publishCheck: (props) => (props.mediaId || props.slot ? null : "Choisis une vidéo (dépose-la, ou prends-la dans la médiathèque)."),
+      publishCheck: (props, ctx) => (props.mediaId || props.slot ? null : pub(ctx, "video")),
     }),
     define({
       type: "grid",
@@ -225,26 +238,26 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: gridSchema,
       Component: GridBlock,
       Editor: GridEditor,
-      label: "Grille",
-      description: "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
+      label: R.types["grid"].label,
+      description: R.types["grid"].description,
       defaults: { layout: "auto", children: [] },
-      summary: "Grille {layout} · {children} blocs",
+      summary: R.types["grid"].summary,
       inline: ["eyebrow", "title", "captionTitle", "caption", "captionDate"],
       presets: [
         {
           key: "grid-videos",
           order: 30,
-          short: "Avec des vidéos",
-          label: "Grille de vidéos",
-          description: "Une grande vidéo et deux petites dessous (l'agencement se change ensuite).",
+          short: R.presets["grid-videos"].short,
+          label: R.presets["grid-videos"].label,
+          description: R.presets["grid-videos"].description,
           defaults: { layout: "1+2", children: videos(GRID_PATTERN["1+2"]) },
         },
         {
           key: "grid-images",
           order: 20,
-          short: "Avec 3 images",
-          label: "Grille d'images",
-          description: "Trois images côte à côte (l'agencement se change ensuite).",
+          short: R.presets["grid-images"].short,
+          label: R.presets["grid-images"].label,
+          description: R.presets["grid-images"].description,
           defaults: { layout: "3", ratio: "auto", children: images(GRID_PATTERN["3"]) },
         },
       ],
@@ -256,13 +269,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: imageSchema,
       Component: ImageBlock,
       Editor: ImageEditor,
-      label: "Image",
-      description: "Une image seule, avec une légende facultative.",
+      label: R.types["image"].label,
+      description: R.types["image"].description,
       defaults: { width: "wide" },
-      summary: "Image · {caption}",
+      summary: R.types["image"].summary,
       inline: ["captionTitle", "caption", "captionDate"],
       mediaFields: [{ field: "mediaId", kind: "image" }],
-      publishCheck: (props) => (props.mediaId ? null : "Choisis une image (dépose-la, ou prends-la dans la médiathèque)."),
+      publishCheck: (props, ctx) => (props.mediaId ? null : pub(ctx, "image")),
     }),
     define({
       type: "free-board",
@@ -271,12 +284,12 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: freeBoardSchema,
       Component: FreeBoardBlock,
       Editor: FreeBoardEditor,
-      label: "Planche libre",
-      description: "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
+      label: R.types["free-board"].label,
+      description: R.types["free-board"].description,
       defaults: { format: "3:2", phone: "scale", items: [] },
-      summary: "Planche libre · {items} images",
+      summary: R.types["free-board"].summary,
       inline: ["captionTitle", "caption", "captionDate"],
-      publishCheck: (props) => (Array.isArray(props.items) && props.items.length > 0 ? null : "Ajoute au moins une image à la planche libre (glisse-la sur la zone, ou « + Image »)."),
+      publishCheck: (props, ctx) => (Array.isArray(props.items) && props.items.length > 0 ? null : pub(ctx, "freeBoard")),
     }),
     define({
       type: "cv",
@@ -285,13 +298,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: cvSchema,
       Component: CvBlock,
       Editor: CvEditor,
-      label: "CV",
-      description: "Ton CV : ses pages en images, lisibles et agrandissables, et un bouton pour télécharger le PDF.",
+      label: R.types["cv"].label,
+      description: R.types["cv"].description,
       defaults: { eyebrow: { fr: "Parcours", en: "Background" }, title: { fr: "Curriculum vitae", en: "Résumé" }, fileName: "cv" },
-      summary: "CV · {title}",
+      summary: R.types["cv"].summary,
       inline: ["eyebrow", "title", "intro", "button"],
       mediaFields: [{ field: "mediaId", kind: "pdf" }],
-      publishCheck: (props) => (props.mediaId ? null : "Choisis le PDF de ton CV (dépose-le sur le bloc, ou prends-le dans la médiathèque)."),
+      publishCheck: (props, ctx) => (props.mediaId ? null : pub(ctx, "cv")),
     }),
     define({
       type: "section-title",
@@ -300,13 +313,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: sectionTitleSchema,
       Component: SectionTitleBlock,
       Editor: SectionTitleEditor,
-      label: "Titre",
-      description: "Un titre, avec une étiquette, une présentation et des compteurs facultatifs ; peut être le titre principal de la page ; peut reprendre le nom et la présentation d'un projet.",
+      label: R.types["section-title"].label,
+      description: R.types["section-title"].description,
       // Sans présentation (clé `intro` absente) : aucune place ni texte d'aide pour un champ qu'on n'a pas demandé.
       defaults: { title: L },
-      summary: "{title}",
+      summary: R.types["section-title"].summary,
       inline: ["eyebrow", "title", "intro"],
-      publishCheck: (props, ctx) => titleHelpProblem(props) ?? (props.linked && !props.project && !ctx.project ? "Choisis le projet repris par ce titre." : null),
+      publishCheck: (props, ctx) => titleHelpProblem(props) ?? (props.linked && !props.project && !ctx.project ? pub(ctx, "titleProject") : null),
     }),
     define({
       type: "hero",
@@ -315,18 +328,18 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: heroSchema,
       Component: HeroBlock,
       Editor: HeroEditor,
-      label: "Ouverture",
-      description: "Le grand bandeau d'accueil : ton nom, ton métier et une accroche, dans la forme choisie par le thème.",
+      label: R.types["hero"].label,
+      description: R.types["hero"].description,
       defaults: { eyebrow: L, statement: L },
-      single: { reason: "Il y a déjà une Ouverture sur cette page : une page n'en porte qu'une." },
-      summary: "{eyebrow}",
+      single: { reason: R.types["hero"].single },
+      summary: R.types["hero"].summary,
       // Nom et métier : identité du site (communs aux pages), modifiables en place aussi.
       inline: ["eyebrow", "statement", "scroll", "reel"],
       // L'accroche porte du balisage <mark> : revalidé à la publication (la toile le valide déjà à la saisie).
-      publishCheck: (props) => {
+      publishCheck: (props, ctx) => {
         const s = (props.statement ?? {}) as { fr?: string; en?: string };
         const problem = markedProblem(s.fr ?? "") ?? markedProblem(s.en ?? "");
-        return problem ? `Phrase d'accroche : ${problem}` : null;
+        return problem ? pub(ctx, "heroStatement", { problem }) : null;
       },
       mediaFields: [{ field: "backgroundMediaId", kind: "any" }],
     }),
@@ -337,10 +350,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: collectionTilesSchema,
       Component: CollectionTilesBlock,
       Editor: CollectionTilesEditor,
-      label: "Entrées des collections",
-      description: "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
+      label: R.types["collection-tiles"].label,
+      description: R.types["collection-tiles"].description,
       defaults: { eyebrow: L, title: L, mode: "auto", size: "medium" },
-      summary: "{title} · {items} entrées",
+      summary: R.types["collection-tiles"].summary,
       // Lot 105 : les textes de chaque entrée aussi (liste choisie à la main : `items.N.…` ; automatique : `tile.<page>.…`, écrit dans les modifications de tuile).
       inline: ["eyebrow", "title", "items.*.eyebrow", "items.*.title", "items.*.intro"],
     }),
@@ -349,10 +362,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: collectionIntroSchema,
       Component: CollectionIntroBlock,
       Editor: CollectionIntroEditor,
-      label: "En-tête de collection (ancien)",
-      description: "Ancien bloc, remplacé par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
+      label: R.types["collection-intro"].label,
+      description: R.types["collection-intro"].description,
       defaults: { collection: "characters", eyebrow: L, title: L, intro: L, showCounts: true },
-      summary: "{title} · {collection}",
+      summary: R.types["collection-intro"].summary,
       inline: ["eyebrow", "title", "intro"],
       deprecated: true,
     }),
@@ -363,11 +376,11 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: richTextSchema,
       Component: RichTextBlock,
       Editor: RichTextEditor,
-      label: "Texte",
-      description: "Un paragraphe de texte ; un titre peut s'ajouter au survol sur la page.",
+      label: R.types["rich-text"].label,
+      description: R.types["rich-text"].description,
       // Un champ n'existe que s'il a été demandé : un Texte neuf est un paragraphe seul (lot 19a).
       defaults: { paragraphs: [L] },
-      summary: "{title} · {paragraphs} paragraphes",
+      summary: R.types["rich-text"].summary,
       inline: ["eyebrow", "title", "paragraphs.*"],
       // Texte d'aide d'une rubrique neuve (« Ajouter une rubrique ») : à remplacer avant de publier.
       publishCheck: (props) => helpTextProblem(props),
@@ -380,26 +393,26 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: ContactBlock,
       Editor: ContactEditor,
       notOnSpecial: true,
-      label: "Contact",
-      description: "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
+      label: R.types["contact"].label,
+      description: R.types["contact"].description,
       // Les champs n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
       defaults: { title: { fr: "Écris-moi", en: "Write to me" }, cta: { fr: "Me contacter", en: "Contact me" } },
-      summary: "{title} · {fields} champs",
+      summary: R.types["contact"].summary,
       inline: ["eyebrow", "title", "intro", "cta", "submit", "success", "error", "fields.*.label", "fields.*.help"],
-      publishCheck: (props) => {
+      publishCheck: (props, ctx) => {
         if (props.form !== true) return null;
-        if (!props.formId) return "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire.";
+        if (!props.formId) return pub(ctx, "contactNoId");
         // Même contrôle que le rendu public (ContactBlock) : un formulaire invalide ne s'afficherait pas, on refuse de le publier.
         const form = ContactFormSchema.safeParse(props);
-        return form.success ? null : `Ce formulaire est incomplet : ${form.error.issues[0]?.message ?? "réglages invalides"}.`;
+        return form.success ? null : pub(ctx, "contactIncomplete", { detail: form.error.issues[0]?.message ?? pub(ctx, "invalidSettings") });
       },
       presets: [
         {
           key: "contact-with-form",
           order: 31,
-          short: "Avec un formulaire",
-          label: "Contact avec formulaire",
-          description: "Un formulaire pour t'écrire : champs au choix, message de confirmation.",
+          short: R.presets["contact-with-form"].short,
+          label: R.presets["contact-with-form"].label,
+          description: R.presets["contact-with-form"].description,
           defaults: contactFormDefaults(),
         },
       ],
@@ -411,13 +424,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: contactFormSchema,
       Component: ContactFormBlock,
       Editor: ContactFormEditor,
-      label: "Formulaire de contact (ancien)",
-      description: "Ancien bloc, remplacé par « Contact » avec l'option formulaire.",
+      label: R.types["contact-form"].label,
+      description: R.types["contact-form"].description,
       defaults: defaultContactForm(),
-      summary: "{title} · {fields} champs",
+      summary: R.types["contact-form"].summary,
       inline: ["eyebrow", "title", "intro", "submit", "success", "error", "fields.*.label", "fields.*.help"],
       deprecated: true,
-      publishCheck: (props) => (props.formId ? null : "Ce formulaire n'a pas d'identifiant : supprime-le et ajoute-le à nouveau."),
+      publishCheck: (props, ctx) => (props.formId ? null : pub(ctx, "formNoId")),
     }),
     define({
       type: "page-link",
@@ -426,12 +439,12 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: pageLinkSchema,
       Component: PageLinkBlock,
       Editor: PageLinkEditor,
-      label: "Lien vers une page",
-      description: "Un lien « Texte → » vers une page du site, entre deux blocs.",
+      label: R.types["page-link"].label,
+      description: R.types["page-link"].description,
       defaults: { label: L },
-      summary: "{label}",
+      summary: R.types["page-link"].summary,
       inline: ["label"],
-      publishCheck: (props) => (props.pageId ? null : "Choisis la page de destination de ce lien."),
+      publishCheck: (props, ctx) => (props.pageId ? null : pub(ctx, "pageLink")),
     }),
     // Page introuvable (lot 89) : la Sortie (non supprimable) et l'œuvre au hasard, proposées seulement sur cette page.
     define({
@@ -439,15 +452,15 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       group: "other",
       order: 90,
       onlyOnSpecial: true,
-      locked: "Ce bloc ne peut pas être supprimé : c'est lui qui ramène le visiteur sur le site. Tu peux le déplacer et le mettre en forme.",
-      single: { reason: "Il y a déjà un bloc Sortie sur cette page : une page n'en porte qu'un." },
+      locked: R.types["exit"].locked,
+      single: { reason: R.types["exit"].single },
       schema: exitSchema,
       Component: ExitBlock,
       Editor: ExitEditor,
-      label: "Sortie",
-      description: "Le titre, le message et le bouton qui ramènent le visiteur sur le site ; avec plusieurs messages, un est tiré au hasard à chaque visite.",
+      label: R.types["exit"].label,
+      description: R.types["exit"].description,
       defaults: initialExitProps(),
-      summary: "{title}",
+      summary: R.types["exit"].summary,
       inline: ["eyebrow", "title", "messages.*", "label"],
     }),
     define({
@@ -458,14 +471,14 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: randomWorkSchema,
       Component: RandomWorkBlock,
       Editor: RandomWorkEditor,
-      label: "Une œuvre au hasard",
-      description: "Une œuvre publiée tirée au hasard à chaque visite, avec son image, son titre et un lien vers sa page.",
+      label: R.types["random-work"].label,
+      description: R.types["random-work"].description,
       defaults: { source: "all", width: "text" },
-      summary: "Une œuvre au hasard",
+      summary: R.types["random-work"].summary,
       inline: ["eyebrow"],
-      publishCheck: (props) => {
-        if (props.source === "collection" && !props.collection) return "Choisis la catégorie d'où tirer l'œuvre.";
-        if (props.source === "manual" && !(Array.isArray(props.works) && props.works.length > 0)) return "Choisis au moins une œuvre dans la sélection.";
+      publishCheck: (props, ctx) => {
+        if (props.source === "collection" && !props.collection) return pub(ctx, "randomCategory");
+        if (props.source === "manual" && !(Array.isArray(props.works) && props.works.length > 0)) return pub(ctx, "randomWorks");
         return null;
       },
     }),
@@ -476,11 +489,11 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: profileSchema,
       Component: ProfileBlock,
       Editor: ProfileEditor,
-      label: "Profil",
-      description: "Ton portrait, ta présentation, ton contact et tes réseaux.",
+      label: R.types["profile"].label,
+      description: R.types["profile"].description,
       // Les étiquettes et la légende n'existent que si elles ont été demandées (lot 27).
       defaults: { paragraphs: [L] },
-      summary: "{eyebrow} · {paragraphs} paragraphes",
+      summary: R.types["profile"].summary,
       inline: ["eyebrow", "portraitCaption", "paragraphs.*", "contactEyebrow", "contactLabel", "socialEyebrow"],
       mediaFields: [{ field: "portraitMediaId", kind: "image" }],
     }),
@@ -491,10 +504,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: featuredProjectsSchema,
       Component: FeaturedProjectsBlock,
       Editor: FeaturedProjectsEditor,
-      label: "Projets mis en avant (ancien)",
-      description: "Ancien bloc, remplacé par « Projet mis en avant ».",
+      label: R.types["featured-projects"].label,
+      description: R.types["featured-projects"].description,
       defaults: { eyebrow: L, title: L, intro: L, limit: 2 },
-      summary: "{title} · {limit} projets",
+      summary: R.types["featured-projects"].summary,
       inline: ["eyebrow", "title", "intro"],
       deprecated: true,
     }),
@@ -503,10 +516,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: collectionProjectsSchema,
       Component: CollectionProjectsBlock,
       Editor: CollectionProjectsEditor,
-      label: "Projets d'une collection (ancien)",
-      description: "Ancien bloc, remplacé par des blocs « Projet » posés un à un.",
+      label: R.types["collection-projects"].label,
+      description: R.types["collection-projects"].description,
       defaults: { collection: "characters" },
-      summary: "Projets · {collection}",
+      summary: R.types["collection-projects"].summary,
       inline: [],
       deprecated: true,
     }),
@@ -515,10 +528,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: videoSchema,
       Component: VideoBlock,
       Editor: VideoEditor,
-      label: "Vidéos (ancien)",
-      description: "Ancienne vitrine, remplacée par des « Vidéo » dans une « Grille ».",
+      label: R.types["video"].label,
+      description: R.types["video"].description,
       defaults: { reelEyebrow: L, cardsEyebrow: L, cardsTitle: L },
-      summary: "Demoreel · {cardsTitle}",
+      summary: R.types["video"].summary,
       inline: [],
       deprecated: true,
     }),
@@ -530,7 +543,14 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
  * Les types anciens sont décrits (libellé, résumé) mais marqués `hidden` :
  * jamais proposés dans la palette. Les raccourcis (`presets`) suivent leur type.
  */
-export function blockCatalog(special = false): BlockCatalogEntry[] {
+export function blockCatalog(special = false, t?: AdminT): BlockCatalogEntry[] {
+  // `t` (espace `blockReg`) : noms, descriptions et résumés dans la langue de l'interface ; sans lui, le français.
+  const tx = (path: string, fallback: string) => (t ? t(path) : fallback);
+  // Les résumés sont des gabarits (`{titre}`, `{enfants|bloc|blocs}`) lus tels quels par renderSummary, pas des messages ICU : texte brut.
+  const rawOf = (path: string, fallback: string) => {
+    const raw = (t as unknown as { raw?: (key: string) => unknown } | undefined)?.raw;
+    return typeof raw === "function" ? String(raw.call(t, path)) : tx(path, fallback);
+  };
   return Object.values(BLOCKS).flatMap((b) => {
     // Lot 89 : « Sortie » et « Une œuvre au hasard » ne se proposent que sur la page spéciale ; Contact n'y est pas proposé. Les entrées
     // restent décrites (libellé, résumé) mais cachées : un bloc déjà posé garde son nom dans l'éditeur.
@@ -538,18 +558,18 @@ export function blockCatalog(special = false): BlockCatalogEntry[] {
     const base = {
       key: b.type,
       type: b.type,
-      label: b.label,
-      description: b.description,
+      label: tx(`types.${b.type}.label`, b.label),
+      description: tx(`types.${b.type}.description`, b.description),
       defaults: b.defaults,
-      summary: b.summary,
+      summary: rawOf(`types.${b.type}.summary`, b.summary),
       inline: b.inline,
       ...(b.container ? { container: b.container } : {}),
       ...(b.mediaFields ? { mediaFields: b.mediaFields } : {}),
-      ...(b.single ? { single: b.single.reason } : {}),
-      ...(b.locked ? { locked: b.locked } : {}),
+      ...(b.single ? { single: tx(`types.${b.type}.single`, b.single.reason) } : {}),
+      ...(b.locked ? { locked: tx(`types.${b.type}.locked`, b.locked) } : {}),
       ...(hiddenHere ? { hidden: true } : { group: b.group, order: b.order }),
     };
-    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, short: p.short, description: p.description, defaults: p.defaults, order: p.order, preset: true }))];
+    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: tx(`presets.${p.key}.label`, p.label), short: tx(`presets.${p.key}.short`, p.short), description: tx(`presets.${p.key}.description`, p.description), defaults: p.defaults, order: p.order, preset: true }))];
   });
 }
 
@@ -559,4 +579,11 @@ export function blockCatalog(special = false): BlockCatalogEntry[] {
  */
 export function blockEditors(): Record<string, ReactNode> {
   return Object.fromEntries(Object.values(BLOCKS).map((b) => [b.type, createElement(b.Editor)]));
+}
+
+/** Nom d'un type de bloc dans la langue de `t` (espace `blockReg`), ou son identifiant s'il est inconnu. */
+export function blockTypeLabel(type: string, t?: AdminT): string {
+  const def = Object.hasOwn(BLOCKS, type) ? BLOCKS[type] : undefined;
+  if (!def) return type;
+  return t ? t(`types.${type}.label`) : def.label;
 }

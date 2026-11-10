@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import AdminColorPicker from "@/components/admin/AdminColorPicker";
-import { ratioTip } from "@/components/edit/readability";
+import { useReadability } from "@/components/edit/useReadability";
 import { accentProblem, nearestAccent } from "@/themes/contrast";
 import { contrastRatio } from "@/themes/palette";
 import { ROLE_NAMES } from "@/themes/palette";
@@ -28,6 +28,7 @@ export default function PageButtonsColorField({
   error?: string;
 }) {
   const t = useTranslations("fields");
+  const read = useReadability();
   const issue = value && colors ? accentProblem(value, colors) : null;
   const fix = value && colors && issue ? nearestAccent(value, colors) : null;
   // Le pire couple (fond, fond profond, surface, texte des boutons) : le ratio va en info-bulle.
@@ -53,7 +54,7 @@ export default function PageButtonsColorField({
             {!issue && <span className="a-ratio a-ratio-ok">✓ AA</span>}
           </div>
           {issue && worst !== null && (
-            <p className="a-notice" role="status" data-testid="page-buttons-warning" title={ratioTip(worst)}>
+            <p className="a-notice" role="status" data-testid="page-buttons-warning" title={read.tip(worst)}>
               {t("btnWarning")}
             </p>
           )}

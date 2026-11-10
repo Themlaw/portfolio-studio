@@ -1,6 +1,8 @@
 "use client";
 
-import { VIDEO_SOUND_HINTS, VIDEO_SOUND_LABELS, VIDEO_SOUNDS, type VideoSound } from "@/blocks/video-sound";
+import { useTranslations } from "next-intl";
+
+import { VIDEO_SOUNDS, type VideoSound } from "@/blocks/video-sound";
 
 /**
  * Choix « Son au départ » Activé / Coupé d'une vidéo (lot 127) : UN composant pour toutes les barres de la toile (vidéo d'une page, case de
@@ -25,14 +27,16 @@ export default function VideoSoundSeg({
   className?: string;
   extra?: Record<string, string | number>;
 }) {
+  const t = useTranslations("editMenusVideo");
+  const tl = useTranslations("blockRegLabels");
   return (
-    <span className="pe-seg" role="group" aria-label="Son au départ" data-testid={testId}>
+    <span className="pe-seg" role="group" aria-label={t("soundGroup")} data-testid={testId}>
       <span className="pe-seg-label" aria-hidden="true">
-        Son
+        {t("sound")}
       </span>
       {VIDEO_SOUNDS.map((m) => (
-        <button key={m} type="button" className={className} aria-pressed={now === m} title={VIDEO_SOUND_HINTS[m]} {...{ [attr]: `${prefix}${m}` }} {...extra} onClick={onChange ? () => onChange(m) : undefined}>
-          {VIDEO_SOUND_LABELS[m]}
+        <button key={m} type="button" className={className} aria-pressed={now === m} title={tl(`videoSound.hint.${m}`)} {...{ [attr]: `${prefix}${m}` }} {...extra} onClick={onChange ? () => onChange(m) : undefined}>
+          {tl(`videoSound.label.${m}`)}
         </button>
       ))}
     </span>

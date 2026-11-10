@@ -15,6 +15,7 @@ import { BlockCaption, capHost, captionPart } from "./caption";
 import { cropStyle, freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
 import { soundAttrs, withSound } from "./video-sound";
+import { editI18n } from "./edit-i18n";
 
 export { freeBoardSchema };
 
@@ -34,6 +35,7 @@ export { freeBoardSchema };
  */
 export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType<typeof freeBoardSchema.parse>; ctx: BlockContext }) {
   const eager = claimEager(2);
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.freeCanvas) });
   const canvas = Boolean(ctx.edit || ctx.freeCanvas);
   const list = freeItems(props);
   const rows = await Promise.all(list.map((it) => getMedia(it.media)));
@@ -132,11 +134,11 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
         {/* Titre « sur l'image » (lot 128) : posé sur la zone, au-dessus des images (z-index), sans prendre de place. */}
         {ctx.overHead}
         {canvas && !shown.length && (
-          <div className="pe-free-empty" lang="fr" data-edit-free-empty="">
+          <div className="pe-free-empty" lang={lang} data-edit-free-empty="">
             <button type="button" className="pe-empty-action" data-edit-free-add="">
-              <span aria-hidden="true">+</span> Image
+              <span aria-hidden="true">+</span> {ta("image")}
             </button>
-            <span>ou glisse des images ici</span>
+            <span>{ta("dragImages")}</span>
           </div>
         )}
       </div>

@@ -1,0 +1,18 @@
+{
+  "addNetwork": "Ajouter un réseau",
+  "networks": "Réseaux",
+  "otherLink": "Autre lien",
+  "editLink": "Modifier le lien",
+  "newNetwork": "Nouveau réseau",
+  "emailAddress": "Adresse e-mail",
+  "profileAddress": "Adresse du profil",
+  "emailPlaceholder": "nom@domaine.fr",
+  "recognized": "Reconnu : {network}",
+  "displayName": "Nom affiché",
+  "displayNameOptional": "Nom affiché (facultatif)",
+  "namePlaceholder": "Ex. Mon blog",
+  "invalidAddress": "Adresse invalide : https://… seulement (ou une adresse e-mail).",
+  "otherNetwork": "← Autre réseau",
+  "saveLink": "Enregistrer le lien",
+  "add": "Ajouter"
+}

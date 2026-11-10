@@ -12,12 +12,16 @@ import { z } from "zod";
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
 import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS } from "../lib/look";
 
+import type { AdminT } from "@/i18n/admin-lang";
+
+import { FR_LABELS, problemMsg } from "./block-msg";
 import { localizedText } from "./types";
 
 /** Formats de la zone ; « free » = hauteur libre (poignée du bas), mémorisée dans `aspect`. */
 export const FREE_FORMATS = ["16:9", "3:2", "4:3", "1:1", "free"] as const;
 export type FreeFormat = (typeof FREE_FORMATS)[number];
-export const FREE_FORMAT_LABELS: Record<FreeFormat, string> = { "16:9": "16:9", "3:2": "3:2", "4:3": "4:3", "1:1": "Carré", free: "Hauteur libre" };
+/** Libellés français ; dans l'interface : `t("freeFormat." + format)` (espace blockRegLabels). */
+export const FREE_FORMAT_LABELS: Record<FreeFormat, string> = FR_LABELS.freeFormat;
 /** Largeur ÷ hauteur de chaque format fixe. */
 export const FREE_RATIOS: Record<Exclude<FreeFormat, "free">, number> = { "16:9": 16 / 9, "3:2": 3 / 2, "4:3": 4 / 3, "1:1": 1 };
 /** Bornes du format libre (largeur ÷ hauteur). */
@@ -29,7 +33,8 @@ export const FREE_DEFAULT_W = 30;
 export const FREE_MIN_W = 4;
 export const FREE_MAX_W = 150;
 export const FREE_PHONE_MODES = ["scale", "stack"] as const;
-export const FREE_PHONE_LABELS: Record<(typeof FREE_PHONE_MODES)[number], string> = { scale: "À l'échelle", stack: "Empilées" };
+/** Libellés français ; dans l'interface : `t("freePhone." + mode)`. */
+export const FREE_PHONE_LABELS: Record<(typeof FREE_PHONE_MODES)[number], string> = FR_LABELS.freePhone;
 
 export const FreeItemSchema = z.object({
   /** Identité stable de l'image (elle suit l'image quand on la remplace ou qu'on change l'ordre). */
@@ -189,13 +194,14 @@ export type FreeModelOp =
   /** Image d'attente d'une vidéo (lot 116) ; `null` la retire (retour à celle de la vidéo). */
   | { op: "poster"; id: string; media: number | null };
 
-const GONE = "Cette image n'est plus dans la planche libre.";
 
 /**
  * Applique une opération : les nouveaux réglages, ou un message d'erreur en français. `props` n'est jamais modifié.
  * Les valeurs sont arrondies (position et taille à 0,01 %, rotation au degré) et bornées.
  */
-export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | { error: string } {
+export function applyFreeOp(props: Props, op: FreeModelOp, t?: AdminT): { props: Props } | { error: string } {
+  const E = (key: Parameters<typeof problemMsg>[0], values?: Record<string, string | number>) => problemMsg(key, values, t);
+  const GONE = problemMsg("freeGone", undefined, t);
   const items = freeItems(props);
   const zone = zoneAspect(props);
   const done = (next: FreeItem[]): { props: Props } => ({ props: { ...props, items: next } });
@@ -233,8 +239,8 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
       return { props: next };
     }
     case "put": {
-      if (items.length >= MAX_FREE_ITEMS) return { error: `${MAX_FREE_ITEMS} images au plus par planche libre.` };
-      if (items.some((i) => i.id === op.id)) return { error: "Image en double." };
+      if (items.length >= MAX_FREE_ITEMS) return { error: E("freeMax", { max: MAX_FREE_ITEMS }) };
+      if (items.some((i) => i.id === op.id)) return { error: E("freeDup") };
       const w = clamp(op.w ?? FREE_DEFAULT_W, FREE_MIN_W, FREE_MAX_W);
       const h = itemHeight(w, zone, op.ratio);
       // Le centre reste dans la zone.
@@ -294,7 +300,8 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
  * Habillage d'UNE image (cadre, fond derrière l'image, arrondi) : l'écriture commune `media-look` (lot 75, src/lib/edit/media-look.ts),
  * posée sur la ligne de l'image. Remplace l'ancienne opération « style ». Les nouveaux réglages, ou un message d'erreur en français.
  */
-export function applyFreeLook(props: Props, id: string, patch: MediaPatch): { props: Props } | { error: string } {
+export function applyFreeLook(props: Props, id: string, patch: MediaPatch, t?: AdminT): { props: Props } | { error: string } {
+  const GONE = problemMsg("freeGone", undefined, t);
   const items = freeItems(props);
   const i = items.findIndex((x) => x.id === id);
   if (i < 0) return { error: GONE };

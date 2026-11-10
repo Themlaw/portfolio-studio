@@ -1,0 +1,7 @@
+{
+  "name": "the name",
+  "role": "the job title",
+  "scroll": "the scroll indicator",
+  "tag": "the label",
+  "warning": "On this background, {label} is hard to read. Pick a calmer, darker or lighter image, or crop it."
+}

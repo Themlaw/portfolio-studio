@@ -1,0 +1,16 @@
+{
+  "titleVideo": "Choisir une vidéo",
+  "titleImage": "Choisir une image",
+  "titleAny": "Choisir une image ou une vidéo",
+  "sendFile": "Envoyer un fichier de l'ordinateur…",
+  "search": "Rechercher par nom ou tag",
+  "searchPlaceholder": "Rechercher par nom ou tag…",
+  "filterTags": "Filtrer par tags",
+  "hint": "Clique une image pour la choisir. La petite loupe l'agrandit sans la choisir.",
+  "none": "Aucun média ne correspond.",
+  "library": "Bibliothèque",
+  "choose": "Choisir {name}",
+  "converting": "Conversion…",
+  "processing": "Traitement…",
+  "close": "Fermer"
+}

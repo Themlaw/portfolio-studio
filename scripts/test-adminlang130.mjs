@@ -26,7 +26,29 @@ const flat = (o, pre = "", out = {}) => {
   for (const [k, v] of Object.entries(o)) typeof v === "object" && v !== null ? flat(v, `${pre}${k}.`, out) : (out[`${pre}${k}`] = v);
   return out;
 };
-const args = (s) => [...new Set([...String(s).matchAll(/\{\s*(\w+)\s*(?:,|\})/g)].map((m) => m[1]))].sort().join(",");
+/** Arguments ICU d'un message : noms de tête des {…} de premier niveau, plus ceux des corps de branches (select / plural), jamais le texte des branches. */
+const args = (s) => {
+  const out = new Set();
+  const groups = (str) => {
+    const res = [];
+    let depth = 0, start = -1;
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === "{") { if (depth++ === 0) start = i; }
+      else if (str[i] === "}" && depth > 0 && --depth === 0) res.push(str.slice(start + 1, i));
+    }
+    return res;
+  };
+  const walk = (str) => {
+    for (const inner of groups(str)) {
+      const m = /^\s*(\w+)\s*(?:,\s*(select|plural|selectordinal)\s*,([\s\S]*)|,[\s\S]*|\|[^{}]*)?$/.exec(inner);
+      if (!m) continue;
+      out.add(m[1]);
+      if (m[3]) for (const body of groups(m[3])) walk(body);
+    }
+  };
+  walk(String(s));
+  return [...out].sort().join(",");
+};
 
 /* ---- A. catalogues ---- */
 const fr = existsSync(path.join(ROOT, "messages/admin.fr.json")) ? flat(JSON.parse(read("messages/admin.fr.json"))) : null;

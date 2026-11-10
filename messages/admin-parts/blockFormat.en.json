@@ -1,0 +1,5 @@
+{
+  "format": "Format",
+  "freeCrop": "A free crop is in place ({format}). Choosing another format replaces it.",
+  "ratio": "{ratio} : 1"
+}
