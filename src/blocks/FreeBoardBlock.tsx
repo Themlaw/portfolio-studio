@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { revealAttrs } from "./reveal";
 import { getTranslations } from "next-intl/server";
 
 import { LoopClick } from "@/components/LoopVideo";
@@ -76,6 +77,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
             zoom && !m.video
               ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, [alt, openLabel].filter(Boolean).join(" — "))
               : {};
+          // Apparition au défilement de l'image (lot 133) : jamais sur la toile, ni dans le premier bloc.
+          const rv = revealAttrs(it.reveal, { first: Boolean(ctx.noReveal), edit: canvas });
           const style = {
             "--x": it.x,
             "--y": it.y,
@@ -89,7 +92,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           return (
             <figure
               key={it.id}
-              className="free-item"
+              className={rv ? `free-item ${rv.className}` : "free-item"}
+              {...(rv ? { "data-reveal": rv["data-reveal"], "data-rv-d": rv["data-rv-d"] } : {})}
               style={style}
               {...viewer}
               {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}

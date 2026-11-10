@@ -344,6 +344,7 @@
   ],
   "src/app/admin/(espace)/pages/actions.ts": [
    "backup118",
+   "copier133",
    "journal97",
    "look",
    "reglages105",
@@ -802,12 +803,11 @@
    "blocs27",
    "cadre34",
    "cadre95",
-   "cadremotif58",
    "cartes17c",
-   "contact125",
-   "couleur110",
    "couleurps29",
    "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
    "editeurguide61",
    "fondimage41",
    "grille31d",
@@ -819,6 +819,7 @@
    "medias",
    "medias-firefox",
    "palogo17f",
+   "parite99",
    "retours68",
    "visionneuse44",
    "vitesse54"
@@ -1079,6 +1080,7 @@
    "blocs27",
    "cadres62",
    "chrome24",
+   "copier133",
    "crop17d",
    "crop17d-http",
    "crop17g",
@@ -1404,6 +1406,9 @@
    "secuCcontenu",
    "state",
    "v013"
+  ],
+  "src/blocks/reveal.ts": [
+   "copier133"
   ],
   "src/blocks/tree.ts": [
    "blocs27",
@@ -2692,6 +2697,7 @@
    "carrousel31f",
    "cartes17c",
    "chrome24",
+   "copier133",
    "couleur110",
    "couleur110a",
    "couleur110b",
@@ -2710,7 +2716,6 @@
    "interaction034b",
    "palogo17f",
    "papiers35",
-   "parite99",
    "planche31",
    "priseenmain57"
   ],
@@ -2763,9 +2768,13 @@
    "secuA",
    "themes55"
   ],
+  "src/components/admin/editor/RevealPanel.tsx": [
+   "copier133"
+  ],
   "src/components/admin/editor/SiteEditor.tsx": [
    "cartes17c",
    "chrome24",
+   "copier133",
    "editor",
    "fond32",
    "fondtexte21",
@@ -2874,14 +2883,14 @@
    "chrome24",
    "composants20",
    "contact125",
+   "copier133",
    "couleur110",
    "couleur110a",
    "couleur110b",
    "editor",
+   "grille69",
    "icones121",
    "image40",
-   "images25",
-   "logo84",
    "medias112",
    "palogo17f",
    "papiers35",
@@ -3816,6 +3825,12 @@
    "unif75",
    "video36"
   ],
+  "src/lib/edit/clip.ts": [
+   "copier133"
+  ],
+  "src/lib/edit/clipboard.ts": [
+   "copier133"
+  ],
   "src/lib/edit/drafts.ts": [
    "backup118",
    "boards",
@@ -3859,6 +3874,9 @@
    "secuCcontact",
    "secuCcontenu",
    "state"
+  ],
+  "src/lib/edit/paste.ts": [
+   "copier133"
   ],
   "src/lib/edit/projects.ts": [
    "backup118",
@@ -4037,7 +4055,7 @@
    "restes77",
    "retours68",
    "secuBsvg",
-   "surface66"
+   "secuCjournal"
   ],
   "src/lib/kit/build.ts": [
    "backup85",
@@ -4115,7 +4133,8 @@
   "src/lib/kit/parts.ts": [
    "kit",
    "kithttp",
-   "kitpartie122"
+   "kitpartie122",
+   "secuCjournal"
   ],
   "src/lib/kit/resolve.ts": [
    "kithttp"
@@ -4139,6 +4158,7 @@
    "palogo17f",
    "parite99",
    "popover65",
+   "secuCjournal",
    "themes55",
    "video127"
   ],

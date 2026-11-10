@@ -65,6 +65,7 @@ import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
 import { helpTextProblem, titleHelpProblem } from "./help-text";
 import { HeadSchema, isHeadType } from "./head";
+import { RevealSchema } from "./reveal";
 import { BLOCK_REFS, type BlockRefs } from "./refs";
 import RichTextBlock, { richTextSchema } from "./RichTextBlock";
 import type { BlockContext } from "./types";
@@ -146,6 +147,8 @@ function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "con
           look: LookSchema.optional().catch(undefined),
           surface: SurfaceSchema.optional().catch(undefined),
           background: BackgroundSchema.optional().catch(undefined),
+          // Apparition au défilement (lot 133, src/blocks/reveal.ts) : facultative sur tout type, illisible = ignorée.
+          reveal: RevealSchema.optional().catch(undefined),
           ...(headable ? { head: HeadSchema.optional().catch(undefined) } : {}),
         })
       : def.schema;

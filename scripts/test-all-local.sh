@@ -279,6 +279,7 @@ E2E=(
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
   "journal97|node scripts/e2e-journal97.mjs|chromium|"
   "contact125|node scripts/e2e-contact125.mjs|chromium|"
+  "copier133|node scripts/e2e-copier133.mjs|chromium|"
   "espace129|node scripts/e2e-espace129.mjs|chromium|"
   "perte336|node scripts/e2e-perte336.mjs|chromium|"
   "compte|node scripts/e2e-compte.mjs|chromium|"

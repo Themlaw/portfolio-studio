@@ -67,6 +67,9 @@ export const SPECS: Record<string, Spec> = {
   createPageAction: { label: "Page créée", type: "creation" },
   savePageInfoAction: { label: "Infos de la page modifiées", type: "modification", page: 0, rev: 2, values: [1], state: "brouillon" },
   saveDraftAction: { label: "Brouillon modifié", type: "modification", page: 0, rev: 2, state: "brouillon", diff: { arg: 1, capture: captureDraft, resolve: resolveDraft } },
+  // Copier / coller (lot 133) : le contenu collé n'est jamais journalisé (seulement la page).
+  pasteBlocksAction: { label: "Blocs collés dans le brouillon", type: "creation", page: 0, values: [], state: "brouillon" },
+  pasteStyleAction: { label: "Style collé dans le brouillon", type: "modification", page: 0, values: [], state: "brouillon" },
   publishDraftAction: { label: "Page publiée", type: "publication", page: 0, rev: 1, values: [2], state: "publié" },
   discardDraftAction: { label: "Brouillon abandonné", type: "abandon", page: 0, rev: 1, state: "brouillon" },
   boardAction: { label: "Planche d'un projet modifiée", type: "modification", page: 0, rev: 3, values: [1, 2], state: "brouillon" },

@@ -17,6 +17,7 @@ import { cardBorderSignature, cardStyle, paperSignature, paperAttributes, readSu
 import Head, { HeadOps } from "./Head";
 import { childLevel, headVisible, isHeadType, isOverType, type Head as HeadData } from "./head";
 import { BLOCKS } from "./registry";
+import { readReveal, revealAttrs } from "./reveal";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
 
@@ -253,7 +254,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     ) : (
       component
     );
-  return wrap(
+  const laid = wrap(
     withZone(
       withLook(
         content,
@@ -269,6 +270,15 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       zoneStyle(ownLook),
     ),
   );
+  // Apparition au défilement (lot 133) : enveloppe animée en CSS pur, seulement si le bloc en a une (sinon DOM inchangé), jamais le premier bloc ni en édition.
+  const rv = revealAttrs(readReveal((parsed.data as { reveal?: unknown }).reveal), { first: Boolean(ctx.noReveal), edit: Boolean(ctx.edit) });
+  return rv ? (
+    <div key={`rv-${key}`} {...rv}>
+      {laid}
+    </div>
+  ) : (
+    laid
+  );
 }
 
 /**
@@ -281,7 +291,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid" || item.type === "free-board"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", freeCanvas: Boolean(ctx.edit) && item.type === "free-board", parent: undefined, noHead: true }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, noReveal: true, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid" || item.type === "free-board"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", freeCanvas: Boolean(ctx.edit) && item.type === "free-board", parent: undefined, noHead: true }, 0);
 }
 
 /**
@@ -336,7 +346,7 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   const alignWallpapers = ctx.edit || blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"kind":"wallpaper"'));
   return (
     <>
-      {blocks.map((block, i) => renderBlock(block, base, 0, undefined, undefined, card, joins[i]))}
+      {blocks.map((block, i) => renderBlock(block, i === 0 ? { ...base, noReveal: true } : base, 0, undefined, undefined, card, joins[i]))}
       {alignWallpapers && <WallpaperAlign />}
       {ctx.edit && (
         // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).

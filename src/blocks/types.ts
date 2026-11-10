@@ -49,6 +49,8 @@ export type BlockContext = {
   project?: string;
   parent?: string;
   pageBlocks?: { type: string; props: unknown }[];
+  /** Premier bloc de la page (ou composant de planche) : jamais d'apparition au défilement (lot 133, LCP). */
+  noReveal?: boolean;
   /** Rendu dans une cellule de grille : pas de marges de section. */
   cell?: boolean;
   /**
