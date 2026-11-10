@@ -62,7 +62,7 @@ const GROUPS = ["Texte", "Projets", "Images et vidéos", "Grilles", "Autres"];
 const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
   Projets: ["Projet"],
-  "Images et vidéos": ["Image", "Vidéo", "Planche libre", "Images qui défilent"] /* + la carte du carrousel de planche (lot 31c) ; Planche libre : lot 42 */,
+  "Images et vidéos": ["Image", "Vidéo", "Planche libre", "Étapes", "Images qui défilent"] /* + la carte du carrousel de planche (lot 31c) ; Planche libre : lot 42 */,
   // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
   Grilles: ["Grille"],
   Autres: ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
