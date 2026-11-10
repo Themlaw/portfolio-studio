@@ -148,6 +148,7 @@ export const SPECS: Record<string, Spec> = {
   unlockBackupDownloadAction: { label: "Téléchargement des sauvegardes déverrouillé", type: "compte", values: [] },
   setOnboardingHiddenAction: { label: "Premiers pas masqués ou affichés", type: "modification" },
   signOutAction: { label: "Déconnexion", type: "compte" },
+  setAdminLangAction: { label: "Langue de l'interface d'administration changée", type: "compte", values: [0] },
   // Audit P3 : jamais de résumé des arguments (mots de passe).
   changePasswordAction: { label: "Mot de passe changé (autres sessions déconnectées)", type: "compte", values: [] },
   revokeOtherSessionsAction: { label: "Autres sessions déconnectées", type: "compte", values: [] },

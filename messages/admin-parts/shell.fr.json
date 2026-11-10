@@ -1,0 +1,20 @@
+{
+  "administration": "administration",
+  "administrationNav": "Administration",
+  "close": "Fermer",
+  "menu": "Menu",
+  "navDashboard": "Tableau de bord",
+  "navThemes": "Thèmes",
+  "navWallpapers": "Papiers peints",
+  "navFrames": "Cadres",
+  "navPages": "Pages",
+  "navMedia": "Médiathèque",
+  "navMessages": "Messages",
+  "navSettings": "Réglages",
+  "navBackups": "Sauvegardes",
+  "navJournal": "Journal",
+  "navAccount": "Sécurité du compte",
+  "newMessages": "{count, plural, one {# nouveau message} other {# nouveaux messages}}",
+  "viewSite": "Voir le site",
+  "signOut": "Se déconnecter"
+}

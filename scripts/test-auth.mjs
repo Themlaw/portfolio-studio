@@ -305,6 +305,7 @@ const ADMIN_ACTIONS = [
   "unlockBackupDownloadAction",
   "changePasswordAction",
   "revokeOtherSessionsAction",
+  "setAdminLangAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */

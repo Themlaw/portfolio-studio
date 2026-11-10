@@ -5,6 +5,7 @@
  * envoi du PSD rempli, suivi de l'import (file lourde), palette et
  * « Appliquer à mon thème » (nouvelle version de Mon thème, lot 60).
  */
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +17,7 @@ import { uploadKit } from "./uploads";
 
 export function KitImportUpload({ themeId }: { themeId: string }) {
   const router = useRouter();
+  const t = useTranslations("kit");
   const input = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -30,7 +32,7 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
     const empty = files.find((f) => f.size === 0);
     if (empty) {
       if (input.current) input.current.value = "";
-      setError(`« ${empty.name} » est vide : choisis le bon fichier.`);
+      setError(t("emptyFile", { name: empty.name }));
       return;
     }
     setProgress(0);
@@ -41,7 +43,7 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
       setError(res.message);
       return;
     }
-    toast("Kit reçu : import en cours");
+    toast(t("received"));
     router.push(`/admin/themes/${encodeURIComponent(themeId)}/kit?import=${res.importId}`);
     router.refresh();
   };
@@ -62,15 +64,15 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
       }}
     >
       <p>
-        <strong>Envoie le kit rempli</strong> : l&apos;archive .zip, ou un ou plusieurs fichiers .psd choisis ensemble (enregistrés depuis Photoshop, tels quels). Tu peux n&apos;envoyer qu&apos;une partie (le fichier téléchargé « partie seulement ») ou que les fichiers que tu as modifiés : le reste du kit ne change pas.
+        {t.rich("uploadIntro", { b: (c) => <strong>{c}</strong> })}
       </p>
       <label className="a-btn">
-        Choisir le .zip ou les .psd
+        {t("chooseFiles")}
         <input ref={input} type="file" multiple accept=".zip,.psd,application/zip,image/vnd.adobe.photoshop" className="sr-only" onChange={(e) => void send(e.target.files)} disabled={progress !== null} data-testid="kit-file" />
       </label>
       {progress !== null && (
         <p className="a-help" role="status">
-          Envoi… {Math.round(progress * 100)} %
+          {t("uploading", { pct: Math.round(progress * 100) })}
         </p>
       )}
       {error && (
@@ -85,6 +87,7 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
 /** Import en file ou en cours : relevé toutes les 2 s, page rafraîchie à la fin. */
 export function KitImportWatch({ themeId, importId }: { themeId: string; importId: string }) {
   const router = useRouter();
+  const t = useTranslations("kit");
   const [status, setStatus] = useState("queued");
   useEffect(() => {
     let stop = false;
@@ -106,7 +109,7 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
   }, [themeId, importId, router]);
   return (
     <p className="a-help" role="status" aria-live="polite">
-      {status === "running" ? "Import en cours : lecture des calques, conversion des éléments redessinés…" : "Import en file d'attente (une conversion vidéo est peut-être en cours)…"}
+      {status === "running" ? t("importRunning") : t("importQueued")}
     </p>
   );
 }
@@ -115,13 +118,14 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
  * Le kit s'applique à Mon thème (lot 60) : plus de liste « Kit appliqué sur le thème » à une seule option, juste une phrase.
  */
 export function KitTargetNote({ mineName, version, basedOn }: { mineName: string | null; version: number | null; basedOn: string }) {
+  const t = useTranslations("kit");
   return (
     <p className="a-kit-base" data-testid="kit-base">
-      <strong>Le kit s&apos;applique à : {mineName ? `${mineName} (version ${version})` : "Mon thème"}</strong>
+      <strong>{mineName ? t("targetMine", { name: mineName, version: version ?? "" }) : t("targetNone")}</strong>
       <span className="a-help">
         {mineName
-          ? "Seuls les éléments que tu as redessinés changent ; le reste de Mon thème est gardé tel quel. Rien n'est mis en ligne tant que tu ne publies pas."
-          : `Tu n'as pas encore de Mon thème : il est créé à partir de « ${basedOn} » (version 1), puis ton kit en fait la version 2.`}
+          ? t("targetHelpMine")
+          : t("targetHelpNone", { basedOn })}
       </span>
     </p>
   );
@@ -157,6 +161,7 @@ export function KitApplyPanel({
   applied: { id: string; version: number | null } | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("kit");
   const [useMirror, setUseMirror] = useState(true);
   const [useColors, setUseColors] = useState(Boolean(colors?.count));
   const [busy, setBusy] = useState(false);
@@ -174,7 +179,7 @@ export function KitApplyPanel({
     }
     // Le bouton reste bloqué jusqu'au retour à l'écran Thèmes : pas de second clic, pas de seconde version.
     setDone(true);
-    toast(`Version ${res.data.version} de Mon thème créée : prévisualise-la, puis publie`);
+    toast(t("versionCreatedToast", { version: res.data.version }));
     router.push(`/admin/themes?nouvelle=${res.data.version}&via=kit`);
   };
 
@@ -184,13 +189,13 @@ export function KitApplyPanel({
         <div className="a-kit-mirror">
           <label className="a-kit-mirror-check">
             <input type="checkbox" checked={useMirror} onChange={(e) => setUseMirror(e.target.checked)} data-testid="kit-mirror" />
-            Utiliser le miroir de ta {mirror.from.toLowerCase()} pour la {mirror.to.toLowerCase()}
+            {t("useMirror", { from: mirror.from.toLowerCase(), to: mirror.to.toLowerCase() })}
           </label>
           {useMirror && (
             <figure className="a-kit-mirror-preview">
               {/* eslint-disable-next-line @next/next/no-img-element -- aperçu PNG de l'import (route admin) */}
-              <img src={mirror.preview} alt={`${mirror.to}, miroir de ta ${mirror.from.toLowerCase()}`} />
-              <figcaption>{mirror.to} (miroir, sans nouveau tracé)</figcaption>
+              <img src={mirror.preview} alt={t("mirrorAlt", { to: mirror.to, from: mirror.from.toLowerCase() })} />
+              <figcaption>{t("mirrorCaption", { to: mirror.to })}</figcaption>
             </figure>
           )}
         </div>
@@ -199,34 +204,33 @@ export function KitApplyPanel({
         <div className="a-kit-mirror">
           <label className="a-kit-mirror-check">
             <input type="checkbox" checked={useColors} onChange={(e) => setUseColors(e.target.checked)} data-testid="kit-colors" />
-            Appliquer {colors.count > 1 ? `les ${colors.count} couleurs repeintes` : "la couleur repeinte"}
+            {t("applyColors", { count: colors.count })}
           </label>
           {colors.problem && <p className="a-help">⚠ {colors.problem}</p>}
         </div>
       )}
-      <h2 id="kit-apply-title">Appliquer à mon thème</h2>
+      <h2 id="kit-apply-title">{t("applyTitle")}</h2>
       <p className="a-help">
-        Ajoute à « {themeName} » une nouvelle version (la version {nextVersion}) avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
-        {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}. Le thème en ligne ne change pas tant que tu ne publies pas, et tu peux toujours revenir à la version d&apos;avant.{mineExists ? "" : " Mon thème est d'abord créé (version 1) à partir du thème dont le kit est issu."}
+        {t("applyIntro", { themeName, version: nextVersion, what: changed > 1 ? "many" : changed === 1 ? "one" : useColors && colors?.count ? "colors" : "other", changed, andColors: useColors && colors?.count && changed > 0 ? "yes" : "no", mineCreated: mineExists ? "yes" : "no" })}
       </p>
       {colors?.problem && useColors && (
         <p className="a-notice" role="status" data-testid="kit-colors-skipped">
-          Attention : {colors.problem}
+          {t("warning", { problem: colors.problem })}
         </p>
       )}
-      {tape && <p className="a-help">Le scotch est redessiné : la nouvelle version active la variante « scotch » des planches (à retirer dans l&apos;éditeur si tu n&apos;en veux pas).</p>}
+      {tape && <p className="a-help">{t("tapeNote")}</p>}
       {applied && (
         <p className="a-help">
-          Déjà appliqué{applied.version ? ` (version ${applied.version})` : ""} : <Link href="/admin/themes">voir Mon thème</Link>.
+          {t.rich("alreadyApplied", { hasVersion: applied.version ? "yes" : "no", version: applied.version ?? "", link: (c) => <Link href="/admin/themes">{c}</Link> })}
         </p>
       )}
       <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !(useColors && colors?.count))} aria-busy={busy}>
-        {busy ? (done ? "Version créée…" : `Création de la version ${nextVersion}…`) : `Appliquer à mon thème (crée la version ${nextVersion})`}
+        {busy ? (done ? t("versionCreated") : t("creating", { version: nextVersion })) : t("applyButton", { version: nextVersion })}
       </button>
       {busy && (
         <p className="a-help a-kit-progress" role="status" data-testid="kit-apply-status">
           <span className="a-spinner" aria-hidden="true" />
-          {done ? "Version créée : retour à l'écran Thèmes…" : `Création de la version ${nextVersion} : quelques secondes, ne quitte pas la page.`}
+          {done ? t("backToThemes") : t("creatingWait", { version: nextVersion })}
         </p>
       )}
       {error && (

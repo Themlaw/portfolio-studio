@@ -145,6 +145,7 @@ const EXPECTED = [
   "unlockBackupDownloadAction",
   "changePasswordAction",
   "revokeOtherSessionsAction",
+  "setAdminLangAction",
 ];
 const found = new Set();
 

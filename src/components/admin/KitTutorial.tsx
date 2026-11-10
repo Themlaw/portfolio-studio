@@ -8,6 +8,7 @@
  * Clavier : ← → (slides), Échap (fermer), Tab piégé dans le dialogue ;
  * balayage tactile ; dernière slide vue mémorisée (localStorage).
  */
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import shots from "@/app/admin/(espace)/themes/tuto/shots.json";
@@ -60,6 +61,7 @@ function tagPosition(n: TutoNote, b: number[], shot: Shot): { x: number; y: numb
 }
 
 function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
+  const t = useTranslations("kitTutorial");
   const shot = SHOTS[slide.image];
   const id = useId();
   if (!shot) return null;
@@ -68,7 +70,7 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
   return (
     <>
       <figure className="a-tuto-figure" style={{ aspectRatio: `${shot.w} / ${shot.h}`, ["--ratio" as string]: String(shot.w / shot.h) }}>
-        <button type="button" className="a-tuto-zoomable" onClick={onZoom} aria-label={`Agrandir l'image : ${slide.alt}`}>
+        <button type="button" className="a-tuto-zoomable" onClick={onZoom} aria-label={t("zoomImage", { alt: slide.alt })}>
           <picture>
             <source srcSet={`/admin/tuto/${slide.image}.avif`} type="image/avif" />
             <img src={`/admin/tuto/${slide.image}.webp`} alt={slide.alt} width={shot.w} height={shot.h} decoding="async" data-tuto-image />
@@ -124,13 +126,14 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
           ))}
         </ol>
       )}
-      <p className="a-tuto-hint">Touche l&apos;image pour l&apos;agrandir.</p>
+      <p className="a-tuto-hint">{t("zoomHint")}</p>
     </>
   );
 }
 
 /** Bouton qui ouvre le tuto. `themeId` : thème du bouton « Télécharger le kit » (slide 2). `fromTheme` : ouvert depuis l'écran d'un thème (slide 13 : « Renvoyer le kit »). */
-export default function KitTutorial({ themeId, fromTheme = false, label = "Tuto du kit", quiet = false }: { themeId: string; fromTheme?: boolean; label?: string; quiet?: boolean }) {
+export default function KitTutorial({ themeId, fromTheme = false, label, quiet = false }: { themeId: string; fromTheme?: boolean; label?: string; quiet?: boolean }) {
+  const t = useTranslations("kitTutorial");
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -222,17 +225,17 @@ export default function KitTutorial({ themeId, fromTheme = false, label = "Tuto 
         aria-haspopup="dialog"
         data-testid="tuto-open"
       >
-        {label}
+        {label ?? t("label")}
       </button>
       {open && (
         <div className="a-tuto" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog} onKeyDown={onKey}>
           <header className="a-tuto-head">
-            <p className="a-tuto-kicker">Tuto du kit Photoshop</p>
+            <p className="a-tuto-kicker">{t("kicker")}</p>
             <p className="a-tuto-count" aria-live="polite">
               {index + 1} / {total}
             </p>
             <button type="button" className="a-btn a-btn-quiet" onClick={close} data-testid="tuto-close">
-              Fermer
+              {t("close")}
             </button>
           </header>
           <div
@@ -275,45 +278,45 @@ export default function KitTutorial({ themeId, fromTheme = false, label = "Tuto 
               {slide.action === "send" && fromTheme && (
                 <div className="a-tuto-action">
                   <button type="button" className="a-btn a-btn-primary" onClick={sendKit}>
-                    Renvoyer le kit
+                    {t("sendKit")}
                   </button>
                 </div>
               )}
             </div>
           </div>
           {zoom && (
-            <div className="a-tuto-zoom" role="dialog" aria-label={`Image agrandie : ${slide.alt}`} onClick={() => setZoom(false)}>
+            <div className="a-tuto-zoom" role="dialog" aria-label={t("zoomedImage", { alt: slide.alt })} onClick={() => setZoom(false)}>
               <picture>
                 <source srcSet={`/admin/tuto/${slide.image}.avif`} type="image/avif" />
                 <img src={`/admin/tuto/${slide.image}.webp`} alt={slide.alt} data-tuto-zoom />
               </picture>
               <button type="button" className="a-btn" autoFocus onClick={() => setZoom(false)}>
-                Fermer l&apos;image
+                {t("closeImage")}
               </button>
             </div>
           )}
           <footer className="a-tuto-foot">
             <button type="button" className="a-btn" onClick={() => go(index - 1)} disabled={index === 0}>
-              ← Précédent
+              {t("prev")}
             </button>
             {/* Petit écran : barre de progression fine (le compteur « 4 / 15 » est en haut). */}
-            <div className="a-tuto-progress" role="progressbar" aria-label="Progression du tuto" aria-valuemin={1} aria-valuemax={total} aria-valuenow={index + 1}>
+            <div className="a-tuto-progress" role="progressbar" aria-label={t("progress")} aria-valuemin={1} aria-valuemax={total} aria-valuenow={index + 1}>
               <span style={{ width: `${((index + 1) / total) * 100}%` }} />
             </div>
             <ol className="a-tuto-dots">
               {TUTO_SLIDES.map((s, i) => (
                 <li key={s.id}>
-                  <button type="button" className="a-tuto-dot" aria-label={`Slide ${i + 1} : ${s.title}`} aria-current={i === index ? "step" : undefined} onClick={() => go(i)} />
+                  <button type="button" className="a-tuto-dot" aria-label={t("slideLabel", { n: i + 1, title: s.title })} aria-current={i === index ? "step" : undefined} onClick={() => go(i)} />
                 </li>
               ))}
             </ol>
             {index < total - 1 ? (
               <button type="button" className="a-btn a-btn-primary" onClick={() => go(index + 1)}>
-                Suivant →
+                {t("next")}
               </button>
             ) : (
               <button type="button" className="a-btn a-btn-primary" onClick={close}>
-                Terminer
+                {t("finish")}
               </button>
             )}
           </footer>

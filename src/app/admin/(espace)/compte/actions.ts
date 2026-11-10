@@ -7,9 +7,11 @@
  *    (5 essais par minute et par IP, puis délai par compte) : l'action ne devient pas un oracle du mot de passe actuel ;
  *  - déconnecter les autres sessions (la session en cours reste).
  */
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { z } from "zod";
 
+import { ADMIN_LANG_COOKIE, ADMIN_LANG_COOKIE_MAX_AGE, makeAdminTranslator, loadAdminMessages, parseAdminLang, type AdminLang } from "@/i18n/admin-lang";
+import { writeUserAdminLang } from "@/lib/admin-lang";
 import { getAuth } from "@/lib/auth";
 import { clientIpFromForwarded, ipBucket, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
@@ -77,4 +79,21 @@ export const revokeOtherSessionsAction = audited("revokeOtherSessionsAction", as
   const revoked = revokeOtherUserSessions(session.user.id, session.session.id);
   console.log(`[auth] ${revoked} autre(s) session(s) déconnectée(s) depuis l'admin`);
   return done({ revoked });
+});
+
+/**
+ * Langue de l'interface d'administration (lot 130) : réglage du compte (settings) + cookie pour la connexion et les appareils
+ * sans session. N'agit QUE sur l'interface : le contenu FR / EN du site et de l'éditeur ne change pas.
+ */
+export const setAdminLangAction = audited("setAdminLangAction", async function setAdminLangAction(lang: unknown): Promise<ActionResult<{ lang: AdminLang }>> {
+  const session = await assertAdmin();
+  const parsed = parseAdminLang(lang);
+  if (!parsed) {
+    const t = makeAdminTranslator("fr", await loadAdminMessages("fr"), "account");
+    return fail(t("langInvalid"));
+  }
+  writeUserAdminLang(session.user.id, parsed);
+  const h = await headers();
+  (await cookies()).set(ADMIN_LANG_COOKIE, parsed, { path: "/", maxAge: ADMIN_LANG_COOKIE_MAX_AGE, sameSite: "lax", secure: h.get("x-forwarded-proto") === "https" });
+  return done({ lang: parsed });
 });

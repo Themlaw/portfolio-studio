@@ -8,6 +8,7 @@
  * l'éditeur visuel n'est jamais publié ici ; la mise en ligne se fait avec « Publier » dans l'éditeur (ou « En ligne » ci-dessous).
  */
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -48,6 +49,8 @@ export default function PageEditor({
   colors: Colors | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("pageEditor");
+  const format = useFormatter();
   const [saved, setSaved] = useState(() => toState(page));
   const [state, setState] = useState(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -84,7 +87,7 @@ export default function PageEditor({
       setRev(result.data.rev);
       setSaved(clone(state));
       const moved = saved.published && (state.slug.fr !== saved.slug.fr || state.slug.en !== saved.slug.en);
-      toast(moved ? (result.data.redirected > 0 ? "Enregistré · l'ancienne adresse renvoie vers la nouvelle" : "Enregistré · les anciens liens vers cette page ne marcheront plus") : state.published ? "Informations enregistrées · page en ligne" : "Informations enregistrées · page pas encore en ligne");
+      toast(moved ? (result.data.redirected > 0 ? t("savedRedirect") : t("savedBroken")) : state.published ? t("savedLive") : t("savedNotLive"));
       setKeepOld(true);
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
       setTimeout(() => router.refresh(), 0);
@@ -95,20 +98,20 @@ export default function PageEditor({
     <div className="a-page-editor">
       {conflict && (
         <div className="a-notice a-notice-danger" role="alert">
-          <p>{conflict} Tes champs restent affichés ici : copie ce que tu veux garder avant de recharger.</p>
+          <p>{t("conflict", { message: conflict })}</p>
           <button type="button" className="a-btn a-btn-small" onClick={() => window.location.reload()}>
-            Recharger
+            {t("reload")}
           </button>
         </div>
       )}
       <section className="a-panel" aria-labelledby="pe-infos">
-        <h2 id="pe-infos">Informations</h2>
+        <h2 id="pe-infos">{t("infos")}</h2>
         <div className="a-form-grid">
-          <TextI18n label="Titre" help="Dans le menu et en haut de l'onglet." value={state.title} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+          <TextI18n label={t("titleLabel")} help={t("titleHelp")} value={state.title} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
           <div />
           {page.isHome ? (
             <>
-              <Field label="Adresses" help="Page d'accueil : son adresse est la racine du site et ne se change pas.">
+              <Field label={t("addresses")} help={t("homeAddressHelp")}>
                 <p className="a-readonly mono">/fr · /en</p>
               </Field>
               <div />
@@ -116,14 +119,14 @@ export default function PageEditor({
           ) : (
             <>
               <TextField
-                label="Adresse en français"
-                help={`/fr/${state.slug.fr || "…"} — minuscules, chiffres et tirets.`}
+                label={t("slugFr")}
+                help={t("slugFrHelp", { slug: state.slug.fr || "…" })}
                 value={state.slug.fr}
                 onChange={(v) => set("slug", { ...state.slug, fr: v })}
                 error={errors["slug.fr"]}
               />
               <TextField
-                label="Adresse en anglais"
+                label={t("slugEn")}
                 help={`/en/${state.slug.en || "…"}`}
                 value={state.slug.en}
                 onChange={(v) => set("slug", { ...state.slug, en: v })}
@@ -133,39 +136,39 @@ export default function PageEditor({
           )}
           {slugMoved && (
             <Toggle
-              label="Garder l'ancienne adresse"
-              help={`Les liens déjà partagés (${[saved.slug.fr !== state.slug.fr ? `/fr/${saved.slug.fr}` : "", saved.slug.en !== state.slug.en ? `/en/${saved.slug.en}` : ""].filter(Boolean).join(" et ")}) renvoient vers la nouvelle adresse. Décoché, ils afficheront « introuvable ».`}
+              label={t("keepOld")}
+              help={t("keepOldHelp", { links: format.list([saved.slug.fr !== state.slug.fr ? `/fr/${saved.slug.fr}` : "", saved.slug.en !== state.slug.en ? `/en/${saved.slug.en}` : ""].filter(Boolean)) })}
               checked={keepOld}
               onChange={setKeepOld}
             />
           )}
           <Toggle
-            label="En ligne"
-            help={page.isHome ? "L'accueil reste toujours en ligne." : state.published ? "Visible par tous. Décoche pour retirer la page du site." : "Pas encore en ligne : la page répond « introuvable » à tes visiteurs."}
+            label={t("online")}
+            help={page.isHome ? t("onlineHelpHome") : state.published ? t("onlineHelpLive") : t("onlineHelpOff")}
             checked={state.published}
             onChange={(v) => !page.isHome && set("published", v)}
             error={errors.published}
           />
-          <Toggle label="Dans le menu" help="En fin de menu ; change l'ordre depuis la liste des pages." checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
+          <Toggle label={t("inMenu")} help={t("inMenuHelp")} checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
           <PageCollectionField value={state.collection} onChange={(v) => set("collection", v)} pages={context.pages} pageId={page.id} error={errors.collection} />
           <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} error={errors.accent} />
         </div>
       </section>
 
       <section className="a-panel" aria-labelledby="pe-seo">
-        <h2 id="pe-seo">Référencement</h2>
+        <h2 id="pe-seo">{t("seo")}</h2>
         <div className="a-form-grid">
-          <TextI18n label="Titre pour les moteurs de recherche" help="Vide : le titre de la page." value={state.meta.title} onChange={(v) => set("meta", { ...state.meta, title: v })} error={errorAt(errors, "meta.title")} />
+          <TextI18n label={t("seoTitle")} help={t("seoTitleHelp")} value={state.meta.title} onChange={(v) => set("meta", { ...state.meta, title: v })} error={errorAt(errors, "meta.title")} />
           <TextareaI18n
-            label="Description"
-            help="Une ou deux phrases affichées sous le lien dans les résultats de recherche."
+            label={t("descriptionLabel")}
+            help={t("descriptionHelp")}
             value={state.meta.description}
             onChange={(v) => set("meta", { ...state.meta, description: v })}
             error={errorAt(errors, "meta.description")}
           />
           <MediaPicker
-            label="Image de partage de la page"
-            help="Affichée quand on partage le lien de cette page. Vide : la première image de la page, sinon l'image de ton site (Réglages)."
+            label={t("shareImage")}
+            help={t("shareImageHelp")}
             value={state.meta.image ?? undefined}
             onChange={(v) => set("meta", { ...state.meta, image: v ?? null })}
             error={errorAt(errors, "meta.image")}
@@ -175,14 +178,13 @@ export default function PageEditor({
       </section>
 
       <section className="a-panel" aria-labelledby="pe-contenu">
-        <h2 id="pe-contenu">Contenu</h2>
+        <h2 id="pe-contenu">{t("content")}</h2>
         <p className="a-help a-panel-intro">
-          {state.blocks.length === 0 ? "Cette page est vide." : `${state.blocks.length} bloc${state.blocks.length > 1 ? "s" : ""} composent cette page.`} Le contenu se compose dans l&apos;éditeur visuel : tu y
-          ajoutes, déplaces et supprimes les blocs, et tu règles chacun directement sur la page.
+          {t("contentIntro", { summary: state.blocks.length === 0 ? t("contentEmpty") : t("contentCount", { count: state.blocks.length }) })}
         </p>
         {blockProblems.length > 0 && (
           <div className="a-alert" role="alert">
-            <p>Un bloc empêche l&apos;enregistrement : corrige-le dans l&apos;éditeur.</p>
+            <p>{t("blockProblem")}</p>
             <ul className="a-refs">
               {blockProblems.map(([k, m]) => (
                 <li key={k}>{m}</li>
@@ -191,7 +193,7 @@ export default function PageEditor({
           </div>
         )}
         <Link className="a-btn a-btn-primary" href={`/admin/pages/${page.id}/editer`} data-testid="lien-editeur">
-          Modifier le contenu dans l&apos;éditeur
+          {t("editContent")}
         </Link>
       </section>
 
@@ -202,10 +204,10 @@ export default function PageEditor({
         error={error}
         note={
           dirty
-            ? "L'aperçu montre la version enregistrée : enregistre d'abord."
+            ? t("noteDirty")
             : saved.published
-              ? "Page en ligne. « Enregistrer » ne change que ces informations : le contenu se publie avec « Publier » dans l'éditeur."
-              : "Page pas encore en ligne : visible seulement en aperçu. Elle se met en ligne avec « Publier » dans l'éditeur."
+              ? t("noteLive")
+              : t("noteDraft")
         }
       />
 

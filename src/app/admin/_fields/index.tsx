@@ -5,6 +5,7 @@
  * le champ fautif. Chaque champ i18n a des onglets FR/EN avec un indicateur
  * de langue manquante.
  */
+import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
 import type { EditorContext, L } from "@/blocks/editor-types";
@@ -69,13 +70,14 @@ function I18n({
   multiline?: boolean;
   rows?: number;
 }) {
+  const t = useTranslations("fields");
   const id = useId();
   const [lang, setLang] = useState<keyof L>("fr");
   const v = value ?? { fr: "", en: "" };
   const inputId = `${id}-${lang}`;
   return (
     <Field label={label} help={help} error={error} htmlFor={inputId}>
-      <div className="a-langs" role="tablist" aria-label={`Langue — ${label}`}>
+      <div className="a-langs" role="tablist" aria-label={t("languageOf", { label })}>
         {LANGS.map((l) => (
           <button
             key={l.key}
@@ -84,10 +86,10 @@ function I18n({
             aria-selected={lang === l.key}
             className="a-lang"
             onClick={() => setLang(l.key)}
-            title={v[l.key].trim() ? undefined : `${l.label} manquant`}
+            title={v[l.key].trim() ? undefined : t("langMissing", { lang: l.label })}
           >
             {l.label}
-            {!v[l.key].trim() && <span className="a-lang-missing" aria-label="manquant" />}
+            {!v[l.key].trim() && <span className="a-lang-missing" aria-label={t("missing")} />}
           </button>
         ))}
       </div>
@@ -230,8 +232,14 @@ export const COLLECTION_OPTIONS = [
   { value: "animation" as const, label: "Animation" },
 ];
 
+/** Collections avec leur libellé traduit (catalogue `fields`, clés `collection_<valeur>`). */
+function useCollectionOptions() {
+  const t = useTranslations("fields");
+  return COLLECTION_OPTIONS.map((o) => ({ value: o.value, label: t(`collection_${o.value}`) }));
+}
+
 export function CollectionPicker({
-  label = "Collection",
+  label,
   value,
   onChange,
   error,
@@ -245,12 +253,14 @@ export function CollectionPicker({
   exclude?: string[];
   help?: string;
 }) {
+  const t = useTranslations("fields");
+  const options = useCollectionOptions();
   return (
     <Select
-      label={label}
+      label={label ?? t("collection")}
       help={help}
       value={value as "characters" | "backgrounds" | "animation" | undefined}
-      options={COLLECTION_OPTIONS.filter((o) => !exclude.includes(o.value))}
+      options={options.filter((o) => !exclude.includes(o.value))}
       onChange={(v) => v && onChange(v)}
       error={error}
     />
@@ -274,17 +284,17 @@ export function PageCollectionField({
   pageId: number;
   error?: string;
 }) {
+  const t = useTranslations("fields");
+  const all = useCollectionOptions();
   const takenBy = (c: string) => pages.find((p) => p.collection === c && p.id !== pageId);
-  const taken = COLLECTION_OPTIONS.filter((o) => takenBy(o.value));
+  const taken = all.filter((o) => takenBy(o.value));
   return (
     <Select
-      label="Cette page est la collection"
-      help={`Les entrées automatiques de l'accueil suivent les pages qui ont une collection. Une collection n'a qu'une page${
-        taken.length ? ` (déjà prise : ${taken.map((o) => `${o.label}, page « ${takenBy(o.value)!.title} »`).join(" ; ")})` : ""
-      }.`}
+      label={t("pageIsCollection")}
+      help={t("pageIsCollectionHelp", { taken: taken.length, list: taken.map((o) => t("takenItem", { label: o.label, title: takenBy(o.value)!.title })).join(" ; ") })}
       value={value ?? undefined}
-      options={COLLECTION_OPTIONS.filter((o) => !takenBy(o.value))}
-      allowEmpty="Aucune"
+      options={all.filter((o) => !takenBy(o.value))}
+      allowEmpty={t("none")}
       onChange={(v) => onChange(v ?? null)}
       error={error}
     />
@@ -336,6 +346,7 @@ export function ProjectPicker({
   error?: string;
   context: EditorContext;
 }) {
+  const t = useTranslations("fields");
   const selected = value ?? [];
   return (
     <Field label={label} help={help} error={error}>
@@ -353,7 +364,7 @@ export function ProjectPicker({
                   }
                 />
                 <span>{p.title}</span>
-                {index >= 0 && <span className="mono muted">n° {index + 1}</span>}
+                {index >= 0 && <span className="mono muted">{t("rank", { n: index + 1 })}</span>}
               </label>
             </li>
           );
@@ -381,13 +392,16 @@ export function MediaPicker({
   /** Type de média proposé. */
   kind?: "image" | "video" | "pdf";
 }) {
+  const t = useTranslations("fields");
   const [open, setOpen] = useState(false);
   const current = context.media.find((m) => m.id === value);
+  // Textes par type de média : clés `picker_<type>_help | none | ref | change | choose` du catalogue `fields`.
   const words = {
-    image: { help: "Choisis une image de la médiathèque, ou envoies-en une nouvelle.", none: "Aucune image", nth: "Image", change: "Changer d'image", choose: "Choisir une image", use: "Utiliser cette image" },
-    video: { help: "Choisis une vidéo de la médiathèque, ou envoies-en une nouvelle.", none: "Aucune vidéo", nth: "Vidéo", change: "Changer de vidéo", choose: "Choisir une vidéo", use: "Utiliser cette vidéo" },
-    pdf: { help: "Choisis un PDF de la médiathèque, ou envoies-en un nouveau.", none: "Aucun PDF", nth: "PDF", change: "Changer de PDF", choose: "Choisir un PDF", use: "Utiliser ce PDF" },
-  }[kind];
+    help: t(`picker_${kind}_help`),
+    none: t(`picker_${kind}_none`),
+    change: t(`picker_${kind}_change`),
+    choose: t(`picker_${kind}_choose`),
+  };
   return (
     <Field label={label} help={help ?? words.help} error={error}>
       <div className="a-media-field">
@@ -396,16 +410,16 @@ export function MediaPicker({
             // eslint-disable-next-line @next/next/no-img-element
             <img src={current.thumb} alt="" />
           ) : (
-            <span className="muted">{value ? "En traitement" : words.none}</span>
+            <span className="muted">{value ? t("processing") : words.none}</span>
           )}
         </span>
-        <span className="a-media-field-name">{current?.name ?? (value ? `${words.nth} n° ${value}` : "")}</span>
+        <span className="a-media-field-name">{current?.name ?? (value ? t(`picker_${kind}_ref`, { id: value }) : "")}</span>
         <button type="button" className="a-btn a-btn-small" onClick={() => setOpen(true)}>
           {value ? words.change : words.choose}
         </button>
         {value !== undefined && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange(undefined)}>
-            Retirer
+            {t("remove")}
           </button>
         )}
       </div>
@@ -447,6 +461,7 @@ export function ListField<T>({
   error?: string;
   min?: number;
 }) {
+  const t = useTranslations("fields");
   const move = (from: number, to: number) => {
     const next = [...items];
     const [x] = next.splice(from, 1);
@@ -461,10 +476,10 @@ export function ListField<T>({
             <div className="a-list-head">
               <span className="a-list-title">{itemLabel(i)}</span>
               <span className="a-list-tools">
-                <button type="button" className="a-icon-btn" onClick={() => move(i, i - 1)} disabled={i === 0} aria-label={`Monter ${itemLabel(i)}`}>
+                <button type="button" className="a-icon-btn" onClick={() => move(i, i - 1)} disabled={i === 0} aria-label={t("moveUp", { item: itemLabel(i) })}>
                   ↑
                 </button>
-                <button type="button" className="a-icon-btn" onClick={() => move(i, i + 1)} disabled={i === items.length - 1} aria-label={`Descendre ${itemLabel(i)}`}>
+                <button type="button" className="a-icon-btn" onClick={() => move(i, i + 1)} disabled={i === items.length - 1} aria-label={t("moveDown", { item: itemLabel(i) })}>
                   ↓
                 </button>
                 <button
@@ -472,7 +487,7 @@ export function ListField<T>({
                   className="a-icon-btn a-danger-text"
                   onClick={() => onChange(items.filter((_, j) => j !== i))}
                   disabled={items.length <= min}
-                  aria-label={`Retirer ${itemLabel(i)}`}
+                  aria-label={t("removeItem", { item: itemLabel(i) })}
                 >
                   ✕
                 </button>

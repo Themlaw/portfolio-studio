@@ -1,0 +1,15 @@
+{
+  "viewLabel": "View",
+  "trash": "Trash",
+  "purge": "Delete permanently",
+  "purgeConfirm": "“{name}” will be permanently deleted: {lost} This cannot be undone.",
+  "purged": "“{name}” permanently deleted",
+  "partPages": "{count, plural, one {# page} other {# pages}}",
+  "partProjects": "{count, plural, one {# project} other {# projects}}",
+  "partMedia": "{count, plural, one {# media item} other {# media items}}",
+  "withSlots": "{count, plural, one {with # slot} other {with # slots}}",
+  "withoutSlot": "no slots",
+  "empty": "Empty the trash",
+  "emptyConfirm": "{total, plural, one {# item will be permanently deleted} other {# items will be permanently deleted}}: {parts}.{keepsImages, plural, =0 {} other { The images of the projects stay in the media library.}} This cannot be undone.",
+  "emptied": "Trash emptied · {count, plural, one {# item deleted} other {# items deleted}}{kept, plural, =0 {} other { · # still in use, kept}}"
+}

@@ -1,10 +1,14 @@
+import { getAdminLang, getAdminT } from "@/i18n/admin-server";
+import { intlLocale } from "@/i18n/admin-lang";
 import { DeleteAllMessages, DeleteMessage } from "@/components/admin/MessageActions";
 import PageHeader from "@/components/admin/PageHeader";
 import MarkMessagesSeen from "@/components/admin/MarkMessagesSeen";
 import { countMessages, lastSeenMessageId, listMessages, messagesEmailConfigured, MESSAGES_CAP } from "@/lib/admin";
 import { requireAdmin } from "@/lib/auth/guard";
 
-export const metadata = { title: "Messages" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("messages"))("title") };
+}
 export const dynamic = "force-dynamic";
 
 /**
@@ -13,41 +17,43 @@ export const dynamic = "force-dynamic";
  */
 export default async function MessagesPage() {
   await requireAdmin();
+  const t = await getAdminT("messages");
+  const lang = await getAdminLang();
   const messages = listMessages();
   // Repère « Nouveau » : lu AVANT que la visite ne marque les messages comme vus (MarkMessagesSeen).
   const seen = lastSeenMessageId();
   const newCount = messages.filter((m) => m.id > seen).length;
   const total = countMessages();
-  const date = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" });
+  const date = new Intl.DateTimeFormat(intlLocale(lang), { dateStyle: "long", timeStyle: "short" });
   return (
     <>
       <PageHeader
-        title="Messages"
-        intro="Ce que les visiteurs t'écrivent depuis un formulaire de contact."
+        title={t("title")}
+        intro={t("intro")}
       />
       <MarkMessagesSeen upTo={Math.max(0, ...messages.map((m) => m.id))} />
       {!messagesEmailConfigured() && (
         <p className="a-notice" role="status" data-testid="messages-no-email">
-          Les messages arrivent ici. Pense à passer voir.
+          {t("noEmail")}
         </p>
       )}
       {newCount > 0 && (
         <p className="a-new-count" data-testid="messages-new-count">
-          {newCount} nouveau{newCount > 1 ? "x" : ""} message{newCount > 1 ? "s" : ""}
+          {t("newCount", { count: newCount })}
         </p>
       )}
       {total >= MESSAGES_CAP && (
         <p className="a-field-error" role="alert" data-testid="messages-full">
-          Boîte pleine ({total} messages) : les nouveaux envois sont refusés. Supprime des messages pour en recevoir à nouveau.
+          {t("full", { total })}
         </p>
       )}
       {total > 0 && (
         <p className="muted">
-          {total} message{total > 1 ? "s" : ""} (gardés un an, {MESSAGES_CAP} au plus). <DeleteAllMessages count={total} />
+          {t("summary", { total, cap: MESSAGES_CAP })} <DeleteAllMessages count={total} />
         </p>
       )}
       {messages.length === 0 ? (
-        <p className="muted">Aucun message pour l&apos;instant. Ajoute un « Formulaire de contact » à une page depuis l&apos;éditeur.</p>
+        <p className="muted">{t("empty")}</p>
       ) : (
         <ul className="a-messages" data-testid="messages">
           {messages.map((m) => (
@@ -55,11 +61,11 @@ export default async function MessagesPage() {
               <header className="a-message-head">
                 <strong>
                   {m.subject}
-                  {m.id > seen && <span className="a-badge a-new-badge">Nouveau</span>}
+                  {m.id > seen && <span className="a-badge a-new-badge">{t("badgeNew")}</span>}
                 </strong>
                 <span className="muted">
                   {date.format(m.createdAt)}
-                  {m.page ? ` · page « ${m.page} »` : ""}
+                  {m.page ? t("onPage", { page: m.page }) : ""}
                 </span>
               </header>
               <dl className="a-message-fields">
@@ -73,7 +79,7 @@ export default async function MessagesPage() {
               <DeleteMessage id={m.id} />
               {m.replyTo && (
                 <a className="a-btn a-btn-small" href={`mailto:${encodeURIComponent(m.replyTo).replace("%40", "@")}?subject=${encodeURIComponent(`Re: ${m.subject}`)}`}>
-                  Répondre à {m.replyTo}
+                  {t("replyTo", { email: m.replyTo })}
                 </a>
               )}
             </li>

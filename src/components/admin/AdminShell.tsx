@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
@@ -10,19 +11,19 @@ import { useDismiss } from "../edit/useDismiss";
 import { Toaster } from "./editing";
 import { QueueIndicator, UploadQueueProvider } from "./UploadQueue";
 
-/** `sub` : entrée rangée sous la précédente, légèrement en retrait (aucune pour l'instant : « Papiers peints » est un onglet de l'éditeur de thème, lot 61). */
+/** `sub` : entrée rangée sous la précédente, légèrement en retrait (aucune pour l'instant : « Papiers peints » est un onglet de l'éditeur de thème, lot 61). `label` : clé de l'espace de noms « shell ». */
 const NAV: { href: string; label: string; sub?: boolean }[] = [
-  { href: "/admin", label: "Tableau de bord" },
-  { href: "/admin/themes", label: "Thèmes" },
-  { href: "/admin/papiers-peints", label: "Papiers peints", sub: true },
-  { href: "/admin/cadres", label: "Cadres", sub: true },
-  { href: "/admin/pages", label: "Pages" },
-  { href: "/admin/medias", label: "Médiathèque" },
-  { href: "/admin/messages", label: "Messages" },
-  { href: "/admin/reglages", label: "Réglages" },
-  { href: "/admin/sauvegardes", label: "Sauvegardes", sub: true },
-  { href: "/admin/journal", label: "Journal", sub: true },
-  { href: "/admin/compte", label: "Sécurité du compte", sub: true },
+  { href: "/admin", label: "navDashboard" },
+  { href: "/admin/themes", label: "navThemes" },
+  { href: "/admin/papiers-peints", label: "navWallpapers", sub: true },
+  { href: "/admin/cadres", label: "navFrames", sub: true },
+  { href: "/admin/pages", label: "navPages" },
+  { href: "/admin/medias", label: "navMedia" },
+  { href: "/admin/messages", label: "navMessages" },
+  { href: "/admin/reglages", label: "navSettings" },
+  { href: "/admin/sauvegardes", label: "navBackups", sub: true },
+  { href: "/admin/journal", label: "navJournal", sub: true },
+  { href: "/admin/compte", label: "navAccount", sub: true },
 ];
 
 function isCurrent(pathname: string, href: string) {
@@ -46,6 +47,7 @@ export default function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const t = useTranslations("shell");
   // Le menu mobile est ouvert « pour une page donnée » : naviguer le referme.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
@@ -56,7 +58,7 @@ export default function AdminShell({
   const brand = (
     <Link href="/admin" className="a-brand">
       {siteName}
-      <small>administration</small>
+      <small>{t("administration")}</small>
     </Link>
   );
 
@@ -73,22 +75,22 @@ export default function AdminShell({
           aria-controls="a-sidebar"
           onClick={() => setOpenOn(open ? null : pathname)}
         >
-          {open ? "Fermer" : "Menu"}
+          {open ? t("close") : t("menu")}
         </button>
       </div>
 
       <aside ref={sidebar} id="a-sidebar" className="a-sidebar" data-open={open}>
         {brand}
-        <nav className="a-nav" aria-label="Administration">
+        <nav className="a-nav" aria-label={t("administrationNav")}>
           <ul>
             {NAV.map((item) => (
               <li key={item.href} data-sub={item.sub ? "" : undefined}>
                 <Link href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
-                  {item.label}
+                  {t(item.label)}
                   {item.href === "/admin/messages" && unreadMessages > 0 && !isCurrent(pathname, item.href) && (
-                    <span className="a-nav-badge" data-testid="messages-badge" title={`${unreadMessages} nouveau${unreadMessages > 1 ? "x" : ""} message${unreadMessages > 1 ? "s" : ""}`}>
+                    <span className="a-nav-badge" data-testid="messages-badge" title={t("newMessages", { count: unreadMessages })}>
                       {unreadMessages > 99 ? "99+" : unreadMessages}
-                      <span className="sr-only"> nouveau{unreadMessages > 1 ? "x" : ""} message{unreadMessages > 1 ? "s" : ""}</span>
+                      <span className="sr-only"> {t("newMessages", { count: unreadMessages })}</span>
                     </span>
                   )}
                 </Link>
@@ -104,11 +106,11 @@ export default function AdminShell({
           </span>
           <div className="a-user-actions">
             <a className="a-btn" href="/" target="_blank" rel="noopener">
-              Voir le site <span aria-hidden="true">↗</span>
+              {t("viewSite")} <span aria-hidden="true">↗</span>
             </a>
             <form action={signOutAction}>
               <button type="submit" className="a-btn a-btn-quiet">
-                Se déconnecter
+                {t("signOut")}
               </button>
             </form>
           </div>

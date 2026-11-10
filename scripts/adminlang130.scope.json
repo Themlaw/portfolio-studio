@@ -1,0 +1,22 @@
+{
+  "_doc": "Lot 130 : périmètre de la garde « aucune chaîne française en dur ». Une étape livrée ajoute ses fichiers ici. `exclude` : sous-chemins pas encore traités (étapes suivantes) ; `allow` : exceptions justifiées par fichier (extrait exact de la chaîne -> raison). apercu/ : routes dont les seuls textes sont des corps de réponse HTTP (messages serveur, étape 130c).",
+  "include": [
+    "src/app/admin",
+    "src/components/admin"
+  ],
+  "exclude": [
+    "src/app/admin/(espace)/themes/tuto/",
+    "src/app/admin/api/",
+    "src/components/admin/editor/",
+    "*/actions.ts",
+    "src/app/admin/apercu/"
+  ],
+  "allow": {
+    "src/app/admin/_fields/index.tsx": {
+      "Décors": "COLLECTION_OPTIONS : libellé de collection partagé avec src/blocks/editors.tsx ; traduit à l'étape 130b avec les blocs"
+    },
+    "src/components/admin/UploadQueue.tsx": {
+      "hors de UploadQueueProvider": "erreur de développeur levée par throw, jamais affichée à l'utilisateur"
+    }
+  }
+}

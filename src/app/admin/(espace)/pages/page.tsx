@@ -4,28 +4,32 @@ import TrashViews from "@/components/admin/TrashViews";
 import ProjectsManager from "@/components/admin/ProjectsManager";
 import { getTrashSummary, legacyFeaturedPages, listPagesForAdmin, listProjectsForAdmin, listTrashedPages, listTrashedProjects } from "@/lib/admin";
 import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminT } from "@/i18n/admin-server";
 
-export const metadata = { title: "Pages" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("pagesMgr"))("title") };
+}
 
 export default async function PagesPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
   await requireAdmin();
+  const t = await getAdminT("pagesMgr");
   const view = (await searchParams).vue === "corbeille" ? "corbeille" : "liste";
   const trashed = listTrashedPages();
   const trashedProjects = listTrashedProjects();
   return (
     <>
       <PageHeader
-        title="Pages"
-        intro="Organise les pages de ton site : leur place dans le menu, leur adresse en français et en anglais, et les blocs qui les composent."
+        title={t("title")}
+        intro={t("intro")}
       />
-      <TrashViews base="/admin/pages" label="Pages" view={view} trashCount={trashed.length + trashedProjects.length} />
+      <TrashViews base="/admin/pages" label={t("title")} view={view} trashCount={trashed.length + trashedProjects.length} />
       <PagesManager pages={listPagesForAdmin()} trashed={trashed} view={view} summary={getTrashSummary()} />
       <section id="projets" className="a-section">
         {view === "liste" && (
           <>
-            <h2 id="pg-projets">Projets</h2>
+            <h2 id="pg-projets">{t("projectsHeading")}</h2>
             <p className="muted" style={{ maxWidth: "70ch" }}>
-            Un projet rassemble tes images sur une planche. Il est visible sur le site seulement si une page l&apos;affiche. Tu le crées aussi directement sur la toile d&apos;une page. Fais glisser les cartes pour choisir leur ordre sur le site.
+            {t("projectsIntro")}
             </p>
           </>
         )}

@@ -1,0 +1,12 @@
+{
+  "move": "Move {label}",
+  "quoted": "“{label}”",
+  "theItem": "the item",
+  "picked": "{label} picked up, position {position} of {total}.",
+  "over": "{label} moved to position {position} of {total}.",
+  "outside": "{label} is outside the list.",
+  "dropped": "{label} dropped at position {position} of {total}.",
+  "putBack": "{label} put back.",
+  "cancelled": "Move cancelled: {label} stays where it was.",
+  "instructions": "To move: press Space to pick up, the up and down arrows to choose the position, Space to drop, Escape to cancel."
+}

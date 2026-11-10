@@ -14,6 +14,7 @@
  * Un thème livré (`preset`) ne s'enregistre pas : à la première modification, on propose une copie modifiable et l'édition continue
  * dessus. Le thème en ligne demande une confirmation avant de publier.
  */
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
@@ -67,6 +68,7 @@ function Preview({
   onLegend: (legend: HighlightLegend) => void;
   pages: PreviewPage[];
 }) {
+  const t = useTranslations("themeEditor");
   const frame = useRef<HTMLIFrameElement>(null);
   // Page montrée : l'accueil, ou une page au choix (avec CE thème en essai, pas celui en ligne).
   const [pageId, setPageId] = useState(0);
@@ -136,9 +138,9 @@ function Preview({
     <div className="a-preview">
       <div className="a-preview-bar">
         <label className="a-preview-page">
-          <span className="muted">Aperçu, visible par toi seul :</span>
-          <select aria-label="Page montrée dans l'aperçu" value={pageId} onChange={(e) => setPageId(Number(e.target.value))}>
-            <option value={0}>Accueil</option>
+          <span className="muted">{t("previewLabel")}</span>
+          <select aria-label={t("previewPage")} value={pageId} onChange={(e) => setPageId(Number(e.target.value))}>
+            <option value={0}>{t("home")}</option>
             {pages.map((pg) => (
               <option key={pg.id} value={pg.id}>
                 {pg.title}
@@ -146,12 +148,12 @@ function Preview({
             ))}
           </select>
         </label>
-        <div className="a-seg" role="group" aria-label="Largeur de l'aperçu">
+        <div className="a-seg" role="group" aria-label={t("previewWidth")}>
           <button type="button" aria-pressed={device === "desktop"} onClick={() => setDevice("desktop")}>
-            Ordinateur
+            {t("desktop")}
           </button>
           <button type="button" aria-pressed={device === "mobile"} onClick={() => setDevice("mobile")}>
-            Mobile
+            {t("mobile")}
           </button>
         </div>
       </div>
@@ -164,7 +166,7 @@ function Preview({
         <iframe
           ref={frame}
           name={frameName}
-          title="Aperçu du thème"
+          title={t("previewTitle")}
           className="a-preview-frame"
           style={{ width, height: `${100 / scale}%`, transform: `scale(${scale})` }}
         />
@@ -179,17 +181,18 @@ function Preview({
 const carryKey = (copyId: string) => `portfolio:couleurs-copie:${copyId}`;
 
 export const STEPS = [
-  { id: "couleurs", title: "Couleurs" },
-  { id: "textes", title: "Textes" },
-  { id: "cartes", title: "Cartes et cadres" },
-  { id: "papier", title: "Papier et motifs" },
-  { id: "logo", title: "Logo" },
+  { id: "couleurs" },
+  { id: "textes" },
+  { id: "cartes" },
+  { id: "papier" },
+  { id: "logo" },
 ] as const;
 export type StepId = (typeof STEPS)[number]["id"];
 const stepOf = (v: unknown): StepId => STEPS.find((s) => s.id === v)?.id ?? "couleurs";
 
 /** Lisibilité en une ligne (« Lisible » / « Difficile à lire sur le fond »), le détail dépliable. Jamais bloquant. */
 function Readability({ colors, palette }: { colors: Theme["tokens"]["color"]; palette: Theme["tokens"]["palette"] }) {
+  const t = useTranslations("themeEditor");
   const pairs = sitePalettePairs(colors, palette, undefined);
   const bad = pairs.filter((p) => !p.ok);
   return (
@@ -197,21 +200,20 @@ function Readability({ colors, palette }: { colors: Theme["tokens"]["color"]; pa
       <p className="a-read-line" role="status">
         {bad.length === 0 ? (
           <>
-            <span aria-hidden="true">✓</span> <strong>Lisible</strong> : tes textes se lisent bien sur leurs fonds.
+            <span aria-hidden="true">✓</span> {t.rich("readable", { b: (c) => <strong>{c}</strong> })}
           </>
         ) : (
           <>
-            <span aria-hidden="true">⚠</span> <strong>Difficile à lire sur le fond</strong> : {bad.slice(0, 3).map((p) => p.label.toLowerCase()).join(", ")}
-            {bad.length > 3 ? "…" : ""}. Le site s&apos;affiche quand même ; ajuste ces couleurs pour plus de confort.
+            <span aria-hidden="true">⚠</span> {t.rich("unreadable", { list: `${bad.slice(0, 3).map((p) => p.label.toLowerCase()).join(", ")}${bad.length > 3 ? "…" : ""}`, b: (c) => <strong>{c}</strong> })}
           </>
         )}
       </p>
       <details className="a-read-detail">
-        <summary>Voir le détail</summary>
+        <summary>{t("seeDetail")}</summary>
         <ul>
           {pairs.map((p) => (
             <li key={p.label} data-ok={p.ok} title={ratioTip(p.ratio)}>
-              {p.ok ? "✓" : "✗"} {p.label} : {pairsReadability([p]).label}
+              {t("pairLine", { mark: p.ok ? "✓" : "✗", label: p.label, verdict: pairsReadability([p]).label })}
             </li>
           ))}
         </ul>
@@ -255,6 +257,7 @@ export default function ThemeEditor({
   mine?: { version: number; publishedVersion: number | null; live: boolean; published: Theme | null } | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("themeEditor");
   const preset = initial.preset;
   const [step, setStep] = useState<StepId>(() => stepOf(initialStep));
   const [paperTab, setPaperTab] = useState<PaperTab>(initialTab === "papiers-peints" ? "papiers-peints" : "fond");
@@ -359,7 +362,7 @@ export default function ThemeEditor({
       } catch {
         /* sans stockage, la copie s'ouvre avec les couleurs du thème livré */
       }
-      toast(`Copie « ${initial.name} (copie) » créée : tes couleurs y sont reprises`);
+      toast(t("copyCreated", { copyName: `${initial.name} (copie)` }));
       router.push(`/admin/themes/${result.data.id}`);
     });
 
@@ -387,8 +390,8 @@ export default function ThemeEditor({
       if (isMine) {
         const v = (result.data as { version?: number } | null)?.version;
         if (v) setVersion(v);
-        toast(`Enregistré · version ${v ?? version} (brouillon, pas encore en ligne)`);
-      } else toast(isActive ? "Enregistré · en ligne pour tes visiteurs" : "Enregistré");
+        toast(t("savedDraft", { version: v ?? version }));
+      } else toast(isActive ? t("savedLive") : t("saved"));
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
       setTimeout(() => router.refresh(), 0);
     });
@@ -426,7 +429,7 @@ export default function ThemeEditor({
       }
       setError(null);
       setErrors({});
-      toast(isMine ? `Version ${version} publiée : elle est en ligne pour tes visiteurs` : `« ${theme.name} » est en ligne : tes visiteurs le voient.`);
+      toast(isMine ? t("publishedVersion", { version }) : t("publishedTheme", { name: theme.name }));
       setTimeout(() => router.refresh(), 0);
     });
   };
@@ -474,20 +477,20 @@ export default function ThemeEditor({
       </span>
     ),
     textes: `${FONT_STACKS[theme.tokens.font.display as FontId].label} · ${FONT_STACKS[theme.tokens.font.body as FontId].label}`,
-    cartes: `Arrondi : ${ROUND_LEVELS[round.index].label}${round.exact ? "" : " (précis)"}`,
-    papier: `${theme.variants.texture === "none" ? "Fond uni" : "Papier pointillé"} · Espacement : ${SPACE_LEVELS[space.index].label}${space.exact ? "" : " (précis)"}`,
-    logo: logo ? (logo.colors === true ? "Logo en couleurs" : "Logo à la couleur du texte") : "Nom écrit en texte",
+    cartes: t("summaryRound", { label: ROUND_LEVELS[round.index].label, precise: round.exact ? "no" : "yes" }),
+    papier: t("summaryPaper", { texture: theme.variants.texture === "none" ? "none" : "dots", label: SPACE_LEVELS[space.index].label, precise: space.exact ? "no" : "yes" }),
+    logo: logo ? (logo.colors === true ? t("logoColors") : t("logoTextColor")) : t("logoNone"),
   };
 
   /** Étapes 2 à 5 d'un thème livré : lecture seule, une copie modifiable est proposée. */
   const locked = preset ? (
     <div className="a-notice" role="note" data-testid="step-locked">
       <p>
-        <strong>Thème livré avec le site : il ne se modifie pas.</strong> Pour régler cette étape, crée d&apos;abord une copie modifiable.
+        {t.rich("lockedNote", { b: (c) => <strong>{c}</strong> })}
       </p>
       <p>
         <button type="button" className="a-btn a-btn-primary" onClick={makeCopy} disabled={copying} data-testid="step-locked-copy">
-          {copying ? "Création de la copie…" : "Créer une copie modifiable de ce thème"}
+          {copying ? t("copying") : t("makeCopy")}
         </button>
       </p>
     </div>
@@ -499,14 +502,13 @@ export default function ThemeEditor({
         {Object.keys(sitePalette).length > 0 && (
           <div className="a-notice" role="note" data-testid="da-site-override">
             <p>
-              <strong>Couleurs personnalisées du site</strong> : {Object.keys(sitePalette).length} de ces couleurs sont remplacées depuis l&apos;éditeur de page :{" "}
-              {overrideNames(sitePalette)}. Ce que tu changes ici ne s&apos;applique pas à ces couleurs tant qu&apos;elles sont personnalisées ; les deux réglages restent séparés.{" "}
+              {t.rich("siteOverride", { count: Object.keys(sitePalette).length, names: overrideNames(sitePalette), b: (c) => <strong>{c}</strong> })}{" "}
               {editorHref ? (
                 <Link href={editorHref} data-testid="da-site-override-link">
-                  Ouvrir l&apos;éditeur de page (panneau « Couleurs »)
+                  {t("openPageEditor")}
                 </Link>
               ) : (
-                "Pour les retirer : éditeur de page, panneau « Couleurs », « Revenir aux couleurs du thème »."
+                t("removeOverrides")
               )}
             </p>
           </div>
@@ -514,25 +516,25 @@ export default function ThemeEditor({
         {preset && (
           <div className="a-notice" role="note" data-testid="da-preset-note">
             <p>
-              <strong>Thème livré avec le site : il ne se modifie pas.</strong> Essaie des couleurs ici, elles se voient dans l&apos;aperçu ; pour les garder, crée une copie modifiable.
+              {t.rich("presetNote", { b: (c) => <strong>{c}</strong> })}
             </p>
           </div>
         )}
         {preset && colorsChanged && (
           <div className="a-notice a-da-copy" role="alert" data-testid="da-copy-prompt">
-            <p>Tes couleurs ne sont pas enregistrées : un thème livré est en lecture seule.</p>
+            <p>{t("notSaved")}</p>
             <p className="a-da-copy-actions">
               <button type="button" className="a-btn a-btn-primary" onClick={makeCopy} disabled={copying} data-testid="da-copy">
-                {copying ? "Création de la copie…" : "Créer une copie modifiable de ce thème"}
+                {copying ? t("copying") : t("makeCopy")}
               </button>
               <button type="button" className="a-btn a-btn-quiet" onClick={() => setTheme(clone(saved))}>
-                Abandonner mes essais
+                {t("discard")}
               </button>
             </p>
-            <p className="a-help">La copie est un brouillon nommé « {initial.name} (copie) », hors ligne ; tes couleurs y sont reprises et tu continues l&apos;édition dessus.</p>
+            <p className="a-help">{t("copyHelp", { copyName: `${initial.name} (copie)` })}</p>
           </div>
         )}
-        <p className="a-help a-step-intro">Commence par 4 couleurs. Le reste se calcule tout seul.</p>
+        <p className="a-help a-step-intro">{t("colorsIntro")}</p>
         <ColorsPanel
           mode="theme"
           guided
@@ -549,13 +551,12 @@ export default function ThemeEditor({
             <Advanced
               id="couleurs"
               count={nuanceCount}
-              hint="Les autres couleurs (fond des blocs, traits fins, survol, ombres…) se calculent à partir des quatre couleurs de base. Change-en une pour la fixer ; « Revenir à auto » la rend au calcul."
+              hint={t("advancedHint")}
             >
               {Object.keys(sitePalette).length > 0 && (
                 <div className="a-notice" role="note" data-testid="site-palette-notice">
                   <p>
-                    Le site remplace {Object.keys(sitePalette).length > 1 ? "des couleurs" : "une couleur"} de ce thème depuis l&apos;éditeur visuel : {overrideNames(sitePalette)}. Elles s&apos;appliquent par-dessus ce thème tant
-                    qu&apos;il est en ligne ; les couleurs ci-dessous restent celles du thème. Pour les retirer : éditeur visuel, panneau « Couleurs » du site, « Revenir aux couleurs du thème ».
+                    {t("sitePaletteNotice", { count: Object.keys(sitePalette).length, names: overrideNames(sitePalette) })}
                   </p>
                 </div>
               )}
@@ -564,9 +565,9 @@ export default function ThemeEditor({
             <p className="a-help" data-testid="da-state">
               {colorsChanged
                 ? isActive
-                  ? "Couleurs modifiées : tes visiteurs ne les verront qu'après « Enregistrer »."
-                  : "Couleurs modifiées, pas encore enregistrées."
-                : "Les couleurs montrées sont celles du thème enregistré."}
+                  ? t("stateLive")
+                  : t("stateChanged")
+                : t("stateSaved")}
             </p>
           </>
         )}
@@ -584,18 +585,18 @@ export default function ThemeEditor({
   };
 
   const status = preset
-    ? "Thème livré · lecture seule"
+    ? t("statusPreset")
     : mine
       ? mine.live
         ? differs
-          ? `En ligne : v${mine.publishedVersion} · brouillon : v${version}`
-          : `En ligne : v${mine.publishedVersion}`
+          ? t("statusLiveDraft", { published: mine.publishedVersion ?? "", version })
+          : t("statusLive", { published: mine.publishedVersion ?? "" })
         : mine.publishedVersion != null
-          ? `Pas en ligne · dernière publiée : v${mine.publishedVersion} · brouillon : v${version}`
-          : "Brouillon · pas encore en ligne"
+          ? t("statusOffline", { published: mine.publishedVersion, version })
+          : t("statusDraftNever")
       : isActive
-        ? "En ligne"
-        : "Brouillon · pas en ligne";
+        ? t("statusOnline")
+        : t("statusDraft");
   const live = isActive || Boolean(mine?.live);
 
   return (
@@ -606,7 +607,7 @@ export default function ThemeEditor({
             <h1 className="a-guide-name">{theme.name}</h1>
           ) : (
             <div className={`a-guide-namefield${errors.name ? " a-field-invalid" : ""}`}>
-              <input id="theme-name" className="a-input a-guide-name" aria-label="Nom du thème" value={theme.name} maxLength={60} onChange={(e) => setTheme((t) => ({ ...t, name: e.target.value }))} />
+              <input id="theme-name" className="a-input a-guide-name" aria-label={t("themeName")} value={theme.name} maxLength={60} onChange={(e) => setTheme((t) => ({ ...t, name: e.target.value }))} />
               {errors.name && <p className="a-field-error">{errors.name}</p>}
             </div>
           )}
@@ -615,20 +616,20 @@ export default function ThemeEditor({
           </span>
           {mine && (
             <span className="a-guide-version" data-testid="guide-version">
-              Version {version}
+              {t("version", { version })}
             </span>
           )}
         </div>
         <div className="a-guide-actions">
           <details className="a-kit-menu" data-testid="kit-menu">
-            <summary className="a-btn a-btn-quiet">Dessiner dans Photoshop</summary>
+            <summary className="a-btn a-btn-quiet">{t("drawInPhotoshop")}</summary>
             <div className="a-kit-pop">
               <p className="a-help">
-                Un fichier Photoshop pré-rempli avec ce thème (état enregistré{dirty && !preset ? " : enregistre d'abord tes changements" : ""}) : peins les calques qui t&apos;intéressent, laisse les autres en aplat.
+                {t("kitHelp", { dirty: dirty && !preset ? "yes" : "no" })}
               </p>
               <KitDownloadButton themeId={initial.id} />
               <Link className="a-btn a-btn-quiet" href={`/admin/themes/${encodeURIComponent(initial.id)}/kit`}>
-                Renvoyer le kit rempli…
+                {t("kitSend")}
               </Link>
             </div>
           </details>
@@ -636,7 +637,7 @@ export default function ThemeEditor({
             <>
               {dirty && (
                 <button type="button" className="a-btn a-btn-quiet" onClick={() => setTheme(clone(saved))} disabled={saving} data-testid="guide-cancel">
-                  Annuler
+                  {t("cancel")}
                 </button>
               )}
               <SaveBar
@@ -646,16 +647,16 @@ export default function ThemeEditor({
                 onSave={save}
                 error={error}
                 testId="da-save"
-                note={isMine ? "Enregistrer met à jour la version en cours (un brouillon) : rien n'est publié avant « Publier cette version »." : isActive ? "En ligne : l'enregistrer le publie aussitôt." : undefined}
+                note={isMine ? t("saveNoteMine") : isActive ? t("saveNoteLive") : undefined}
               />
               {isMine && needsPublish && (
                 <button type="button" className="a-btn a-btn-primary" onClick={() => setConfirmPublish(true)} disabled={saving} data-testid="mine-bar-publish">
-                  {mine?.live ? "Publier cette version" : "Mettre en ligne cette version"}
+                  {mine?.live ? t("publishVersion") : t("goLiveVersion")}
                 </button>
               )}
               {isMine && (
                 <Link className="a-btn a-btn-quiet" href={`/admin/themes/${encodeURIComponent(initial.id)}/versions`} data-testid="guide-history">
-                  Historique des versions
+                  {t("history")}
                 </Link>
               )}
             </>
@@ -663,12 +664,12 @@ export default function ThemeEditor({
         </div>
       </header>
 
-      <div className="a-tabs a-theme-tabs" role="tablist" aria-label="Éditeur de thème">
+      <div className="a-tabs a-theme-tabs" role="tablist" aria-label={t("editorLabel")}>
         <button type="button" role="tab" id={`${tabsId}-r`} aria-selected={tab === "reglages"} aria-controls={`${tabsId}-rp`} onClick={() => setTab("reglages")}>
-          Réglages
+          {t("tabSettings")}
         </button>
         <button type="button" role="tab" id={`${tabsId}-a`} aria-selected={tab === "apercu"} aria-controls={`${tabsId}-ap`} onClick={() => setTab("apercu")}>
-          Aperçu
+          {t("tabPreview")}
         </button>
       </div>
 
@@ -693,7 +694,7 @@ export default function ThemeEditor({
                     <span className="a-step-num" aria-hidden="true">
                       {i + 1}
                     </span>
-                    <span className="a-step-title">{s.title}</span>
+                    <span className="a-step-title">{t(`steps.${s.id}`)}</span>
                     <span className="a-step-sum">{summaries[s.id]}</span>
                   </button>
                 </h2>
@@ -702,18 +703,18 @@ export default function ThemeEditor({
                   <div className="a-step-nav">
                     {prev ? (
                       <button type="button" className="a-btn" onClick={() => go(prev.id)} data-testid="step-prev">
-                        ← Précédent
+                        {t("prev")}
                       </button>
                     ) : (
                       <span />
                     )}
                     {next ? (
                       <button type="button" className="a-btn a-btn-primary" onClick={() => go(next.id)} data-testid="step-next">
-                        Suivant : {next.title} →
+                        {t("next", { title: t(`steps.${next.id}`) })}
                       </button>
                     ) : preset ? null : (
                       <button type="button" className="a-btn a-btn-primary" onClick={publish} disabled={saving || (isMine ? !needsPublish && !dirty : isActive && !dirty)} data-testid="step-publish">
-                        {(isMine ? !needsPublish && !dirty : isActive && !dirty) ? "Publié" : isMine ? "Publier cette version" : "Publier"}
+                        {(isMine ? !needsPublish && !dirty : isActive && !dirty) ? t("published") : isMine ? t("publishVersion") : t("publish")}
                       </button>
                     )}
                   </div>
@@ -722,7 +723,7 @@ export default function ThemeEditor({
             );
           })}
           <p className="a-help">
-            <Link href="/admin/themes">← Tous les thèmes</Link>
+            <Link href="/admin/themes">{t("allThemes")}</Link>
           </p>
         </div>
 
@@ -733,19 +734,19 @@ export default function ThemeEditor({
 
       <ConfirmDialog
         open={confirmLive}
-        title={`Publier les couleurs de « ${theme.name} » ?`}
-        confirmLabel="Enregistrer et publier"
+        title={t("liveTitle", { name: theme.name })}
+        confirmLabel={t("saveAndPublish")}
         busy={saving}
         onClose={() => setConfirmLive(false)}
         onConfirm={persist}
       >
         <p>
-          <strong>Ce thème est en ligne : tes visiteurs verront ces couleurs</strong> dès l&apos;enregistrement, sur toutes les pages.
+          {t.rich("liveWarning", { b: (c) => <strong>{c}</strong> })}
         </p>
         <ul className="a-da-changes">
           {SITE_ROLES.filter((r) => String(theme.tokens.color[r.key]).toLowerCase() !== String(saved.tokens.color[r.key]).toLowerCase()).map((r) => (
             <li key={r.key}>
-              {r.name} : <span className="a-chip" style={{ background: saved.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{saved.tokens.color[r.key]}</span> →{" "}
+              {t("roleChange", { name: r.name })} <span className="a-chip" style={{ background: saved.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{saved.tokens.color[r.key]}</span> →{" "}
               <span className="a-chip" style={{ background: theme.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{theme.tokens.color[r.key]}</span>
             </li>
           ))}
@@ -754,8 +755,8 @@ export default function ThemeEditor({
 
       <ConfirmDialog
         open={confirmPublish}
-        title={mine ? `Publier la version ${dirty ? version + 1 : version} de « ${theme.name} » ?` : `Mettre « ${theme.name} » en ligne ?`}
-        confirmLabel="Publier"
+        title={mine ? t("publishTitleMine", { version: dirty ? version + 1 : version, name: theme.name }) : t("publishTitle", { name: theme.name })}
+        confirmLabel={t("publish")}
         busy={saving}
         onClose={() => setConfirmPublish(false)}
         onConfirm={publishNow}
@@ -763,18 +764,18 @@ export default function ThemeEditor({
         {mine ? (
           <>
             <p className="a-swap" data-testid="activate-swap">
-              <span>{mine.live && mine.publishedVersion != null ? `En ligne : v${mine.publishedVersion}` : (activeName ?? "Thème en ligne actuel")}</span>
+              <span>{mine.live && mine.publishedVersion != null ? t("statusLive", { published: mine.publishedVersion }) : (activeName ?? t("currentLiveTheme"))}</span>
               <span aria-hidden="true">→</span>
               <strong>
-                {theme.name} : v{dirty ? version + 1 : version}
+                {t("swapMine", { name: theme.name, version: dirty ? version + 1 : version })}
               </strong>
             </p>
-            <p className="muted">Tous tes visiteurs verront cette version dès maintenant, sur toutes les pages.{dirty ? " Tes réglages en cours sont enregistrés d'abord (nouvelle version)." : ""}</p>
+            <p className="muted">{t("visitorsSeeVersion")}{dirty ? ` ${t("savedFirstVersion")}` : ""}</p>
             {mine.live && mine.published && (
               <ul className="a-da-changes" data-testid="activate-changes">
                 {SITE_ROLES.filter((r) => String(theme.tokens.color[r.key]).toLowerCase() !== String(mine.published!.tokens.color[r.key]).toLowerCase()).map((r) => (
                   <li key={r.key}>
-                    {r.name} : <span className="a-chip" style={{ background: mine.published!.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{mine.published!.tokens.color[r.key]}</span> →{" "}
+                    {t("roleChange", { name: r.name })} <span className="a-chip" style={{ background: mine.published!.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{mine.published!.tokens.color[r.key]}</span> →{" "}
                     <span className="a-chip" style={{ background: theme.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{theme.tokens.color[r.key]}</span>
                   </li>
                 ))}
@@ -783,14 +784,8 @@ export default function ThemeEditor({
           </>
         ) : (
           <p>
-            <strong>Tes visiteurs verront ce thème</strong>
-            {activeName ? (
-              <>
-                {" "}
-                à la place de « {activeName} »
-              </>
-            ) : null}
-            , sur toutes les pages, dès maintenant.{dirty ? " Tes réglages en cours sont enregistrés d'abord." : ""}
+            {t.rich("visitorsSeeTheme", { replacing: activeName ? "yes" : "no", activeName: activeName ?? "", b: (c) => <strong>{c}</strong> })}
+            {dirty ? ` ${t("savedFirst")}` : ""}
           </p>
         )}
       </ConfirmDialog>

@@ -1,0 +1,14 @@
+{
+  "megabytes": "{value} MB",
+  "title": "Downloaded fonts",
+  "summary": "{count} / {max} fonts · {used} of {limit}. A font chosen in the editor is downloaded by the site; those no longer in use are removed on publishing, or here.",
+  "none": "No downloaded fonts: the texts use the theme's fonts.",
+  "styles": "{count, plural, one {# style} other {# styles}}",
+  "usedIn": "Used in: {list}",
+  "unused": "Unused",
+  "delete": "Delete",
+  "deleteTitle": "Delete the font “{name}”?",
+  "connectionLost": "Connection lost: try again.",
+  "deleted": "“{name}” deleted",
+  "deleteBody": "Its files are erased from the site. You will be able to choose it again in the editor (it will be downloaded again)."
+}

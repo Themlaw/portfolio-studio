@@ -1,0 +1,27 @@
+{
+  "themes": {
+    "title": "Thèmes",
+    "intro": "Les modèles ne changent jamais : tu as un seul thème à toi, « Mon thème », que tu fais évoluer version après version (couleurs, kit Photoshop, import). Seul ce qui est en ligne est vu par tes visiteurs : prévisualise, puis publie.",
+    "quitPreview": "Quitter l'aperçu",
+    "noneTitle": "Aucun thème enregistré",
+    "noneBody": "Le site s'affiche avec l'apparence par défaut. Les thèmes livrés sont installés au premier démarrage d'une base neuve."
+  },
+  "edit": {
+    "title": "Modifier un thème",
+    "wallpapersIntro": "Tes motifs dessinés, à répéter en fond : sur une page entière, derrière un grand bloc, ou sur les cartes. Importe-en autant que tu veux (PNG ou WebP sur fond transparent)."
+  },
+  "versions": {
+    "metaTitle": "Historique de Mon thème",
+    "title": "Historique de {name}",
+    "intro": "Chaque kit, import, changement de modèle ou séance d'édition ajoute une version. Revenir à une version en crée une nouvelle, identique : rien n'est perdu. Les {count} dernières versions sont gardées, avec celles que tu marques et celles qui ont été en ligne.",
+    "allThemes": "← Tous les thèmes"
+  },
+  "frames": {
+    "title": "Cadres",
+    "intro": "Tes cadres dessinés, à poser autour d'une photo ou d'une vidéo. Importe-en autant que tu veux (PNG ou WebP sur fond transparent, ou SVG), puis choisis-en un dans le menu « Cadre » de chaque image."
+  },
+  "wallpapers": {
+    "title": "Papiers peints",
+    "intro": "Tes motifs dessinés, à répéter en fond : sur une page entière, derrière un grand composant, ou sur les cartes. Importe-en autant que tu veux (PNG ou WebP sur fond transparent)."
+  }
+}

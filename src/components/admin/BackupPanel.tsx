@@ -1,5 +1,6 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { backupNowAction, backupStatusAction, saveBackupSettingsAction, unlockBackupDownloadAction } from "@/app/admin/(espace)/sauvegardes/actions";
@@ -7,26 +8,17 @@ import type { ArchiveRow, BackupStatus } from "@/lib/backup/service";
 
 import { ConfirmDialog, SaveBar, toast } from "./editing";
 
-const REASONS: Record<string, string> = {
-  premier: "Première sauvegarde",
-  calme: "Après une session de travail",
-  delai: "Modifications en attente depuis trop longtemps (tu travaillais encore)",
-  manuel: "À ta demande",
-};
-const SOURCES = { reglage: "Réglé ici", env: "Valeur du serveur", defaut: "Valeur d'origine" } as const;
+const REASON_KEYS = ["premier", "calme", "delai", "manuel"];
 
-const fmtDate = (ms: number) => new Date(ms).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
-export function fmtSize(b: number) {
-  if (b >= 1073741824) return `${(b / 1073741824).toFixed(1).replace(".", ",")} Go`;
-  if (b >= 1048576) return `${(b / 1048576).toFixed(1).replace(".", ",")} Mo`;
-  return `${Math.max(1, Math.round(b / 1024))} Ko`;
+type Tr = ReturnType<typeof useTranslations>;
+type Fmt = ReturnType<typeof useFormatter>;
+
+export function fmtSize(b: number, t: Tr, format: Fmt) {
+  const one = (v: number) => format.number(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (b >= 1073741824) return `${one(b / 1073741824)} ${t("unitGB")}`;
+  if (b >= 1048576) return `${one(b / 1048576)} ${t("unitMB")}`;
+  return `${Math.max(1, Math.round(b / 1024))} ${t("unitKB")}`;
 }
-const fmtIn = (ms: number) => {
-  const min = Math.max(1, Math.round(ms / 60_000));
-  if (min < 60) return `dans environ ${min} min`;
-  const h = Math.round(min / 6) / 10;
-  return `dans environ ${String(h).replace(".", ",")} h`;
-};
 
 type Form = { enabled: boolean; media: boolean; keep: string; quietMin: string; maxHours: string };
 type Field = keyof Form;
@@ -35,6 +27,16 @@ const FIELD_ENV: Record<Field, string> = { enabled: "WITH_BACKUP", media: "BACKU
 const toForm = (s: BackupStatus): Form => ({ enabled: s.settings.enabled, media: s.settings.media, keep: String(s.settings.keep), quietMin: String(s.settings.quietMin), maxHours: String(s.settings.maxHours) });
 
 export default function BackupPanel({ initial }: { initial: BackupStatus }) {
+  const t = useTranslations("backups");
+  const format = useFormatter();
+  const fmtDate = (ms: number) => format.dateTime(new Date(ms), { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const fmtSz = (b: number) => fmtSize(b, t, format);
+  const num = (n: number) => format.number(n, { useGrouping: false, maximumFractionDigits: 3 });
+  const fmtIn = (ms: number) => {
+    const min = Math.max(1, Math.round(ms / 60_000));
+    if (min < 60) return t("inMinutes", { min });
+    return t("inHours", { h: num(Math.round(min / 6) / 10) });
+  };
   const [status, setStatus] = useState(initial);
   const [form, setForm] = useState<Form>(() => toForm(initial));
   // Téléchargement (audit P2) : connexion récente ou mot de passe retapé, vérifié par le serveur.
@@ -46,7 +48,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
     setUnlocking(true);
     const r = await unlockBackupDownloadAction(pw === undefined ? {} : { password: pw }).catch(() => null);
     setUnlocking(false);
-    if (!r) return toast("Le téléchargement n'a pas pu être préparé. Réessaie.", "error");
+    if (!r) return toast(t("downloadFailed"), "error");
     if (r.ok) {
       setUnlockFor(null);
       setPassword("");
@@ -84,8 +86,8 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
 
   // Lot 118 : l'état se rafraîchit aussi au repos (30 s), pour que l'alerte rouge apparaisse sans recharger la page.
   useEffect(() => {
-    const t = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,15 +96,15 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
     if (!status.running && !launching) {
       if (wasRunning.current) {
         wasRunning.current = false;
-        if (status.lastError) toast(`La sauvegarde a échoué : ${status.lastError.message}`, "error");
-        else toast("Sauvegarde terminée");
+        if (status.lastError) toast(t("backupFailed", { message: status.lastError.message }), "error");
+        else toast(t("backupDone"));
       }
       return;
     }
     wasRunning.current = true;
-    const t = setInterval(() => void refresh().then(() => setLaunching(false)), 1500);
-    return () => clearInterval(t);
-  }, [status.running, launching, status.lastError]);
+    const timer = setInterval(() => void refresh().then(() => setLaunching(false)), 1500);
+    return () => clearInterval(timer);
+  }, [status.running, launching, status.lastError, t]);
 
   const sourceOf = (f: Field) => (reset.has(f) ? "env" : touched.has(f) ? "reglage" : status.settings.sources[f]);
   const dirty = touched.size > 0 || reset.size > 0;
@@ -144,7 +146,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
       setForm(toForm(r.data));
       setTouched(new Set());
       setReset(new Set());
-      toast("Réglages enregistrés");
+      toast(t("settingsSaved"));
     });
 
   const now = async () => {
@@ -165,12 +167,12 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
   const p = status.progress;
   const nextText =
     status.next.kind === "desactivee"
-      ? "Sauvegardes automatiques désactivées"
+      ? t("nextDisabled")
       : status.next.kind === "aucune"
-        ? "Aucune modification en attente"
+        ? t("nextNone")
         : status.next.kind === "immediate"
-          ? "Très bientôt"
-          : `${fmtDate(status.next.at!)} (${fmtIn(status.next.at! - status.now)})`;
+          ? t("nextSoon")
+          : t("nextAt", { date: fmtDate(status.next.at!), when: fmtIn(status.next.at! - status.now) });
 
   const row = (label: string, value: React.ReactNode, testId?: string) => (
     <>
@@ -183,13 +185,13 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
     const s = sourceOf(f);
     return (
       <span className="a-help" data-testid={`source-${f}`} data-source={s}>
-        {SOURCES[s]}
+        {t(`source_${s}`)}
         {s === "env" && <span className="mono"> ({FIELD_ENV[f]})</span>}
         {s === "reglage" && (
           <>
             {" · "}
             <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => back(f)}>
-              Revenir à la valeur d&apos;origine
+              {t("backToDefault")}
             </button>
           </>
         )}
@@ -200,110 +202,109 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
   return (
     <>
       <p className="a-notice" role="note" data-testid="conseil-copie">
-        Garde une copie sur ton ordinateur de temps en temps : les sauvegardes sont rangées au même endroit que ton site. Elles te protègent d&apos;une fausse manœuvre, pas de la perte du disque. Télécharge la dernière une fois de temps en temps.
+        {t("advice")}
       </p>
 
       <span hidden data-testid="activite-sauvegarde" data-last-change={status.activity?.lastChangeAt ?? ""} data-last-user={status.activity?.lastUserAt ?? ""} data-changes={status.activity?.changes ?? ""} />
       {status.alert && (
         <p className="a-notice a-notice-danger" role="alert" data-testid="alerte-sauvegarde" data-kind={status.alert.kind}>
-          Attention : {status.alert.message} Elle devait avoir lieu {fmtDate(status.alert.since)}. Fais une sauvegarde à la main (bouton ci-dessous) et préviens la personne qui s&apos;occupe du site : le journal du site contient une ligne « [backup] ALERTE » avec le détail.
+          {t("alert", { message: status.alert.message, date: fmtDate(status.alert.since) })}
         </p>
       )}
       <section className="a-section" aria-labelledby="sv-etat">
-        <h2 id="sv-etat">État</h2>
+        <h2 id="sv-etat">{t("state")}</h2>
         <div className="a-table-wrap">
           <dl className="a-dl">
-            {row("Sauvegardes gardées", String(status.archives.length), "etat-nombre")}
+            {row(t("kept"), String(status.archives.length), "etat-nombre")}
             {row(
-              "Règle de conservation",
-              `Les ${status.settings.keep} dernières, plus la dernière de chacun des ${status.settings.keepDays} derniers jours (heure de Paris). Le reste est supprimé à la sauvegarde suivante.`,
+              t("retentionRule"),
+              t("retentionText", { keep: String(status.settings.keep), days: String(status.settings.keepDays) }),
               "etat-conservation",
             )}
-            {row("Sauvegarde même si tu travailles", `Toutes les ${String(status.settings.maxHours).replace(".", ",")} h au plus, quand des modifications attendent (sinon ${String(status.settings.quietMin).replace(".", ",")} min sans modification).`, "etat-delai")}
-            {row("Prochaine sauvegarde", nextText, "etat-prochaine")}
+            {row(t("delayLabel"), t("delayText", { maxHours: num(status.settings.maxHours), quietMin: num(status.settings.quietMin) }), "etat-delai")}
+            {row(t("next"), nextText, "etat-prochaine")}
             {row(
-              "Dernière erreur",
+              t("lastError"),
               status.lastError ? (
                 <span className="a-danger-text">
                   {status.lastError.message} <span className="muted">({fmtDate(status.lastError.at)})</span>
                 </span>
               ) : (
-                <span className="muted">Aucune</span>
+                <span className="muted">{t("none")}</span>
               ),
               "etat-erreur",
             )}
-            {row("Espace libre sur le disque", status.free ? `${fmtSize(status.free.bytes)} sur ${fmtSize(status.free.total)}` : <span className="muted">inconnu</span>, "etat-espace")}
+            {row(t("freeSpace"), status.free ? t("freeOf", { free: fmtSz(status.free.bytes), total: fmtSz(status.free.total) }) : <span className="muted">{t("unknown")}</span>, "etat-espace")}
           </dl>
         </div>
         <div className="a-toolbar" style={{ marginTop: 12 }}>
           <button type="button" className="a-btn a-btn-primary" onClick={now} disabled={busy} data-testid="sauvegarder-maintenant">
-            {busy ? "Sauvegarde en cours…" : "Sauvegarder maintenant"}
+            {busy ? t("backingUp") : t("backupNow")}
           </button>
           <span className="a-help" role="status" aria-live="polite" data-testid="progression">
             {busy
               ? p?.phase === "ecriture"
-                ? `Écriture de l'archive : ${p.done} fichier${p.done > 1 ? "s" : ""} sur ${p.total}`
-                : "Préparation de la copie…"
+                ? t("writing", { done: p.done, total: p.total })
+                : t("preparing")
               : status.lastRun
-                ? `Dernière sauvegarde faite ici : ${status.lastRun.name} (${fmtSize(status.lastRun.bytes)})`
+                ? t("lastRun", { name: status.lastRun.name, size: fmtSz(status.lastRun.bytes) })
                 : ""}
           </span>
         </div>
       </section>
 
       <section className="a-section" aria-labelledby="sv-liste">
-        <h2 id="sv-liste">Sauvegardes</h2>
+        <h2 id="sv-liste">{t("listTitle")}</h2>
         {status.archives.length === 0 ? (
-          <p className="muted" data-testid="sauvegardes-vide">Aucune sauvegarde pour l&apos;instant.</p>
+          <p className="muted" data-testid="sauvegardes-vide">{t("empty")}</p>
         ) : (
           <>
           {latestMissing && (
             <p className="a-notice a-notice-danger" role="alert" data-testid="avertissement-sauvegarde">
-              Attention : {latestMissing.count} fichier{latestMissing.count > 1 ? "s" : ""} utilisé{latestMissing.count > 1 ? "s" : ""} par ton site {latestMissing.count > 1 ? "ne sont" : "n'est"} pas dans la dernière sauvegarde et ne {latestMissing.count > 1 ? "peuvent" : "peut"} pas être refait{latestMissing.count > 1 ? "s" : ""} (par exemple{" "}
-              <span className="mono">{latestMissing.samples.slice(0, 3).join(", ")}</span>). Renvoie ces images (ou retire-les du site) ; sinon elles seront cassées après une restauration.
+              {t.rich("missing", { count: latestMissing.count, samples: latestMissing.samples.slice(0, 3).join(", "), mono: (c) => <span className="mono">{c}</span> })}
             </p>
           )}
           <div className="a-table-wrap">
             <table className="a-table a-table-stack" data-testid="liste-sauvegardes">
               <thead>
                 <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Taille</th>
-                  <th scope="col">Contenu</th>
-                  <th scope="col">Version du site</th>
-                  <th scope="col">Pourquoi</th>
+                  <th scope="col">{t("colDate")}</th>
+                  <th scope="col">{t("colSize")}</th>
+                  <th scope="col">{t("colContent")}</th>
+                  <th scope="col">{t("colVersion")}</th>
+                  <th scope="col">{t("colWhy")}</th>
                   <th scope="col">
-                    <span className="sr-only">Télécharger</span>
+                    <span className="sr-only">{t("download")}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {status.archives.map((a: ArchiveRow) => (
                   <tr key={a.name} data-testid="ligne-sauvegarde" data-name={a.name}>
-                    <td data-label="Date">
+                    <td data-label={t("colDate")}>
                       {fmtDate(a.at)}
                       {a.retention && (
                         <span className={`a-badge${a.retention.kind === "recente" ? "" : " a-badge-muted"}`} data-testid="conservation" data-kind={a.retention.kind} data-day={a.retention.day}>
                           {" "}
-                          {a.retention.kind === "recente" ? "Récente" : "Du jour"}
+                          {a.retention.kind === "recente" ? t("retRecent") : t("retDay")}
                         </span>
                       )}
                     </td>
-                    <td data-label="Taille">{fmtSize(a.size)}</td>
-                    <td data-label="Contenu">
-                      {a.withMedia === null ? "?" : a.withMedia ? "Base et médias" : "Base seule"}
+                    <td data-label={t("colSize")}>{fmtSz(a.size)}</td>
+                    <td data-label={t("colContent")}>
+                      {a.withMedia === null ? "?" : a.withMedia ? t("withMedia") : t("dbOnly")}
                       {a.old && (
                         <span className="a-help" data-testid="sauvegarde-ancienne">
                           {" "}
-                          Ancienne : sans les dessins du kit, les cadres importés ni les icônes.
+                          {t("oldBackup")}
                         </span>
                       )}
                     </td>
-                    <td data-label="Version du site">{a.version ?? "?"}</td>
-                    <td data-label="Pourquoi">{a.reason ? (REASONS[a.reason] ?? a.reason) : "?"}</td>
+                    <td data-label={t("colVersion")}>{a.version ?? "?"}</td>
+                    <td data-label={t("colWhy")}>{a.reason ? (REASON_KEYS.includes(a.reason) ? t(`reason_${a.reason}`) : a.reason) : "?"}</td>
                     <td className="a-row-actions">
                       <button type="button" className="a-btn a-btn-small" onClick={() => void download(a.name)} disabled={unlocking} data-testid="telecharger">
-                        Télécharger
+                        {t("download")}
                       </button>
                     </td>
                   </tr>
@@ -317,8 +318,8 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
 
       <ConfirmDialog
         open={unlockFor !== null}
-        title="Confirmer ton mot de passe pour télécharger"
-        confirmLabel="Télécharger"
+        title={t("unlockTitle")}
+        confirmLabel={t("download")}
         busy={unlocking}
         confirmDisabled={!password}
         onConfirm={() => unlockFor && void download(unlockFor, password)}
@@ -335,8 +336,8 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
             if (unlockFor && password) void download(unlockFor, password);
           }}
         >
-          <p>Une sauvegarde contient toute la base du site. Retape ton mot de passe : le téléchargement reste ouvert 10 minutes.</p>
-          <label htmlFor="sv-password">Mot de passe</label>
+          <p>{t("unlockBody")}</p>
+          <label htmlFor="sv-password">{t("password")}</label>
           <input id="sv-password" className="a-input" type="password" autoComplete="current-password" maxLength={256} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="mot-de-passe-telechargement" autoFocus />
           {unlockError && (
             <span className="a-field-error" role="alert" data-testid="erreur-mot-de-passe">
@@ -347,38 +348,38 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
       </ConfirmDialog>
 
       <section className="a-section" aria-labelledby="sv-reglages">
-        <h2 id="sv-reglages">Réglages</h2>
+        <h2 id="sv-reglages">{t("settingsTitle")}</h2>
         <div className="a-form-grid">
           <div className="a-field">
             <label>
-              <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} data-testid="reglage-actif" /> Faire des sauvegardes automatiques
+              <input type="checkbox" checked={form.enabled} onChange={(e) => set("enabled", e.target.checked)} data-testid="reglage-actif" /> {t("autoBackups")}
             </label>
             {src("enabled")}
           </div>
           <div className="a-field">
             <label>
-              <input type="checkbox" checked={form.media} onChange={(e) => set("media", e.target.checked)} data-testid="reglage-medias" /> Inclure les images et les vidéos
+              <input type="checkbox" checked={form.media} onChange={(e) => set("media", e.target.checked)} data-testid="reglage-medias" /> {t("includeMedia")}
             </label>
-            <span className="a-help">Sans elles, la copie est bien plus légère, mais elle ne protège que les textes et la mise en page.</span>
+            <span className="a-help">{t("includeMediaHelp")}</span>
             {src("media")}
           </div>
           <div className="a-field">
-            <label htmlFor="sv-keep">Nombre de sauvegardes gardées</label>
+            <label htmlFor="sv-keep">{t("keepLabel")}</label>
             <input id="sv-keep" className="a-input" type="number" min={1} max={30} step={1} value={form.keep} onChange={(e) => set("keep", e.target.value)} data-testid="reglage-garder" />
             <span className="a-help">
-              Les dernières sauvegardes (« récentes »). S&apos;y ajoute la dernière de chacun des {status.settings.keepDays} derniers jours (« du jour », réglage du serveur BACKUP_KEEP_DAYS). Le reste est supprimé à la sauvegarde suivante. Restent toujours, en plus : la plus récente de plus de 48 heures et les 3 dernières faites avec « Sauvegarder maintenant » (comptées à part).
+              {t("keepHelp", { days: String(status.settings.keepDays) })}
             </span>
             {errors.keep && <span className="a-field-error">{errors.keep}</span>}
             {src("keep")}
           </div>
           <div className="a-field">
-            <label htmlFor="sv-calme">Minutes sans modification avant de sauvegarder</label>
+            <label htmlFor="sv-calme">{t("quietLabel")}</label>
             <input id="sv-calme" className="a-input" type="number" min={1} max={1440} step={1} value={form.quietMin} onChange={(e) => set("quietMin", e.target.value)} data-testid="reglage-calme" />
             {errors.quietMin && <span className="a-field-error">{errors.quietMin}</span>}
             {src("quietMin")}
           </div>
           <div className="a-field">
-            <label htmlFor="sv-max">Heures au plus avant de sauvegarder tes modifications, même si tu travailles encore</label>
+            <label htmlFor="sv-max">{t("maxLabel")}</label>
             <input id="sv-max" className="a-input" type="number" min={1} max={720} step={1} value={form.maxHours} onChange={(e) => set("maxHours", e.target.value)} data-testid="reglage-delai" />
             {errors.maxHours && <span className="a-field-error">{errors.maxHours}</span>}
             {src("maxHours")}

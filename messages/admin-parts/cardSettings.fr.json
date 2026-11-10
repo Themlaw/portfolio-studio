@@ -1,0 +1,22 @@
+{
+  "title": "Cartes des rubriques",
+  "intro": "Un bloc peut être posé sur une carte colorée (bouton « Fond » sur la page). Voici ce qu'il prend quand on active la carte sans rien choisir de plus. Les blocs sans carte ne changent pas.",
+  "defaultColor": "Couleur par défaut",
+  "otherColor": "Autre couleur",
+  "freeColor": "Couleur libre {color}",
+  "colorHelp": "Une couleur du thème ou une teinte douce suit les changements de palette.",
+  "textOk": "Le texte se lit bien sur cette carte.",
+  "textBad": "Le texte se lit mal sur cette couleur ({ratio}:1, il faut 4,5:1).",
+  "width": "Largeur",
+  "defaultWidth": "Largeur par défaut",
+  "corners": "Coins",
+  "defaultCorners": "Coins par défaut",
+  "border": "Bordure",
+  "defaultBorder": "Bordure par défaut",
+  "noBorder": "Sans bordure",
+  "borderColor": "Couleur de la bordure par défaut",
+  "borderAuto": "Par défaut : la couleur du texte de la carte",
+  "otherBorderColor": "Autre couleur de bordure",
+  "borderHelp": "La bordure suit les coins de la carte ; fine, moyenne ou épaisse. Sans couleur choisie, elle prend la couleur du texte de la carte, toujours lisible sur elle.",
+  "reset": "Revenir aux réglages d'origine"
+}

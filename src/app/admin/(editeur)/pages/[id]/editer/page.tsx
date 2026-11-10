@@ -11,8 +11,11 @@ import { siteNameFor } from "@/lib/site-schema";
 import { getPreparingTheme, getTheme } from "@/lib/theme";
 import { getThemeLibrary } from "@/lib/themes/versions";
 import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminT } from "@/i18n/admin-server";
 
-export const metadata = { title: "Éditeur de page" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("pagesMgr"))("editorMeta") };
+}
 
 /**
  * Éditeur visuel d'une page (entrée principale de l'édition) : brouillon
@@ -21,6 +24,7 @@ export const metadata = { title: "Éditeur de page" };
  */
 export default async function VisualEditorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ langue?: string }> }) {
   await requireAdmin();
+  const t = await getAdminT("pagesMgr");
   const { id } = await params;
   const { langue } = await searchParams;
   const state = /^\d+$/.test(id) ? readDraft(Number(id)) : null;
@@ -28,7 +32,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   if (!state) notFound();
   const everyPage = listPagesForAdmin();
   // Pages proposées aux liens : jamais une page spéciale (« Page introuvable », lot 89).
-  const pages = everyPage.filter((p) => !p.special).map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
+  const pages = everyPage.filter((p) => !p.special).map((p) => ({ id: p.id, title: p.title || t("untitled"), slug: p.slug }));
   const self = everyPage.find((p) => p.id === Number(id));
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();

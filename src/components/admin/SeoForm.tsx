@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -32,6 +33,7 @@ export default function SeoForm({
   colors: Record<MonoColorKey, string>;
 }) {
   const router = useRouter();
+  const t = useTranslations("seo");
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(() => clone(initial));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -53,7 +55,7 @@ export default function SeoForm({
       setError(null);
       setErrors({});
       setSaved(clone(value));
-      toast("Enregistré · visible sur tout le site");
+      toast(t("saved"));
       setTimeout(() => router.refresh(), 0);
     });
 
@@ -68,43 +70,43 @@ export default function SeoForm({
       }}
     >
       <section className="a-panel" aria-labelledby="s-partage">
-        <h2 id="s-partage">Partage et moteurs de recherche</h2>
-        <p className="a-help">Ce qui s&apos;affiche quand quelqu&apos;un colle le lien de ton site (Instagram, messageries…) ou te cherche sur Google.</p>
+        <h2 id="s-partage">{t("shareTitle")}</h2>
+        <p className="a-help">{t("shareIntro")}</p>
         <div className="a-form-grid">
           <TextareaI18n
-            label="Description du site"
-            help="Une ou deux phrases, utilisées quand une page n'a pas la sienne."
+            label={t("description")}
+            help={t("descriptionHelp")}
             value={value.description}
             onChange={(description) => setValue((v) => ({ ...v, description }))}
             error={errorAt(errors, "description")}
           />
           <MediaPicker
-            label="Image affichée quand on partage ton site"
-            help="Utilisée quand une page n'a pas d'image à elle (sinon, la première image de la page). Une image large, d'environ 1200 × 630, rend le mieux."
+            label={t("shareImage")}
+            help={t("shareImageHelp")}
             value={value.shareImage ?? undefined}
             onChange={(v) => setValue((s) => ({ ...s, shareImage: v ?? null }))}
             error={errors.shareImage}
             context={context}
           />
         </div>
-        <div className="a-share-preview" aria-label="Aperçu d'un lien partagé" data-testid="share-preview">
-          <p className="a-card-label">Voici comment ton lien apparaîtra</p>
+        <div className="a-share-preview" aria-label={t("previewLabel")} data-testid="share-preview">
+          <p className="a-card-label">{t("previewTitle")}</p>
           <div className="a-share-card">
             {share?.preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={share.preview} alt="" />
             ) : (
-              <span className="a-share-none muted">Pas d&apos;image : un lien partagé s&apos;affichera sans vignette.</span>
+              <span className="a-share-none muted">{t("noImage")}</span>
             )}
             <strong>{siteName}</strong>
-            <span className="muted">{value.description.fr || "Ajoute une description pour qu'elle apparaisse ici."}</span>
+            <span className="muted">{value.description.fr || t("addDescription")}</span>
           </div>
         </div>
       </section>
       <SaveBar dirty={dirty} saving={saving} onSave={save} error={error} />
     </form>
     <section className="a-panel" aria-labelledby="s-icone" data-testid="seo-icon">
-      <h2 id="s-icone">Icône de l&apos;onglet</h2>
+      <h2 id="s-icone">{t("iconTitle")}</h2>
       <FaviconSetting initial={favicon} media={media} siteName={siteName} colors={colors} scope="reglages" />
     </section>
     </>

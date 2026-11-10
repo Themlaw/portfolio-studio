@@ -15,6 +15,7 @@
  * - Annonces aria-live (« 3 suggestions », « tag « perso » ajouté »).
  * Habillage : attributs data-* de React Aria et tokens --admin-* (admin.css).
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button, ComboBox, Input, ListBox, ListBoxItem, Popover, Tag, TagGroup, TagList, type Key } from "react-aria-components";
 
@@ -56,6 +57,7 @@ export default function TagInput({
   /** compact : 32 px de haut (cartes de l'Uploader). */
   size?: "default" | "compact";
 }) {
+  const t = useTranslations("fields");
   const [input, setInput] = useState("");
   const [announce, setAnnounce] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -87,9 +89,9 @@ export default function TagInput({
   useEffect(() => {
     if (!input.trim()) return;
     const n = items.filter((i) => !i.create).length;
-    const timer = setTimeout(() => setAnnounce(n === 0 ? "Aucune suggestion" : `${n} suggestion${n > 1 ? "s" : ""}`), 400);
+    const timer = setTimeout(() => setAnnounce(t("suggestions", { count: n })), 400);
     return () => clearTimeout(timer);
-  }, [items, input]);
+  }, [items, input, t]);
 
   const full = mode === "edit" && value.length >= max;
 
@@ -98,16 +100,16 @@ export default function TagInput({
     const problem = tagLabelProblem(clean);
     if (problem) return setError(problem);
     if (selectedKeys.has(tagKey(clean))) return;
-    if (mode === "edit" && value.length >= max) return setError(`${max} tags au plus par fichier.`);
+    if (mode === "edit" && value.length >= max) return setError(t("tagsMaxPerFile", { max }));
     setError(null);
     onChange([...value, clean]);
-    setAnnounce(`Tag « ${clean} » ajouté`);
+    setAnnounce(t("tagAdded", { tag: clean }));
   };
   const remove = (key: string) => {
     const gone = value.find((v) => tagKey(v) === key);
     if (!gone) return;
     onChange(value.filter((v) => tagKey(v) !== key));
-    setAnnounce(`Tag « ${gone} » retiré`);
+    setAnnounce(t("tagRemoved", { tag: gone }));
   };
 
   const onSelection = (keys: Key[]) => {
@@ -139,7 +141,7 @@ export default function TagInput({
       <div ref={boxRef} className="a-taginput-box" data-disabled={disabled || undefined} data-full={full || undefined} onClick={(e) => e.target === e.currentTarget && inputRef.current?.focus()}>
         {value.length > 0 && (
           <TagGroup
-            aria-label={mode === "filter" ? `${label} : tags du filtre` : `${label} : tags choisis`}
+            aria-label={mode === "filter" ? t("filterTags", { label }) : t("chosenTags", { label })}
             className="a-taginput-tags"
             onRemove={(keys) => {
               for (const k of keys) remove(String(k).slice(2));
@@ -153,7 +155,7 @@ export default function TagInput({
               {value.map((v) => (
                 <Tag key={keyId(v)} id={keyId(v)} textValue={v} className="a-tagpill">
                   <span className="a-tag-label">{v}</span>
-                  <Button slot="remove" className="a-tag-remove" aria-label={`Retirer ${v}`}>
+                  <Button slot="remove" className="a-tag-remove" aria-label={t("removeTag", { tag: v })}>
                     ✕
                   </Button>
                 </Tag>
@@ -184,7 +186,7 @@ export default function TagInput({
           <Input
             ref={inputRef}
             className="a-taginput-input"
-            placeholder={full ? "" : (placeholder ?? (mode === "filter" ? "Filtrer par tags…" : "Ajouter un tag…"))}
+            placeholder={full ? "" : (placeholder ?? (mode === "filter" ? t("filterPlaceholder") : t("addPlaceholder")))}
             onKeyDown={(e) => {
               if (e.key === "Backspace" && !input && value.length) {
                 e.preventDefault();
@@ -199,12 +201,12 @@ export default function TagInput({
             }}
           />
           <Popover className="a-taginput-popover" placement="bottom start" offset={4} triggerRef={boxRef}>
-            <ListBox<Item> className="a-taginput-listbox" renderEmptyState={() => <p className="a-taginput-empty">{mode === "filter" ? "Aucun tag ne correspond." : "Aucun tag pour l'instant."}</p>}>
+            <ListBox<Item> className="a-taginput-listbox" renderEmptyState={() => <p className="a-taginput-empty">{mode === "filter" ? t("noTagMatch") : t("noTagYet")}</p>}>
               {(item) => (
-                <ListBoxItem id={item.id} textValue={item.create ? `Créer « ${item.label} »` : item.label} className="a-taginput-option" data-create={item.create || undefined}>
+                <ListBoxItem id={item.id} textValue={item.create ? t("createTagText", { tag: item.label }) : item.label} className="a-taginput-option" data-create={item.create || undefined}>
                   {item.create ? (
                     <>
-                      <span className="a-taginput-create">Créer</span> « {item.label} »
+                      <span className="a-taginput-create">{t("create")}</span> « {item.label} »
                     </>
                   ) : (
                     <>
@@ -223,7 +225,7 @@ export default function TagInput({
       </div>
       {(help || full) && (
         <p id={helpId} className="a-help">
-          {full ? `${max} tags au plus.` : help}
+          {full ? t("tagsMax", { max }) : help}
         </p>
       )}
       {error && (

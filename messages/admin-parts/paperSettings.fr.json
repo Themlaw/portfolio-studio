@@ -1,0 +1,8 @@
+{
+  "title": "Papier dessiné",
+  "underHeader": "Papier sous le bandeau du haut",
+  "underHeaderHelp": "Décoché (par défaut) : le bandeau collant du haut est un aplat de la couleur de fond, la tuile couvre le reste du site. Coché : la tuile passe aussi derrière la navigation.",
+  "onCards": "Papier visible sur les cartes",
+  "onCardsHelp": "Décoché (par défaut) : les cartes des blocs sont des aplats opaques qui cachent le papier. Coché : le papier est dessiné par-dessus la couleur de chaque carte, sous son contenu. Chaque carte peut garder son choix (menu « Carte » de la toile : « Comme le site », « Sous la carte » ou « Sur la carte »).",
+  "intensity": "Intensité du papier sur les cartes : {pct} %"
+}

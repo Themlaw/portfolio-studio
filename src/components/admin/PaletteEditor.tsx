@@ -8,6 +8,7 @@
  * logique que la CI et le serveur : src/themes/contrast.ts), échantillon de
  * composants aux couleurs de la palette.
  */
+import { useTranslations } from "next-intl";
 import { useId, useState, type CSSProperties, type ReactNode } from "react";
 
 import AdminColorPicker from "./AdminColorPicker";
@@ -53,6 +54,7 @@ type FieldProps = {
 };
 
 export function ColorField({ tokenKey, label, help, free, value, contrastColors, onChange, serverError, lastEdited, nuance }: FieldProps) {
+  const t = useTranslations("palette");
   const id = useId();
   const [draft, setDraft] = useState<string | null>(null);
   const text = draft ?? value;
@@ -73,7 +75,7 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
         <label htmlFor={`${id}-hex`} className="a-color-label">
           {label}
         </label>
-        {nuance && <span className={`a-pal-mode${nuance.auto ? "" : " a-pal-mode-forced"}`}>{nuance.auto ? "auto" : "choisie"}</span>}
+        {nuance && <span className={`a-pal-mode${nuance.auto ? "" : " a-pal-mode-forced"}`}>{nuance.auto ? t("modeAuto") : t("modeChosen")}</span>}
       </div>
       <div className="a-color-row">
         <AdminColorPicker
@@ -102,46 +104,46 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
           onBlur={() => setDraft(null)}
         />
         {pairs.length > 0 && (
-          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${ratioTip(p.ratio)}`).join("\n")}>
-            {failing.length ? "✗" : "✓"} Lisibilité : {pairsReadability(pairs).label}
+          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => t("labelValue", { label: p.label, value: ratioTip(p.ratio) })).join("\n")}>
+            {failing.length ? "✗" : "✓"} {t("readability", { label: pairsReadability(pairs).label })}
           </span>
         )}
         {extra && (
-          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={`${extra.label} : ${ratioTip(extra.ratio)}`}>
-            {extraBad ? "✗" : "✓"} {extra.label} : lisibilité {readability(extra.ratio).label}
+          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={t("labelValue", { label: extra.label, value: ratioTip(extra.ratio) })}>
+            {extraBad ? "✗" : "✓"} {t("extraReadability", { label: extra.label, value: readability(extra.ratio).label })}
           </span>
         )}
       </div>
       <p id={`${id}-help`} className="a-help">
         {help}
-        {nuance?.auto && <> Auto : {nuance.spec.rule}.</>}
+        {nuance?.auto && <> {t("autoRule", { rule: nuance.spec.rule })}</>}
       </p>
       {nuance && !nuance.auto && (
         <button type="button" className="a-btn a-btn-small a-btn-quiet a-pal-reset" onClick={nuance.onReset}>
-          Revenir à auto
+          {t("resetAuto")}
           <span className="a-chip" style={{ background: nuance.autoValue }} aria-hidden="true" />
           <span className="mono">{nuance.autoValue}</span>
         </button>
       )}
-      {!valid && <p className="a-field-error">Couleur attendue au format {free ? FREE_FORMAT_HINT : "#rrggbb"}.</p>}
+      {!valid && <p className="a-field-error">{t("formatExpected", { format: free ? FREE_FORMAT_HINT : "#rrggbb" })}</p>}
       {extraBad && extra && (
         <p className="a-field-error" role="alert" title={ratioTip(extra.ratio)}>
-          Texte difficile à lire sur le fond des images agrandies : lisibilité insuffisante.
+          {t("scrimBad")}
         </p>
       )}
       {blamed && (
         <div className="a-field-error" role="alert">
           <p title={ratioTip(worst)}>
-            Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}.
+            {t("insufficient", { list: failing.map((p) => p.label.toLowerCase()).join(", ") })}
           </p>
           {fixed ? (
             <button type="button" className="a-btn a-btn-small a-fix" onClick={() => onChange(fixed)}>
-              Ajuster à la teinte la plus proche qui passe
+              {t("fixNearest")}
               <span className="a-chip" style={{ background: fixed }} aria-hidden="true" />
               <span className="mono">{fixed}</span>
             </button>
           ) : (
-            <p>Aucune teinte proche ne passe : change aussi la couleur de fond concernée.</p>
+            <p>{t("noNearTone")}</p>
           )}
         </div>
       )}
@@ -152,6 +154,7 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
 
 /** Échantillon de composants aux couleurs de la palette (aperçu immédiat, sans le site). */
 export function PaletteSample({ p }: { p: ResolvedPalette }) {
+  const t = useTranslations("palette");
   const vars = {
     "--pv-bg": p.bg,
     "--pv-bg-deep": p.bgDeep,
@@ -169,32 +172,31 @@ export function PaletteSample({ p }: { p: ResolvedPalette }) {
     "--pv-on-scrim": p.onScrim,
   } as CSSProperties;
   return (
-    <div className="a-pal-sample" style={vars} aria-label="Échantillon aux couleurs de la palette" role="img">
+    <div className="a-pal-sample" style={vars} aria-label={t("sampleLabel")} role="img">
       <div className="a-pal-s-page">
-        <span className="a-pal-s-eyebrow">Étiquette</span>
-        <strong className="a-pal-s-title">Titre de section</strong>
-        <span className="a-pal-s-soft">Texte secondaire, légende d&apos;une œuvre.</span>
-        <span className="a-pal-s-link">Un lien</span>
+        <span className="a-pal-s-eyebrow">{t("sampleEyebrow")}</span>
+        <strong className="a-pal-s-title">{t("sampleTitle")}</strong>
+        <span className="a-pal-s-soft">{t("sampleSoft")}</span>
+        <span className="a-pal-s-link">{t("sampleLink")}</span>
         <span className="a-pal-s-buttons">
-          <span className="a-pal-s-btn">Bouton</span>
-          <span className="a-pal-s-btn a-pal-s-btn-hover">Survol</span>
+          <span className="a-pal-s-btn">{t("sampleButton")}</span>
+          <span className="a-pal-s-btn a-pal-s-btn-hover">{t("sampleHover")}</span>
         </span>
         <hr className="a-pal-s-line" />
         <span className="a-pal-s-card">
-          Carte <span className="a-pal-s-dot" />
+          {t("sampleCard")} <span className="a-pal-s-dot" />
         </span>
       </div>
-      <div className="a-pal-s-deep">Fond des blocs</div>
+      <div className="a-pal-s-deep">{t("sampleDeep")}</div>
       <div className="a-pal-s-scrim">
         <span className="a-pal-s-frame" />
-        <span>Légende sur le fond des images agrandies</span>
+        <span>{t("sampleScrim")}</span>
       </div>
     </div>
   );
 }
 
 /** Nom d'un groupe dans l'éditeur (le libellé du groupe est celui du kit : on ne le change pas). */
-const GROUP_TITLE: Record<string, string> = { visionneuse: "Images agrandies" };
 
 export default function PaletteEditor({
   colors,
@@ -216,6 +218,7 @@ export default function PaletteEditor({
   /** Échantillon de composants aux couleurs de la palette (défaut : oui). */
   sample?: boolean;
 }) {
+  const t = useTranslations("palette");
   const [lastEdited, setLastEdited] = useState<PaletteKey | null>(null);
   const resolved = resolvePalette(colors, palette);
   // Contraste : valeurs résolues, mais une étiquette auto reste celle de l'accent secondaire.
@@ -241,8 +244,7 @@ export default function PaletteEditor({
         <p className="a-help a-panel-intro">
           {intro ?? (
             <>
-              Six couleurs de base et leurs nuances. Une nuance « auto » suit sa couleur de base ; change-la pour la choisir toi-même. Chaque texte doit rester lisible
-              sur chaque fond (le rapport exact est dans l&apos;info-bulle). Un indicateur rouge te prévient qu&apos;un texte sera difficile à lire, sans t&apos;empêcher d&apos;enregistrer.
+              {t("intro")}
             </>
           )}
         </p>
@@ -251,7 +253,7 @@ export default function PaletteEditor({
       <div className="a-pal-groups">
         {PALETTE_GROUPS.map((g) => (
           <fieldset key={g.id} className="a-fieldset a-pal-group" data-group={g.id}>
-            <legend>{g.base ? ROLE_NAMES[g.base] : (GROUP_TITLE[g.id] ?? g.label)}</legend>
+            <legend>{g.base ? ROLE_NAMES[g.base] : (g.id === "visionneuse" ? t("groupScrim") : g.label)}</legend>
             <div className="a-colors">
               {g.base && !hideBases.includes(g.base) && (
                 <ColorField
@@ -285,7 +287,7 @@ export default function PaletteEditor({
                       auto,
                       autoValue: autoValue(n.key),
                       onReset: () => changeNuance(n.key, null),
-                      extraPair: n.key === "onScrim" ? { label: "Texte sur le fond des images agrandies", ratio: contrastRatio(resolved.onScrim, resolved.scrim) } : undefined,
+                      extraPair: n.key === "onScrim" ? { label: t("scrimText"), ratio: contrastRatio(resolved.onScrim, resolved.scrim) } : undefined,
                     }}
                   />
                 );

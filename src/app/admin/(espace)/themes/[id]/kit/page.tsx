@@ -8,6 +8,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { intlLocale } from "@/i18n/admin-lang";
+import { getAdminLang, getAdminT } from "@/i18n/admin-server";
 import KitDownloadButton, { KitPartsDownload } from "@/components/admin/KitDownloadButton";
 import KitTutorial from "@/components/admin/KitTutorial";
 import { KitApplyPanel, KitImportUpload, KitImportWatch, KitTargetNote } from "@/components/admin/KitImport";
@@ -23,32 +25,37 @@ import { getMineState } from "@/lib/themes/versions";
 import { contrastReport } from "@/themes/contrast";
 import { contrastRatio, isAuto, isNuance, resolvePalette, type NuanceKey } from "@/themes/palette";
 
-export const metadata = { title: "Kit Photoshop" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("kitPage"))("title") };
+}
 export const dynamic = "force-dynamic";
 
-const FORMAT: Record<string, string> = { svg: "SVG", "svg-mask": "SVG (forme teintée par le thème)", avif: "AVIF + WebP", "avif-mask": "AVIF (forme teintée par le thème)", png: "PNG 32 et 64 px (écrans HiDPI)" };
+type T = (key: string, values?: Record<string, string | number>) => string;
 
 /** Phrase de la carte : « Flèche droite : redessinée », « Plan 3 : inchangé »… */
-function headline(s: SlotReport): string {
-  if (s.status === "error") return `${s.label} : à corriger`;
+function headline(s: SlotReport, t: T): string {
+  const fem = /^(Flèche|Lecture)/.test(s.label);
+  if (s.status === "error") return t("headlineError", { label: s.label });
   switch (s.change) {
     case "unchanged":
-      return `${s.label} : inchangé`;
+      return t("headlineUnchanged", { label: s.label });
     case "redrawn":
-      return `${s.label} : redessiné${/^(Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+      return t(fem ? "headlineRedrawnFem" : "headlineRedrawn", { label: s.label });
     case "missing":
-      return `${s.label} : calque introuvable`;
+      return t("headlineMissing", { label: s.label });
     default:
-      return `${s.label} : importé${/^(Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+      return t(fem ? "headlineImportedFem" : "headlineImported", { label: s.label });
   }
 }
-const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
+const formatBytes = (n: number, t: T, locale: string) => (n < 1024 ? t("sizeB", { n }) : n < 1024 * 1024 ? t("sizeKb", { n: Math.round(n / 1024) }) : t("sizeMb", { n: new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n / 1024 / 1024) }));
 /** Aperçu « avant » d'un emplacement : le sien, ou (décor libre) celui du plan exporté de même rang ou dont il est la copie. */
 const beforeKey = (s: SlotReport) => (s.id.startsWith("decor/") ? `hero--plan-${(s.from ?? Number(s.id.slice(6)) - 1) + 1}` : s.id.replace(/\//g, "--"));
 const icon = (s: SlotReport) => (s.status === "error" ? "✗" : s.status === "warn" ? "⚠" : "✓");
 
 export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string; base?: string; neuf?: string }> }) {
   await assertAdmin();
+  const t = await getAdminT("kitPage");
+  const locale = intlLocale(await getAdminLang());
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) notFound();
@@ -91,20 +98,20 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                     <article key={s.id} className="a-kit-card" data-status={s.status} data-change={s.change} data-slot={s.id}>
                       <h3>
                         <span aria-hidden>{icon(s)}</span>
-                        <span>{headline(s)}</span>
+                        <span>{headline(s, t)}</span>
                       </h3>
                       {s.change !== "missing" && s.status !== "error" && (
                         <div className="a-kit-pair">
                           {befores.has(beforeKey(s)) && (
                             <figure>
-                              <img src={preview(s, "avant")} alt={`${s.label}, avant`} />
-                              <figcaption>Avant</figcaption>
+                              <img src={preview(s, "avant")} alt={t("beforeAlt", { label: s.label })} />
+                              <figcaption>{t("before")}</figcaption>
                             </figure>
                           )}
                           {s.preview && (
                             <figure>
-                              <img src={preview(s, "apres")} alt={`${s.label}, après`} />
-                              <figcaption>Après</figcaption>
+                              <img src={preview(s, "apres")} alt={t("afterAlt", { label: s.label })} />
+                              <figcaption>{t("after")}</figcaption>
                             </figure>
                           )}
                         </div>
@@ -118,11 +125,11 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                       )}
                       <p className="a-kit-meta">
                         {s.change === "unchanged"
-                          ? "Inchangé."
+                          ? t("unchangedDot")
                           : s.chosen
-                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}${s.hotspot ? ` · point chaud ${s.hotspot.x}, ${s.hotspot.y} px` : ""}`
+                            ? `${t(`formats.${s.chosen}`)} · ${formatBytes(s.bytes ?? 0, t, locale)}${s.fidelity ? ` · ${t("outline", { px: s.fidelity.deviation.toFixed(2) })}` : ""}${s.hotspot ? ` · ${t("hotspot", { x: s.hotspot.x, y: s.hotspot.y })}` : ""}`
                             : s.change === "missing"
-                              ? `L'élément actuel du thème est gardé.${spec ? ` Calque attendu : « ${spec.layer} ».` : ""}`
+                              ? `${t("currentKept")}${spec ? ` ${t("expectedLayer", { layer: spec.layer })}` : ""}`
                               : ""}
                       </p>
                     </article>
@@ -132,25 +139,25 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   return (
     <>
       <PageHeader
-        title={`Kit Photoshop · ${theme.name}`}
-        intro="Télécharge le kit, peins dans Photoshop ce que tu veux changer, puis renvoie le fichier : chaque élément est vérifié et tu choisis quoi appliquer."
+        title={t("headerTitle", { name: theme.name })}
+        intro={t("intro")}
       />
       <div className="a-section a-kit-export" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }}>
         <KitDownloadButton themeId={theme.id} />
         <KitPartsDownload themeId={theme.id} parts={parts} ms={kitMeta?.ms ?? null} />
-        <p className="a-help">Le kit reprend l&apos;état enregistré de ce thème : un groupe par élément, avec où il apparaît sur le site et les consignes.</p>
-        <KitTutorial themeId={theme.id} fromTheme quiet label="Tuto du kit : comment ça marche" />
+        <p className="a-help">{t("exportHelp")}</p>
+        <KitTutorial themeId={theme.id} fromTheme quiet label={t("tutorialLabel")} />
       </div>
 
       <section className="a-section" aria-labelledby="kit-send">
-        <h2 id="kit-send">Renvoyer le kit rempli</h2>
+        <h2 id="kit-send">{t("send")}</h2>
         <KitImportUpload themeId={theme.id} />
       </section>
 
       {state && (
         <section className="a-section" aria-labelledby="kit-review">
           <h2 id="kit-review">
-            Revue de « {state.meta.fileName} »
+            {t("review", { file: state.meta.fileName })}
           </h2>
           {(state.status === "queued" || state.status === "running") && !report && <KitImportWatch themeId={theme.id} importId={state.meta.id} />}
           {state.status === "failed" && !report && (
@@ -165,7 +172,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
           )}
           {report && report.ok && report.slots.length === 0 && !report.colors && (
             <div className="a-notice" role="status" data-testid="kit-empty">
-              <p>Aucun élément à vérifier dans ce fichier : rien n&apos;a été reconnu, le thème reste tel quel.</p>
+              <p>{t("nothingToCheck")}</p>
               {report.ignoredLayers.length > 0 && (
                 <ul>
                   {report.ignoredLayers.map((l) => (
@@ -180,26 +187,26 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               <div className="a-kit-summary">
                 {report.foreign && (
                   <strong role="alert">
-                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » (l&apos;écran où tu l&apos;as envoyé) : il est appliqué à Mon thème, et seuls les éléments redessinés changent.
+                    {t("foreign", { from: loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId, name: theme.name })}
                   </strong>
                 )}
                 <span>
                   {report.reference
-                    ? `Kit d'origine reconnu (${report.reference.how === "identifiant" ? "identifiant du fichier" : "contenu des calques"}) : ce qui n'a pas bougé est gardé tel quel.`
-                    : "Kit d'origine non reconnu : chaque élément est importé."}
+                    ? t("referenceKnown", { how: report.reference.how === "identifiant" ? "id" : "content" })
+                    : t("referenceUnknown")}
                 </span>
                 <span>
-                  <strong>{counts.changed}</strong> à appliquer · <strong>{counts.unchanged}</strong> inchangé{counts.unchanged > 1 ? "s" : ""}
-                  {counts.warn ? ` · ${counts.warn} avertissement${counts.warn > 1 ? "s" : ""}` : ""}
-                  {counts.error ? ` · ${counts.error} à corriger` : ""}
+                  <strong>{counts.changed}</strong> {t("toApply")} · <strong>{counts.unchanged}</strong> {t(counts.unchanged > 1 ? "unchangedMany" : "unchangedOne")}
+                  {counts.warn ? t("warningCount", { count: counts.warn }) : ""}
+                  {counts.error ? t("errorCount", { count: counts.error }) : ""}
                 </span>
                 <span>
-                  Poids au chargement : <strong>{formatBytes(totals.after)}</strong> (aujourd&apos;hui {formatBytes(totals.before)})
+                  {t("weightLabel")} <strong>{formatBytes(totals.after, t, locale)}</strong> {t("weightToday", { before: formatBytes(totals.before, t, locale) })}
                 </span>
               </div>
               {report.ignoredLayers.length > 0 && (
                 <div className="a-help" data-testid="kit-ignored">
-                  <strong>Calques non pris en compte</strong>
+                  <strong>{t("ignoredLayers")}</strong>
                   <ul>
                     {report.ignoredLayers.map((l) => (
                       <li key={l}>{l}</li>
@@ -209,9 +216,8 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               )}
               {report.decor && (
                 <p className="a-help" data-testid="kit-decor-summary">
-                  Décor d&apos;accueil : {report.decor.count} plan{report.decor.count > 1 ? "s" : ""} lu{report.decor.count > 1 ? "s" : ""} (du plus lointain à l&apos;avant)
-                  {report.decor.reference ? (report.decor.structure === "unchanged" ? ", même composition que le kit exporté" : `, composition changée (le kit exporté en comptait ${report.decor.previous})`) : ""}.
-                  {!decorApplicable(report) && report.slots.some((x) => x.id.startsWith("decor/") && x.status === "error") ? " Un plan est à corriger : le décor actuel est gardé en attendant." : ""}
+                  {t("decor", { count: report.decor.count, ref: report.decor.reference ? (report.decor.structure === "unchanged" ? "same" : "changed") : "none", previous: report.decor.previous ?? "" })}
+                  {!decorApplicable(report) && report.slots.some((x) => x.id.startsWith("decor/") && x.status === "error") ? ` ${t("decorFix")}` : ""}
                 </p>
               )}
               {(report.files ?? []).length > 1 || (report.files ?? [])[0]?.id !== "mono" ? (
@@ -219,9 +225,9 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                   <section key={f.id} className="a-kit-file" data-file={f.id} data-received={f.received} aria-labelledby={`kit-file-${f.id}`}>
                     <h3 id={`kit-file-${f.id}`}>
                       {f.label}
-                      <small>{f.received ? ` — ${f.fileName} · ${f.slots} élément${f.slots > 1 ? "s" : ""}` : " — pas envoyé : inchangé"}</small>
+                      <small>{f.received ? ` ${t("fileReceived", { fileName: f.fileName ?? "", count: f.slots })}` : ` ${t("fileNotSent")}`}</small>
                     </h3>
-                    {f.received ? <div className="a-kit-cards">{report.slots.filter((s) => s.file === f.id).map(renderCard)}</div> : <p className="a-help">Aucun élément de ce fichier ne change : ceux du thème sont gardés.</p>}
+                    {f.received ? <div className="a-kit-cards">{report.slots.filter((s) => s.file === f.id).map(renderCard)}</div> : <p className="a-help">{t("fileNoChange")}</p>}
                   </section>
                 ))
               ) : (
@@ -229,32 +235,28 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               )}
               {report.colors && (
                 <section className="a-kit-colors" aria-labelledby="kit-colors-title" data-testid="kit-colors-review">
-                  <h3 id="kit-colors-title">Couleurs de la palette</h3>
+                  <h3 id="kit-colors-title">{t("paletteColors")}</h3>
                   <p className="a-help" data-testid="kit-colors-count">
-                    {report.colors.length} pastille{report.colors.length > 1 ? "s" : ""} lue{report.colors.length > 1 ? "s" : ""} : {colorChanges.length} repeinte{colorChanges.length > 1 ? "s" : ""},{" "}
-                    {report.colors.filter((c) => c.change === "unchanged").length} inchangée{report.colors.filter((c) => c.change === "unchanged").length > 1 ? "s" : ""}
-                    {report.colors.some((c) => c.change === "missing") ? `, ${report.colors.filter((c) => c.change === "missing").length} illisible${report.colors.filter((c) => c.change === "missing").length > 1 ? "s" : ""}` : ""}
-                    {paletteIgnored.length ? `, ${paletteIgnored.length} calque${paletteIgnored.length > 1 ? "s" : ""} ignoré${paletteIgnored.length > 1 ? "s" : ""}` : ""}.
+                    {t("colorsCount", { read: report.colors.length, changed: colorChanges.length, unchanged: report.colors.filter((c) => c.change === "unchanged").length, missing: report.colors.filter((c) => c.change === "missing").length, ignored: paletteIgnored.length })}
                   </p>
                   {colorProblems.length > 0 && (
                     <p className="a-notice" role="status" data-testid="kit-colors-warning">
-                      Attention : une fois posées, certaines couleurs rendront du texte difficile à lire ({colorProblems.slice(0, 3).join(" ; ")}). Elles seront appliquées quand même ; tu peux les corriger dans Photoshop ou les décocher.
+                      {t("colorsWarning", { list: colorProblems.slice(0, 3).join(t("listSep")) })}
                     </p>
                   )}
                   {paletteIgnored.map((l) => (
                     <p key={l} className="a-help" data-testid="kit-colors-ignored">
-                      ⚠ Calque ignoré : {l}
+                      ⚠ {t("layerIgnored", { layer: l })}
                     </p>
                   ))}
                   {colorChanges.length === 0 ? (
                     <p className="a-help">
-                      Aucune pastille repeinte détectée : les couleurs du thème restent telles quelles (les nuances « auto » suivent leur base). Pour changer une couleur, peins la pastille elle-même (pinceau, pot de peinture, ou un calque ajouté dans « 8 · Palette » par-dessus), puis enregistre le .psd.
+                      {t("noSwatchPainted")}
                     </p>
                   ) : (
                     <>
                       <p className="a-help">
-                        {colorChanges.length} couleur{colorChanges.length > 1 ? "s repeintes" : " repeinte"} ; {report.colors.filter((c) => c.change === "unchanged").length} inchangée
-                        {report.colors.filter((c) => c.change === "unchanged").length > 1 ? "s" : ""} (une nuance « auto » suit sa base).
+                        {t("colorsRepainted", { changed: colorChanges.length, unchanged: report.colors.filter((c) => c.change === "unchanged").length })}
                       </p>
                       <ul className="a-kit-color-list">
                         {colorChanges.map((c) => {
@@ -273,11 +275,11 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                                 <code>{c.after}</code>
                               </span>
                               {Number.isFinite(worst) && (
-                                <span className={`a-ratio ${worst < 4.5 ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1`).join("\n")}>
+                                <span className={`a-ratio ${worst < 4.5 ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => t("pairTip", { label: p.label, ratio: p.ratio.toFixed(2) })).join("\n")}>
                                   {worst < 4.5 ? "✗" : "✓"} {worst.toFixed(1)}:1
                                 </span>
                               )}
-                              {wasAuto && <span className="a-help">était « auto » : devient choisie</span>}
+                              {wasAuto && <span className="a-help">{t("wasAuto")}</span>}
                               {c.messages.map((m) => (
                                 <span key={m} className="a-help">
                                   ⚠ {m}
@@ -293,17 +295,17 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                     .filter((c) => c.change === "missing")
                     .map((c) => (
                       <p key={c.key} className="a-help">
-                        ⚠ {c.label} : {c.messages[0] ?? "pastille introuvable"} (couleur actuelle gardée).
+                        ⚠ {t("swatchMissing", { label: c.label, message: c.messages[0] ?? t("swatchNotFound") })}
                       </p>
                     ))}
                 </section>
               )}
               <KitTargetNote mineName={mine?.name ?? null} version={mine?.version ?? null} basedOn={base.name} />
               <KitApplyPanel
-                colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Lisibilité insuffisante une fois appliquées (${colorProblems[0]}) : elles seront appliquées quand même ; tu peux les corriger dans Photoshop ou les décocher.` : null } : null}
+                colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? t("colorsProblem", { first: colorProblems[0] }) : null } : null}
                 themeId={theme.id}
                 importId={state.meta.id}
-                themeName={mine?.name ?? "Mon thème"}
+                themeName={mine?.name ?? t("mineName")}
                 nextVersion={nextVersion}
                 mineExists={Boolean(mine)}
                 tape={report.slots.some((s) => s.id === "accessoires/scotch" && s.change === "redrawn" && isApplicable(s))}
@@ -318,19 +320,19 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
 
       {imports.length > 1 && (
         <section className="a-section" aria-labelledby="kit-history">
-          <h2 id="kit-history">Envois précédents</h2>
+          <h2 id="kit-history">{t("previous")}</h2>
           <ul className="a-help">
             {imports.map((m) => (
               <li key={m.id}>
-                <Link href={`/admin/themes/${encodeURIComponent(theme.id)}/kit?import=${m.id}`}>{m.fileName}</Link> — {new Date(m.createdAt).toLocaleString("fr-FR")}
-                {m.appliedThemeId ? " (appliqué)" : ""}
+                <Link href={`/admin/themes/${encodeURIComponent(theme.id)}/kit?import=${m.id}`}>{m.fileName}</Link> — {new Date(m.createdAt).toLocaleString(locale)}
+                {m.appliedThemeId ? ` ${t("applied")}` : ""}
               </li>
             ))}
           </ul>
         </section>
       )}
       <p className="a-help" style={{ marginTop: 24 }}>
-        <Link href="/admin/themes">← Tous les thèmes</Link>
+        <Link href="/admin/themes">{t("allThemes")}</Link>
       </p>
     </>
   );

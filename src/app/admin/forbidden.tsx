@@ -1,17 +1,20 @@
 import Link from "next/link";
 
+import { getAdminT } from "@/i18n/admin-server";
+
 /** 403 : action d'administration sans session valide. */
-export default function Forbidden() {
+export default async function Forbidden() {
+  const t = await getAdminT("forbidden");
   return (
     <main className="a-login">
       <div className="a-login-card">
-        <h1>Accès refusé</h1>
+        <h1>{t("title")}</h1>
         <p className="muted" style={{ marginTop: 8 }}>
-          Cette action est réservée aux administrateurs connectés. Ta session a peut-être expiré.
+          {t("text")}
         </p>
         <p style={{ marginTop: 16 }}>
           <Link href="/admin/connexion" className="a-btn a-btn-primary">
-            Se connecter
+            {t("signIn")}
           </Link>
         </p>
       </div>

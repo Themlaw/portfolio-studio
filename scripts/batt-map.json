@@ -292,16 +292,11 @@
    "secuBusages"
   ],
   "src/app/admin/(espace)/compte/actions.ts": [
-   "blocs27",
-   "compte",
-   "contact125",
    "secuA",
-   "secuB",
-   "secuCcontact",
-   "secuCcontenu",
    "secuCjournal"
   ],
   "src/app/admin/(espace)/journal/page.tsx": [
+   "adminlang130",
    "integ33",
    "journal97",
    "kit53",
@@ -313,11 +308,13 @@
   ],
   "src/app/admin/(espace)/messages/page.tsx": [
    "admin",
+   "adminlang130",
    "contenu111",
    "partage52",
    "retours68"
   ],
   "src/app/admin/(espace)/page.tsx": [
+   "adminlang130",
    "chrome24",
    "contact125",
    "crop17d",
@@ -353,32 +350,22 @@
   "src/app/admin/(espace)/projets/[id]/page.tsx": [
    "priseenmain57"
   ],
-  "src/app/admin/(espace)/projets/page.tsx": [
-   "admin23",
-   "admin76",
-   "journal97",
-   "medias112",
-   "public67",
-   "secuA",
-   "secuCcontenu",
-   "tags"
-  ],
   "src/app/admin/(espace)/reglages/page.tsx": [
    "admin23",
+   "adminlang130",
    "integ33",
    "journal97",
    "secuA"
   ],
   "src/app/admin/(espace)/themes/[id]/kit/page.tsx": [
    "admin",
+   "adminlang130",
    "cadremotif58",
    "chrome24",
    "contenu111",
    "couleurs26",
    "crop17d",
    "crop17g",
-   "defilement99",
-   "defilement99-firefox",
    "favicon83",
    "icones121",
    "interaction034b",
@@ -388,10 +375,7 @@
    "kithttp",
    "kitpartie122",
    "palette",
-   "palogo17f",
-   "parite99",
-   "retours68",
-   "themes55"
+   "retours68"
   ],
   "src/app/admin/(espace)/themes/[id]/page.tsx": [
    "defilement99",
@@ -433,10 +417,12 @@
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "look",
    "lot11",
    "palette",
    "retours68",
+   "secuA",
    "v013"
   ],
   "src/app/admin/_fields/PageWallpaperField.tsx": [
@@ -447,8 +433,10 @@
    "fond100",
    "icones121",
    "interaction034b",
+   "langue126",
    "papiers35",
    "retours68",
+   "secuA",
    "structures108a",
    "structures108b",
    "structures108c",
@@ -458,6 +446,7 @@
   ],
   "src/app/admin/_fields/TagInput.tsx": [
    "admin",
+   "adminlang130",
    "boards",
    "chrome24",
    "collections22",
@@ -466,15 +455,18 @@
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "papiers35",
    "reglages105",
    "retours68",
+   "secuA",
    "surface66",
    "tags"
   ],
   "src/app/admin/_fields/index.tsx": [
    "17b",
    "admin",
+   "adminlang130",
    "barres38",
    "cartes17c",
    "chrome24",
@@ -486,11 +478,13 @@
    "fondtexte21",
    "icones121",
    "interaction034b",
+   "langue126",
    "lot11",
    "papiers35",
    "papiers78",
    "priseenmain57",
    "retours68",
+   "secuA",
    "surface66"
   ],
   "src/app/admin/actions.ts": [
@@ -602,6 +596,10 @@
    "parite99",
    "popover65"
   ],
+  "src/app/admin/layout.tsx": [
+   "langue126",
+   "secuA"
+  ],
   "src/app/admin/look-layer.css": [
    "17b",
    "admin23",
@@ -694,6 +692,7 @@
   ],
   "src/app/admin/theme-guide.css": [
    "17b",
+   "adminlang130",
    "cadre95",
    "cadremotif58",
    "couleurps29",
@@ -743,6 +742,7 @@
   ],
   "src/app/api/admin/sauvegardes/[name]/route.ts": [
    "admin76",
+   "adminlang130",
    "backup118",
    "backup85",
    "journal97",
@@ -752,9 +752,6 @@
   ],
   "src/app/api/auth/[...all]/route.ts": [
    "admin76",
-   "blocs27",
-   "compte",
-   "contact125",
    "crop17d-http",
    "icones121",
    "interaction034b",
@@ -762,14 +759,11 @@
    "kitpartie122",
    "secuA",
    "secuB",
-   "secuCcontact",
-   "secuCcontenu",
    "secuCjournal"
   ],
   "src/app/api/contact/route.ts": [
    "admin76",
    "blocs27",
-   "compte",
    "contact125",
    "crop17d-http",
    "icones121",
@@ -780,8 +774,7 @@
    "secuA",
    "secuB",
    "secuCcontact",
-   "secuCcontenu",
-   "secuCjournal"
+   "secuCcontenu"
   ],
   "src/app/api/log/route.ts": [
    "admin76",
@@ -1314,6 +1307,7 @@
   "src/blocks/editors.tsx": [
    "17b",
    "admin",
+   "adminlang130",
    "blocs27",
    "cartes17c",
    "collections22",
@@ -1334,7 +1328,6 @@
    "secuA",
    "secuCcontact",
    "secuCcontenu",
-   "secuCjournal",
    "video116"
   ],
   "src/blocks/free-board.ts": [
@@ -2018,13 +2011,16 @@
   "src/components/admin/AccountSecurity.tsx": [
    "admin",
    "admin76",
+   "adminlang130",
    "compte",
    "contenu111",
    "editor",
    "essayer63",
    "kit53",
+   "langue126",
    "priseenmain57",
-   "retours68"
+   "retours68",
+   "secuA"
   ],
   "src/components/admin/AdminColorPicker.tsx": [
    "contact125",
@@ -2037,10 +2033,12 @@
    "lot1",
    "portee124",
    "scroll123",
+   "secuA",
    "textes70"
   ],
   "src/components/admin/AdminShell.tsx": [
    "admin76",
+   "adminlang130",
    "backup118",
    "backup85",
    "cadres74",
@@ -2059,7 +2057,6 @@
    "journal97",
    "langue126",
    "langue87",
-   "lot1",
    "scroll123",
    "secuA",
    "secuCjournal",
@@ -2071,11 +2068,14 @@
    "crop17g",
    "icones121",
    "interaction034b",
-   "retours68"
+   "langue126",
+   "retours68",
+   "secuA"
   ],
   "src/components/admin/BackupPanel.tsx": [
    "admin",
    "admin76",
+   "adminlang130",
    "backup118",
    "backup85",
    "boards",
@@ -2083,7 +2083,7 @@
    "editor",
    "journal97",
    "kit53",
-   "popover65",
+   "langue126",
    "priseenmain57",
    "retours68",
    "secuA",
@@ -2096,29 +2096,27 @@
    "editeurguide61",
    "fond32",
    "integ17",
+   "langue126",
    "palogo17f",
-   "retour30"
+   "retour30",
+   "secuA"
   ],
   "src/components/admin/CursorSettings.tsx": [
    "admin",
+   "adminlang130",
    "chrome24",
    "contenu111",
    "crop17d",
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "palette",
-   "retours68"
+   "retours68",
+   "secuA"
   ],
   "src/components/admin/Diagnostic.tsx": [
-   "blocs27",
-   "compte",
-   "contact125",
-   "secuA",
-   "secuB",
-   "secuCcontact",
-   "secuCcontenu",
-   "secuCjournal"
+   "secuA"
   ],
   "src/components/admin/FaviconSetting.tsx": [
    "boards",
@@ -2130,10 +2128,12 @@
    "icones121",
    "interaction034b",
    "kit53",
+   "langue126",
    "papiers35",
    "partage52",
    "priseenmain57",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/FirstSteps.tsx": [
@@ -2142,20 +2142,23 @@
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "priseenmain57",
-   "retours68"
+   "retours68",
+   "secuA"
   ],
   "src/components/admin/FontLibraryPanel.tsx": [
    "admin",
    "barreaa114",
    "fleches33",
+   "langue126",
    "look",
    "montheme60",
    "retours68",
+   "secuA",
    "textes70"
   ],
   "src/components/admin/FrameLibrary.tsx": [
-   "backup85",
    "cadres74",
    "chrome24",
    "crop17d",
@@ -2163,9 +2166,10 @@
    "editor",
    "icones121",
    "interaction034b",
+   "langue126",
    "papiers35",
-   "planche31",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/KitDownloadButton.tsx": [
@@ -2181,12 +2185,14 @@
    "interaction034b",
    "kit53",
    "kitpartie122",
+   "langue126",
    "retours68",
    "secuA",
    "tags"
   ],
   "src/components/admin/KitImport.tsx": [
    "admin",
+   "adminlang130",
    "blocs27",
    "boards",
    "chrome24",
@@ -2199,6 +2205,7 @@
    "interaction034b",
    "kit",
    "kit53",
+   "langue126",
    "priseenmain57",
    "retours68",
    "secuA",
@@ -2217,6 +2224,7 @@
    "interaction034b",
    "kit",
    "kit53",
+   "langue126",
    "logo84",
    "look",
    "palogo17f",
@@ -2226,22 +2234,21 @@
    "raccord102",
    "reglages105",
    "retours68",
-   "tags",
-   "textes70",
-   "themes55"
+   "secuA",
+   "tags"
   ],
   "src/components/admin/LibraryStrip.tsx": [
-   "backup85",
    "chrome24",
    "crop17d",
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "medias",
    "medias-firefox",
    "medias112",
-   "planche31",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/LiveThumb.tsx": [
@@ -2262,14 +2269,16 @@
   "src/components/admin/LoginForm.tsx": [
    "boards",
    "kit53",
+   "langue126",
    "priseenmain57",
+   "secuA",
    "tags"
   ],
   "src/components/admin/MediaLibrary.tsx": [
    "17b",
    "admin",
    "admin23",
-   "admin76",
+   "adminlang130",
    "barres38",
    "boards",
    "carrousel31f",
@@ -2285,25 +2294,33 @@
    "favicon83",
    "fond32",
    "fondplanche24",
-   "fondtexte21",
+   "langue126",
    "papiers35",
    "priseenmain57",
    "retours68",
    "tags"
   ],
+  "src/components/admin/MessageActions.tsx": [
+   "langue126",
+   "secuA"
+  ],
   "src/components/admin/PageEditor.tsx": [
    "admin",
    "kit53",
+   "langue126",
    "popover65",
-   "priseenmain57"
+   "priseenmain57",
+   "secuA"
   ],
   "src/components/admin/PageHeader.tsx": [
-   "admin23"
+   "admin23",
+   "adminlang130"
   ],
   "src/components/admin/PagesManager.tsx": [
    "admin",
    "admin23",
    "admin76",
+   "adminlang130",
    "boards",
    "chrome24",
    "couleurps29",
@@ -2317,14 +2334,17 @@
    "interaction034b",
    "introuvable89",
    "kit53",
+   "langue126",
    "palette",
    "priseenmain57",
    "publication51",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/PaletteEditor.tsx": [
    "admin",
+   "adminlang130",
    "blocs27",
    "chrome24",
    "contenu111",
@@ -2336,27 +2356,24 @@
    "icones121",
    "integ17",
    "interaction034b",
-   "look",
-   "lot11",
+   "langue126",
    "palette",
    "palogo17f",
    "retour30",
    "retours68",
-   "v013"
+   "secuA"
   ],
   "src/components/admin/PaperSettings.tsx": [
-   "defilement99",
-   "defilement99-firefox",
-   "icones121",
    "kit17a",
-   "palogo17f",
+   "langue126",
    "papier28",
-   "parite99",
-   "themes55"
+   "secuA"
   ],
   "src/components/admin/PhotoFrameSetting.tsx": [
    "cadres62",
-   "logocadres49"
+   "langue126",
+   "logocadres49",
+   "secuA"
   ],
   "src/components/admin/ProjectEditor.tsx": [
    "admin",
@@ -2388,6 +2405,7 @@
    "admin",
    "admin23",
    "admin76",
+   "adminlang130",
    "boards",
    "chrome24",
    "couleurps29",
@@ -2399,27 +2417,29 @@
    "favicon83",
    "icones121",
    "interaction034b",
-   "journal97",
    "kit53",
-   "medias112",
+   "langue126",
    "palette",
    "priseenmain57",
-   "public67",
    "publication51",
    "retours68",
    "secuA",
    "tags"
   ],
   "src/components/admin/SeoForm.tsx": [
-   "partage52"
+   "langue126",
+   "partage52",
+   "secuA"
   ],
   "src/components/admin/SettingsForm.tsx": [
    "admin23",
-   "popover65",
+   "langue126",
+   "secuA",
    "site96"
   ],
   "src/components/admin/SocialsEditor.tsx": [
    "admin",
+   "adminlang130",
    "cartes17c",
    "chrome24",
    "contenu111",
@@ -2434,15 +2454,14 @@
    "icones121",
    "interaction034b",
    "kit53",
+   "langue126",
    "lot1",
    "papiers35",
    "pied86",
    "priseenmain57",
    "retours68",
    "scroll123",
-   "state",
-   "surface66",
-   "v013"
+   "secuA"
   ],
   "src/components/admin/Sortable.tsx": [
    "boards",
@@ -2452,14 +2471,17 @@
    "entrees117",
    "icones121",
    "interaction034b",
+   "langue126",
    "medias",
    "medias-firefox",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/ThemeEditor.tsx": [
    "17b",
    "admin",
+   "adminlang130",
    "barres38",
    "chrome24",
    "contenu111",
@@ -2470,13 +2492,12 @@
    "couleurs19b",
    "crop17d",
    "crop17g",
-   "defilement99",
-   "defilement99-firefox",
    "editeurguide61",
+   "editor",
    "favicon83",
    "icones121",
+   "langue126",
    "montheme60",
-   "palogo17f",
    "priseenmain57",
    "retours68",
    "scroll123",
@@ -2487,6 +2508,7 @@
    "blocs27",
    "contact125",
    "crop17d-http",
+   "langue126",
    "montheme60",
    "secuA",
    "themes"
@@ -2510,15 +2532,17 @@
    "integ17",
    "interaction034b",
    "kit",
-   "kit17a",
    "kit53",
    "langue126",
    "montheme60",
    "palogo17f",
+   "secuA",
    "themes55"
   ],
   "src/components/admin/ThemeSwatches.tsx": [
-   "couleurs26"
+   "couleurs26",
+   "langue126",
+   "secuA"
   ],
   "src/components/admin/ThemeThumb.tsx": [
    "chrome24",
@@ -2526,27 +2550,25 @@
    "crop17g",
    "icones121",
    "interaction034b",
+   "langue126",
    "medias",
    "medias-firefox",
    "montheme60",
    "retours68",
+   "secuA",
    "themes"
   ],
   "src/components/admin/ThemeTypeEditor.tsx": [
    "admin",
    "couleurps29",
    "couleurs19b",
-   "defilement99",
-   "defilement99-firefox",
    "editeurguide61",
-   "icones121",
+   "langue126",
    "lot11",
    "montheme60",
    "palette",
-   "palogo17f",
-   "parite99",
    "retour30",
-   "themes55"
+   "secuA"
   ],
   "src/components/admin/ThemeVersions.tsx": [
    "admin",
@@ -2554,12 +2576,16 @@
    "compte",
    "essayer63",
    "kit53",
+   "langue126",
    "montheme60",
-   "priseenmain57"
+   "priseenmain57",
+   "secuA"
   ],
   "src/components/admin/TrashControls.tsx": [
    "admin23",
-   "montheme60"
+   "langue126",
+   "montheme60",
+   "secuA"
   ],
   "src/components/admin/TrashViews.tsx": [
    "papiers78",
@@ -2603,6 +2629,7 @@
    "fondtexte21",
    "icones121",
    "interaction034b",
+   "langue126",
    "logo84",
    "look",
    "medias",
@@ -2612,6 +2639,7 @@
    "priseenmain57",
    "reglages105",
    "retours68",
+   "secuA",
    "surface66",
    "tags"
   ],
@@ -2630,7 +2658,6 @@
    "themes"
   ],
   "src/components/admin/WallpaperLibrary.tsx": [
-   "backup85",
    "chrome24",
    "crop17d",
    "crop17g",
@@ -2639,11 +2666,12 @@
    "fond100",
    "icones121",
    "interaction034b",
+   "langue126",
    "opacite90",
    "papiers35",
    "papiers78",
-   "planche31",
    "retours68",
+   "secuA",
    "structures108a",
    "structures108b",
    "structures108c",
@@ -2655,6 +2683,7 @@
   "src/components/admin/editing.tsx": [
    "admin",
    "admin23",
+   "adminlang130",
    "boards",
    "chrome24",
    "couleurps29",
@@ -2666,11 +2695,13 @@
    "icones121",
    "interaction034b",
    "kit53",
+   "langue126",
    "montheme60",
    "palette",
    "priseenmain57",
    "publication51",
    "retours68",
+   "secuA",
    "tags"
   ],
   "src/components/admin/editor/AddSectionDialog.tsx": [
@@ -2916,7 +2947,9 @@
    "editeurguide61",
    "editor",
    "favicon83",
-   "papiers35"
+   "langue126",
+   "papiers35",
+   "secuA"
   ],
   "src/components/admin/guide/PaperStep.tsx": [
    "17b",
@@ -2929,10 +2962,10 @@
    "langue87",
    "lot1",
    "papiers78",
-   "popover65",
    "portee124",
    "priseenmain57",
    "scroll123",
+   "secuA",
    "textes70"
   ],
   "src/components/admin/guide/ShapesStep.tsx": [
@@ -2943,19 +2976,26 @@
    "editeurguide61",
    "icones121",
    "interaction034b",
-   "popover65",
+   "langue126",
    "reglages105",
    "retours68",
+   "secuA",
    "themes"
   ],
   "src/components/admin/guide/TextStep.tsx": [
+   "langue126",
+   "secuA",
    "textes70"
   ],
   "src/components/admin/guide/controls.tsx": [
-   "editeurguide61"
+   "editeurguide61",
+   "langue126",
+   "secuA"
   ],
   "src/components/admin/media-sort.tsx": [
-   "medias112"
+   "langue126",
+   "medias112",
+   "secuA"
   ],
   "src/components/admin/uploads.ts": [
    "blocs27",
@@ -2965,6 +3005,7 @@
    "interaction034b",
    "kithttp",
    "kitpartie122",
+   "langue126",
    "planche31",
    "secuA"
   ],
@@ -3642,6 +3683,11 @@
    "video116",
    "video127"
   ],
+  "src/i18n/admin-lang.ts": [
+   "adminlang130",
+   "langue126",
+   "secuA"
+  ],
   "src/i18n/choice.ts": [
    "langue126",
    "secuA"
@@ -3688,16 +3734,6 @@
    "secuA",
    "secuCjournal"
   ],
-  "src/lib/auth/reauth.ts": [
-   "blocs27",
-   "compte",
-   "contact125",
-   "secuA",
-   "secuB",
-   "secuCcontact",
-   "secuCcontenu",
-   "secuCjournal"
-  ],
   "src/lib/auth/seed-admin.ts": [
    "admin76",
    "backup118",
@@ -3730,6 +3766,7 @@
   ],
   "src/lib/backup/unlock.ts": [
    "admin76",
+   "adminlang130",
    "backup118",
    "backup85",
    "journal97",
@@ -4037,7 +4074,7 @@
    "restes77",
    "retours68",
    "secuBsvg",
-   "surface66"
+   "secuCjournal"
   ],
   "src/lib/kit/build.ts": [
    "backup85",
@@ -4115,7 +4152,8 @@
   "src/lib/kit/parts.ts": [
    "kit",
    "kithttp",
-   "kitpartie122"
+   "kitpartie122",
+   "secuCjournal"
   ],
   "src/lib/kit/resolve.ts": [
    "kithttp"
@@ -4139,6 +4177,7 @@
    "palogo17f",
    "parite99",
    "popover65",
+   "secuCjournal",
    "themes55",
    "video127"
   ],
@@ -4269,10 +4308,10 @@
   ],
   "src/proxy.ts": [
    "admin76",
+   "adminlang130",
    "apercu118",
    "backup85",
    "blocs27",
-   "compte",
    "contact125",
    "crop17d-http",
    "favicon83",
@@ -4280,10 +4319,7 @@
    "langue126",
    "partage52",
    "secuA",
-   "secuB",
    "secuBusages",
-   "secuCcontact",
-   "secuCcontenu",
    "secuCjournal",
    "state"
   ],

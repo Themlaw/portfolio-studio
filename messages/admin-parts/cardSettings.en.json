@@ -1,0 +1,22 @@
+{
+  "title": "Section cards",
+  "intro": "A block can sit on a coloured card (“Background” button on the page). This is what it gets when the card is turned on with nothing else chosen. Blocks without a card do not change.",
+  "defaultColor": "Default colour",
+  "otherColor": "Other colour",
+  "freeColor": "Custom colour {color}",
+  "colorHelp": "A theme colour or a soft shade follows palette changes.",
+  "textOk": "The text reads well on this card.",
+  "textBad": "The text is hard to read on this colour ({ratio}:1, 4.5:1 is needed).",
+  "width": "Width",
+  "defaultWidth": "Default width",
+  "corners": "Corners",
+  "defaultCorners": "Default corners",
+  "border": "Border",
+  "defaultBorder": "Default border",
+  "noBorder": "No border",
+  "borderColor": "Default border colour",
+  "borderAuto": "Default: the colour of the card's text",
+  "otherBorderColor": "Other border colour",
+  "borderHelp": "The border follows the card's corners; thin, medium or thick. With no colour chosen, it takes the colour of the card's text, always legible on it.",
+  "reset": "Back to the original settings"
+}
