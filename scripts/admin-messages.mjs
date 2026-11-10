@@ -13,7 +13,7 @@ const check = process.argv.includes("--check");
 let stale = 0;
 for (const lang of ["fr", "en"]) {
   const out = {};
-  for (const f of readdirSync(PARTS).filter((n) => n.endsWith(`.${lang}.json`)).sort()) {
+  for (const f of readdirSync(PARTS).filter((n) => n.endsWith(`.${lang}.json`) && !n.endsWith(".same.json")).sort()) {
     out[f.slice(0, -`.${lang}.json`.length)] = JSON.parse(readFileSync(path.join(PARTS, f), "utf8"));
   }
   const text = `${JSON.stringify(out, null, 2)}\n`;

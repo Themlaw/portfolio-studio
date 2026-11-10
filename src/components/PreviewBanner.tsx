@@ -1,7 +1,10 @@
+import { intlLocale } from "@/i18n/admin-lang";
+import { getAdminLang, getAdminMessages } from "@/i18n/admin-server";
 import { isDraftView } from "@/lib/draft-view";
 import { isAdminPreview } from "@/lib/page-preview";
 import { getPreviewTheme, isPreviewBannerHidden } from "@/lib/theme";
 
+import { AdminIntlProvider } from "./AdminIntl";
 import EditLayerLoader from "./EditLayerLoader";
 import PreviewBridgeLoader from "./PreviewBridgeLoader";
 import PreviewExit from "./PreviewExit";
@@ -25,11 +28,17 @@ export default async function PreviewBanner() {
   const admin = await isAdminPreview();
   if (!theme && !admin) return null;
   const drafts = admin && (await isDraftView());
-  if (await isPreviewBannerHidden()) return admin ? <PreviewBridgeLoader /> : null;
+  // Lot 130b : les commandes d'édition de la toile parlent la langue de l'interface d'admin (réglage du compte), pas celle du site.
+  const intl = admin ? { locale: intlLocale(await getAdminLang()), messages: (await getAdminMessages()) as never } : null;
+  if (await isPreviewBannerHidden()) return admin && intl ? <AdminIntlProvider {...intl}><PreviewBridgeLoader /></AdminIntlProvider> : null;
   return (
     <>
-      {admin && <PreviewBridgeLoader />}
-      {drafts && <EditLayerLoader />}
+      {admin && intl && (
+        <AdminIntlProvider {...intl}>
+          <PreviewBridgeLoader />
+          {drafts && <EditLayerLoader />}
+        </AdminIntlProvider>
+      )}
       <div className="preview-banner-spacer" aria-hidden="true" />
       <div className="preview-banner" role="status" lang="fr">
         <span>

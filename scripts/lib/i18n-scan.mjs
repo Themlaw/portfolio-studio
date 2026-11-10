@@ -47,6 +47,7 @@ function frenchish(words) {
 }
 
 export function walk(dir, out = []) {
+  if (statSync(dir).isFile()) return /\.(tsx?|mts)$/.test(dir) && !/\.d\.ts$/.test(dir) ? [...out, dir] : out;
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name);
     const st = statSync(p);

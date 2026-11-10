@@ -10,7 +10,7 @@
  * Usage : node --import tsx scripts/test-adminlang130.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { scanFile, walk } from "./lib/i18n-scan.mjs";
@@ -40,6 +40,10 @@ if (fr && en) {
   ok("A4 mêmes arguments ICU dans les deux langues", bad.length === 0, bad.slice(0, 5).join(", "));
   const sameFile = path.join(ROOT, "messages/admin.same.json");
   const allow = new Set(existsSync(sameFile) ? (JSON.parse(readFileSync(sameFile, "utf8")).keys ?? []) : []);
+  // Exceptions par espace de noms (lots 130b, 130c) : messages/admin-parts/<espace>.same.json = { "keys": ["cle.relative", ...] } (clés relatives à l'espace).
+  for (const f of readdirSync(path.join(ROOT, "messages/admin-parts")).filter((n) => n.endsWith(".same.json"))) {
+    for (const k of JSON.parse(readFileSync(path.join(ROOT, "messages/admin-parts", f), "utf8")).keys ?? []) allow.add(`${f.slice(0, -".same.json".length)}.${k}`);
+  }
   const copies = kf.filter((k) => k in en && fr[k] === en[k] && /[a-zà-ÿ]{3}/i.test(fr[k]) && !allow.has(k));
   ok("A5 l'anglais n'est pas une copie du français (exceptions : messages/admin.same.json)", copies.length === 0, copies.slice(0, 8).join(", "));
   const stale = [...allow].filter((k) => !(k in fr) || fr[k] !== en[k]);
@@ -103,6 +107,17 @@ if (fr && en) {
   ok("D1 layout de l'admin : fournisseur de messages, lang selon la langue d'interface", /NextIntlClientProvider/.test(layout) && /lang=\{/.test(layout) && !/lang="fr"/.test(layout));
   ok("D2 Sécurité du compte : sélecteur de langue de l'interface", /data-testid="langue-interface"/.test(read("src/components/admin/AccountSecurity.tsx")));
   ok("D3 action setAdminLangAction journalisée", /audited\("setAdminLangAction"/.test(read("src/app/admin/(espace)/compte/actions.ts")) && /setAdminLangAction/.test(read("src/lib/journal/catalog.ts")));
+}
+
+/* ---- E. toile de l'éditeur (130b) : la page publique en vue brouillon parle la langue de l'interface d'admin ---- */
+{
+  const banner = read("src/components/PreviewBanner.tsx");
+  ok("E1 PreviewBanner : couche d'édition et pont dans un AdminIntlProvider (catalogue d'admin, langue du compte)", /<AdminIntlProvider/.test(banner) && /getAdminMessages/.test(banner) && /isAdminPreview/.test(banner));
+  ok("E2 EditOnly : commandes d'édition dans AdminIntlBoundary", /AdminIntlBoundary/.test(read("src/components/EditOnly.tsx")));
+  const layout = read("src/app/[locale]/layout.tsx");
+  ok("E3 le layout public n'embarque jamais le catalogue d'admin", !/admin\.(fr|en)\.json|admin-server|getAdminMessages/.test(layout));
+  const intl = read("src/components/AdminIntl.tsx");
+  ok("E4 AdminIntl : fournisseur imbriqué + magasin de module", /NextIntlClientProvider/.test(intl) && /useSyncExternalStore/.test(intl));
 }
 
 console.log(failures === 0 ? "\nTout est vert." : `\n${failures} échec(s).`);

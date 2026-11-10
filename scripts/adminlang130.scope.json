@@ -1,13 +1,23 @@
 {
-  "_doc": "Lot 130 : périmètre de la garde « aucune chaîne française en dur ». Une étape livrée ajoute ses fichiers ici. `exclude` : sous-chemins pas encore traités (étapes suivantes) ; `allow` : exceptions justifiées par fichier (extrait exact de la chaîne -> raison). apercu/ : routes dont les seuls textes sont des corps de réponse HTTP (messages serveur, étape 130c).",
+  "_doc": "Lot 130 : périmètre de la garde « aucune chaîne française en dur ». Une étape livrée ajoute ses fichiers ici. include : dossiers ou fichiers ; exclude : sous-chemins pas encore traités (étape 130c : actions serveur, routes api/ et apercu/, dont les seuls textes sont des corps de réponse HTTP) ; allow : exceptions justifiées par fichier (extrait exact de la chaîne -> raison).",
   "include": [
     "src/app/admin",
-    "src/components/admin"
+    "src/components/admin",
+    "src/components/edit",
+    "src/blocks",
+    "src/components/EditLayer.tsx",
+    "src/components/BoardLayer.tsx",
+    "src/components/SiteLayer.tsx",
+    "src/components/PreviewBridge.tsx",
+    "src/components/ProjectStrip.tsx",
+    "src/components/CollectionTiles.tsx",
+    "src/components/SocialPicker.tsx",
+    "src/components/PreviewBanner.tsx",
+    "src/components/PreviewExit.tsx",
+    "src/components/EditThisPage.tsx"
   ],
   "exclude": [
-    "src/app/admin/(espace)/themes/tuto/",
     "src/app/admin/api/",
-    "src/components/admin/editor/",
     "*/actions.ts",
     "src/app/admin/apercu/"
   ],
