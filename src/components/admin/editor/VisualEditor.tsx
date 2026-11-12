@@ -1480,44 +1480,52 @@ export default function VisualEditor({
     if (!block) return;
     putClip(styleClip(block.type, styleOf(block)), tv("styleCopied"));
   };
+  // Garde de réentrance : un collage à la fois (évite de coller deux fois sur une frappe ou un déclenchement concurrent).
+  const pasting = useRef(false);
   /** Colle le bloc copié après le bloc choisi (dans le conteneur choisi s'il l'accepte), validé par le serveur (registre, références, nouveaux uid). */
   const pasteBlock = async () => {
-    const clip = readStoredClip();
-    if (!clip || clip.kind !== "blocks") {
-      toast(tv("nothingToPaste"), "error");
-      return;
+    if (pasting.current) return;
+    pasting.current = true;
+    try {
+      const clip = readStoredClip();
+      if (!clip || clip.kind !== "blocks") {
+        toast(tv("nothingToPaste"), "error");
+        return;
+      }
+      const first = clip.blocks[0];
+      const place = defaultPlace(first.type);
+      const before = draftRef.current.blocks;
+      const parent = place.parent ? findBlock(before, place.parent) : null;
+      const result = await pasteBlocksAction(pageId, clip, {
+        parentType: parent?.type ?? null,
+        depth: place.parent ? ancestorsOf(before, place.parent).length + 1 : 0,
+        count: (listOf(before, place.parent) ?? []).length,
+        pageTypes: walkTree(before).map((v) => v.block.type),
+      });
+      if (!result.ok) {
+        toast(result.message, "error");
+        return;
+      }
+      // Le brouillon a pu changer pendant l'aller-retour : l'emplacement est relu.
+      let next: DraftBlock[] | null = draftRef.current.blocks;
+      let at = place.index;
+      if (place.parent && !findBlock(next, place.parent)) {
+        toast(tv("targetGone"), "error");
+        return;
+      }
+      for (const b of result.data.blocks as DraftBlock[]) {
+        next = next ? insertBlock(next, b, place.parent, at++) : null;
+      }
+      if (!next) {
+        toast(tv("cannotPlace"), "error");
+        return;
+      }
+      setBlocks(next);
+      selectBlock(result.data.blocks[0].uid);
+      toast(tv("blocksPasted", { count: result.data.blocks.length }), "success", { label: tv("undo"), run: () => void undoRef.current() });
+    } finally {
+      pasting.current = false;
     }
-    const first = clip.blocks[0];
-    const place = defaultPlace(first.type);
-    const before = draftRef.current.blocks;
-    const parent = place.parent ? findBlock(before, place.parent) : null;
-    const result = await pasteBlocksAction(pageId, clip, {
-      parentType: parent?.type ?? null,
-      depth: place.parent ? ancestorsOf(before, place.parent).length + 1 : 0,
-      count: (listOf(before, place.parent) ?? []).length,
-      pageTypes: walkTree(before).map((v) => v.block.type),
-    });
-    if (!result.ok) {
-      toast(result.message, "error");
-      return;
-    }
-    // Le brouillon a pu changer pendant l'aller-retour : l'emplacement est relu.
-    let next: DraftBlock[] | null = draftRef.current.blocks;
-    let at = place.index;
-    if (place.parent && !findBlock(next, place.parent)) {
-      toast(tv("targetGone"), "error");
-      return;
-    }
-    for (const b of result.data.blocks as DraftBlock[]) {
-      next = next ? insertBlock(next, b, place.parent, at++) : null;
-    }
-    if (!next) {
-      toast(tv("cannotPlace"), "error");
-      return;
-    }
-    setBlocks(next);
-    selectBlock(result.data.blocks[0].uid);
-    toast(tv("blocksPasted", { count: result.data.blocks.length }), "success", { label: tv("undo"), run: () => void undoRef.current() });
   };
   /** Colle le style copié (ou celui du bloc copié) sur le bloc choisi : seulement ce que ses schémas acceptent. */
   const pasteStyleOn = async (uid: string) => {
