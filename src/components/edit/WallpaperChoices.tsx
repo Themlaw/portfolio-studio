@@ -6,6 +6,8 @@
  * tuile et l'opacité — `null` = celle du motif (réglée dans Thèmes → Papiers peints). Chaque vignette montre le motif sur un fond
  * clair ET un fond sombre (les motifs sont dessinés sur transparent). Bibliothèque vide : une phrase qui dit où en importer.
  */
+import { useTranslations } from "next-intl";
+
 import { PAPER_READABLE_MAX, PAPER_READABLE_WARNING, WALLPAPER_OPACITY_MIN, WALLPAPER_SIZE_MAX, WALLPAPER_SIZE_MIN } from "@/themes/schema";
 import { effectivePaint, type WallpaperEntry } from "@/themes/wallpaper";
 
@@ -16,16 +18,17 @@ import "@/app/admin/surface-menu.css";
 const thumbOf = (e: WallpaperEntry) => (e.files.find((f) => f.w >= 240) ?? e.files.at(-1))?.url ?? "";
 
 export function WallpaperGrid({ value, onPick }: { value: number | undefined; onPick: (id: number) => void }) {
+  const t = useTranslations("editWallpaper");
   const list = [...wallpaperCatalog().values()];
   if (!list.length) {
     return (
       <p className="sm-hint" data-testid="wp-empty">
-        Aucun papier peint pour l&apos;instant. Importe tes motifs dans « Thèmes » → « Papiers peints » (menu de gauche), puis recharge cette page.
+        {t("empty")}
       </p>
     );
   }
   return (
-    <div className="wp-grid" role="radiogroup" aria-label="Papier peint" data-testid="wp-grid">
+    <div className="wp-grid" role="radiogroup" aria-label={t("label")} data-testid="wp-grid">
       {list.map((e) => (
         <button key={e.id} type="button" role="radio" aria-checked={value === e.id} className="wp-item" data-wallpaper-id={e.id} title={e.name} onClick={() => onPick(e.id)}>
           <span className="wp-thumb" aria-hidden="true">
@@ -37,7 +40,7 @@ export function WallpaperGrid({ value, onPick }: { value: number | undefined; on
       ))}
       {value !== undefined && !list.some((e) => e.id === value) && (
         <p className="sm-hint" data-testid="wp-missing">
-          Ce papier peint n&apos;est plus dans la bibliothèque : choisis-en un autre.
+          {t("missing")}
         </p>
       )}
     </div>
@@ -59,6 +62,7 @@ export function WallpaperPaintRows({
   textOver?: boolean;
   onChange: (p: { size?: number | null; opacity?: number | null }, continuous?: boolean) => void;
 }) {
+  const t = useTranslations("editWallpaper");
   if (!entry) return null;
   const eff = effectivePaint(entry, { size, opacity });
   const opacityNow = eff.opacity;
@@ -66,7 +70,7 @@ export function WallpaperPaintRows({
   return (
     <>
       <div className="tc-row">
-        <span className="sm-label">Taille</span>
+        <span className="sm-label">{t("size")}</span>
         <input
           type="range"
           className="sm-range"
@@ -74,14 +78,14 @@ export function WallpaperPaintRows({
           max={WALLPAPER_SIZE_MAX}
           step={1}
           value={eff.size}
-          aria-label="Taille du motif"
+          aria-label={t("patternSize")}
           data-testid="wp-size"
           onChange={(e) => onChange({ size: Number(e.target.value) }, true)}
         />
         <span className="sm-hint">{eff.size} px</span>
       </div>
       <div className="tc-row">
-        <span className="sm-label">Opacité</span>
+        <span className="sm-label">{t("opacity")}</span>
         <input
           type="range"
           className="sm-range"
@@ -89,7 +93,7 @@ export function WallpaperPaintRows({
           max={100}
           step={1}
           value={Math.round(opacityNow * 100)}
-          aria-label="Opacité du motif"
+          aria-label={t("patternOpacity")}
           data-testid="wp-opacity"
           onChange={(e) => onChange({ opacity: Number(e.target.value) / 100 }, true)}
         />
@@ -107,7 +111,7 @@ export function WallpaperPaintRows({
         <div className="tc-row">
           <span className="sm-label" aria-hidden="true" />
           <button type="button" className="wp-reset" data-testid="wp-reset" onClick={() => onChange({ size: null, opacity: null })}>
-            Reprendre les réglages du motif
+            {t("reset")}
           </button>
         </div>
       )}

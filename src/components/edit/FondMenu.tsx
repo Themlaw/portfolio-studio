@@ -19,6 +19,7 @@
  * Annuler / Rétablir passent par l'historique. Composant de planche : une seule couche (`bitem-fond`), Fond et Carte s'excluent. À ne pas confondre avec
  * « Fond du texte » (BackdropRow) ni « Fond derrière la photo » (ImageBgMenu, « Fond image »).
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
@@ -52,19 +53,15 @@ import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurf
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { boardFondKey, canvasPalette, hasFondWrapper, postIntent, previewZone, setOverlay, wallpaperCatalog, zoneState } from "./optimistic";
-import { ratioTip, readabilityText } from "./readability";
-import { CornersRow, SHAPE_STEPS } from "./ShapeChoices";
+import { useReadability } from "./useReadability";
+import { CornersRow, SHAPE_STEPS, shapeStepLabel } from "./ShapeChoices";
 import Popover, { type PopoverAnchor } from "./Popover";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
 
-const KINDS: { kind: "none" | "color" | "wallpaper"; label: string }[] = [
-  { kind: "none", label: "Aucun" },
-  { kind: "color", label: "Couleur" },
-  { kind: "wallpaper", label: "Papier peint" },
-];
+const KINDS: { kind: "none" | "color" | "wallpaper" }[] = [{ kind: "none" }, { kind: "color" }, { kind: "wallpaper" }];
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
 /**
@@ -118,15 +115,16 @@ function summary(z: Zone | null, defaults: ResolvedSurface) {
 
 /** Bouton « Fond & carte » de la barre d'outils (le MÊME partout, lot 100) : petit échantillon carré de la couleur de la carte (sinon du fond ; rien : aucun ; trame : papier peint sans couleur). */
 export function FondButton({ uid, open, onToggle, compact = false }: { uid: string; open: boolean; onToggle: () => void; compact?: boolean }) {
+  const t = useTranslations("editFondMenu");
   const st = zoneState(uid);
   const fc = readFondCarte({ surface: st.surface ?? undefined, background: st.background ?? undefined }, st.defaults);
   const s = summary(fc.carte ?? fc.fond, st.defaults);
   return (
-    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} {...(compact ? { "aria-label": "Fond & carte" } : {})} title="Fond et carte du bloc : le fond autour (pleine largeur) et la carte en retrait qui porte le contenu" onClick={onToggle}>
+    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} {...(compact ? { "aria-label": t("buttonAria") } : {})} title={t("buttonTitle")} onClick={onToggle}>
       {s && <span className="sm-swatch" data-testid="fond-swatch" data-wallpaper={"wallpaperOnly" in s ? "" : undefined} style={!("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />}
-      {compact ? <span aria-hidden="true">▣</span> : "Fond & carte"}
+      {compact ? <span aria-hidden="true">▣</span> : t("buttonLabel")}
       {s && !s.style.ok && (
-        <span className="sm-alert" data-testid="fond-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
+        <span className="sm-alert" data-testid="fond-alert" title={t("hardToRead")} aria-label={t("hardToRead")}>
           !
         </span>
       )}
@@ -206,6 +204,7 @@ function ContourRows({
   slot: Slot;
   onChange: (b: Surface["border"], continuous?: boolean) => void;
 }) {
+  const t = useTranslations("editFondMenu");
   const enabled = true;
   const customColor = border?.color && !isSurfaceToken(border.color) ? border.color : undefined;
   const width = border?.width ?? DEFAULT_BORDER_WIDTH;
@@ -223,10 +222,10 @@ function ContourRows({
   return (
     <div className="fc-contour" data-testid="fond-contour-row" data-slot={slot} data-state="ok" data-from-theme={fromTheme ? "" : undefined}>
       <div className="tc-row">
-        <span className="sm-label">Contour</span>
-        <span className="tc-seg" role="radiogroup" aria-label={slot === "fond" ? "Contour du fond" : "Contour de la carte"} data-testid="fond-contour">
+        <span className="sm-label">{t("contour")}</span>
+        <span className="tc-seg" role="radiogroup" aria-label={t(slot === "fond" ? "contourFond" : "contourCarte")} data-testid="fond-contour">
           <button type="button" role="radio" aria-checked={border === null} data-contour="none" disabled={!enabled} onClick={() => onChange(false)}>
-            Aucun
+            {t("contourNone")}
           </button>
           {SURFACE_BORDER_WIDTHS.map((w) => (
             <button key={w} type="button" role="radio" aria-checked={border?.width === w} data-contour={w} data-border-width={w} disabled={!enabled} onClick={() => set({ width: w })}>
@@ -237,29 +236,29 @@ function ContourRows({
       </div>
       {fromTheme && border && (
         <p className="sm-hint" data-testid="fond-contour-theme">
-          Contour du thème ({SURFACE_BORDER_LABELS[border.width].toLowerCase()}). Choisis une épaisseur pour le remplacer, ou « Aucun » pour le retirer sur ce bloc.
+          {t("contourTheme", { width: SURFACE_BORDER_LABELS[border.width].toLowerCase() })}
         </p>
       )}
       {!fromTheme && themeBorder && enabled && (
         <p className="sm-hint" data-testid="fond-contour-theme-back">
-          Le thème a un contour ({SURFACE_BORDER_LABELS[themeBorder.width].toLowerCase()}).{" "}
+          {t("contourThemeBack", { width: SURFACE_BORDER_LABELS[themeBorder.width].toLowerCase() })}{" "}
           <button type="button" className="sm-link" data-testid="fond-contour-theme-use" onClick={() => onChange(undefined)}>
-            Reprendre celui du thème
+            {t("contourThemeUse")}
           </button>
         </p>
       )}
       {enabled && border && (
         <>
           <div className="tc-row">
-            <span className="sm-label">Couleur du contour</span>
-            <CardColorChoices palette={canvasPalette()} value={border.color ?? ""} onPick={(t) => set({ color: t })} label={slot === "fond" ? "Couleur du contour du fond" : "Couleur du contour"} hidden={hidden} auto={{ label: "Par défaut : la couleur du texte de la carte", onPick: () => set({ color: undefined }) }} />
+            <span className="sm-label">{t("contourColor")}</span>
+            <CardColorChoices palette={canvasPalette()} value={border.color ?? ""} onPick={(tok) => set({ color: tok })} label={t(slot === "fond" ? "contourColorFond" : "contourColor")} hidden={hidden} auto={{ label: t("contourAuto"), onPick: () => set({ color: undefined }) }} />
           </div>
           <div className="tc-row">
             <span className="sm-label" aria-hidden="true" />
             <span className="tc-swatches">
               <ColorPicker value={customColor} onChange={fromPicker} swatch={swatch} />
             </span>
-            <span className="sm-hint">Autre couleur…</span>
+            <span className="sm-hint">{t("otherColor")}</span>
           </div>
         </>
       )}
@@ -270,11 +269,6 @@ function ContourRows({
 /** Carte posée par un contour seul (lot 100) : « Fond de page » (jeton du thème) ; sur un papier peint de page, transparente (sinon la carte le cacherait). */
 const CONTOUR_ONLY_COLOR = "bg";
 const isContourOnly = (z: Zone): boolean => zoneKind(z) === "color" && (z.color === CONTOUR_ONLY_COLOR || z.color === CONTOUR_ONLY_CLEAR) && z.paper === "under" && z.corners === undefined;
-
-const SLOT_TEXT: Record<Slot, { title: string; none: string; lead: string; empty: string; radio: string; kindLabel: string }> = {
-  fond: { title: "Fond", none: "Aucun", kindLabel: "Fond", radio: "Nature du fond", lead: "La boîte extérieure : la bande pleine largeur autour d'un bloc, ou toute la surface d'un composant.", empty: "Aucun fond : on voit le fond de la page autour." },
-  carte: { title: "Carte", none: "Aucune", kindLabel: "Carte", radio: "Nature de la carte", lead: "Le panneau en retrait, avec sa marge, qui porte le contenu.", empty: "Pas de carte : le contenu est posé directement sur le fond." },
-};
 
 /** Petit schéma d'une section (lot 100) : la page (fond) et la carte dedans ; la zone réglée est mise en avant. Aucune couleur en dur : tout vient de la feuille de style. */
 function SlotSchema({ slot, filled }: { slot: Slot; filled: boolean }) {
@@ -310,7 +304,17 @@ function ZoneSection({
   onMargin?: (step: "s" | "m" | "l" | null) => void;
   onSet: (next: Zone | null, continuous?: boolean) => void;
 }) {
-  const text = SLOT_TEXT[slot];
+  const t = useTranslations("editFondMenu");
+  const tShape = useTranslations("editMenusShape");
+  const read = useReadability();
+  const text = {
+    title: t(`${slot}_title`),
+    none: t(`${slot}_none`),
+    kindLabel: t(`${slot}_kindLabel`),
+    radio: t(`${slot}_radio`),
+    lead: t(`${slot}_lead`),
+    empty: t(`${slot}_empty`),
+  };
   const memoKey = `${uid}#${slot}`;
   remember(memoKey, z);
   const memo = memos.get(memoKey) ?? {};
@@ -361,14 +365,14 @@ function ZoneSection({
     <>
       <div className="tc-row">
         <span className="sm-label">{label}</span>
-        <CardColorChoices palette={canvasPalette()} value={color ?? ""} onPick={(t) => setColor(t)} label={slot === "fond" ? "Couleur du fond" : "Couleur de la carte"} auto={auto} />
+        <CardColorChoices palette={canvasPalette()} value={color ?? ""} onPick={(tok) => setColor(tok)} label={t(slot === "fond" ? "colorOfFond" : "colorOfCarte")} auto={auto} />
       </div>
       <div className="tc-row">
         <span className="sm-label" aria-hidden="true" />
         <span className="tc-swatches">
           <ColorPicker value={isCustomColor(z?.color) ? z?.color : undefined} onChange={fromPicker} swatch={swatch} />
         </span>
-        <span className="sm-hint">Autre couleur…</span>
+        <span className="sm-hint">{t("otherColor")}</span>
       </div>
     </>
   );
@@ -387,17 +391,17 @@ function ZoneSection({
     <>
       {siteShows && z && (
         <p className="sm-hint" data-testid="fond-site-paper">
-          Le papier du site se voit sur ce fond.{" "}
+          {t("sitePaper")}{" "}
           <button type="button" className="sm-link" data-testid="fond-site-paper-hide" onClick={() => set({ paper: "under" })}>
-            Le cacher
+            {t("hide")}
           </button>
         </p>
       )}
       {pageShows && (
         <p className="sm-hint" data-testid="fond-page-paper">
-          {z ? "Le papier peint de la page se voit autour ou à travers ce fond." : "Un papier peint de la page se voit derrière."}{" "}
+          {t(z ? "pageWallpaperAround" : "pageWallpaperBehind")}{" "}
           <button type="button" className="sm-link" data-testid="fond-page-paper-link" onClick={openPageSettings}>
-            Papier peint de la page : le régler
+            {t("pageWallpaperSet")}
           </button>
         </p>
       )}
@@ -414,7 +418,7 @@ function ZoneSection({
     <>
       <CornersRow
         value={cornersChoice}
-        label={slot === "fond" ? "Coins du fond" : "Coins de la carte"}
+        label={t(slot === "fond" ? "cornersFond" : "cornersCarte")}
         testid="fond-round"
         attr={(v) => ({ "data-corners": v === "none" ? "square" : v })}
         onPick={(v) => {
@@ -426,17 +430,17 @@ function ZoneSection({
       />
       {(innerOfCard || (z.layer === "fond" && zoneExtent(z, defaults) === "inset")) && (
         <div className="tc-row">
-          <span className="sm-label">Marge</span>
-          <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
+          <span className="sm-label">{t("margin")}</span>
+          <span className="tc-seg" role="radiogroup" aria-label={t("marginSize")} data-testid="fond-inset">
             {/* Lot 108 : un Fond posé DANS une Carte peut n'avoir aucune marge (rempli jusqu'à la carte) ou un retrait S / M / L. */}
             {innerOfCard && (
               <button type="button" role="radio" aria-checked={zoneExtent(z, defaults) !== "inset"} data-step="none" onClick={() => (onMargin ? onMargin(null) : set({ extent: "full", margin: undefined }))}>
-                Aucune
+                {t("marginNone")}
               </button>
             )}
             {SHAPE_STEPS.map((st) => (
               <button key={st.step} type="button" role="radio" aria-checked={zoneExtent(z, defaults) === "inset" && (z.margin ?? "m") === st.step} data-step={st.step} onClick={() => (innerOfCard && onMargin ? onMargin(st.step) : set({ margin: st.step }))}>
-                {st.label}
+                {shapeStepLabel(st.step, tShape)}
               </button>
             ))}
           </span>
@@ -449,35 +453,35 @@ function ZoneSection({
       <>
         {!site.has && kind === "color" && (
           <p className="sm-hint" data-testid="surface-paper-none">
-            Le thème actif n&apos;a pas de papier dessiné : rien à montrer sur le fond.
+            {t("noPaper")}
           </p>
         )}
         {site.has && kind === "color" && (
         <details className="fond-fine" data-testid="fond-fine">
           <summary data-testid="fond-fine-summary">
             <span className="fond-fine-chev" aria-hidden="true" />
-            Papier du site : montré ou caché{z.layer === "card" ? ", intensité" : ""}
+            {t(z.layer === "card" ? "paperSummaryIntensity" : "paperSummary")}
           </summary>
           <div className="tc-row">
-            <span className="sm-label">Papier du site</span>
-            <span className="tc-seg" role="radiogroup" aria-label="Papier du site sur le fond" data-testid="surface-paper">
+            <span className="sm-label">{t("paperLabel")}</span>
+            <span className="tc-seg" role="radiogroup" aria-label={t("paperAria")} data-testid="surface-paper">
               <button type="button" role="radio" aria-checked={z.paper === undefined} data-paper="site" onClick={() => set({ paper: undefined, paperOpacity: undefined })}>
-                Comme le site ({site.onCards ? "sur" : "sous"})
+                {t("paperLikeSite", { where: t(site.onCards ? "whereOver" : "whereUnder") })}
               </button>
               <button type="button" role="radio" aria-checked={z.paper === "under"} data-paper="under" onClick={() => set({ paper: "under" })}>
-                Sous la carte (caché)
+                {t("paperUnder")}
               </button>
               {z.layer === "card" && (
                 <button type="button" role="radio" aria-checked={z.paper === "over"} data-paper="over" onClick={() => set({ paper: "over" })}>
-                  Sur la carte
+                  {t("paperOver")}
                 </button>
               )}
             </span>
           </div>
           {z.layer === "card" && kind === "color" && cardPaper?.over && (
             <div className="tc-row">
-              <span className="sm-label">Intensité</span>
-              <input type="range" className="sm-range" min={0} max={100} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label="Intensité du papier sur la carte" data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
+              <span className="sm-label">{t("intensity")}</span>
+              <input type="range" className="sm-range" min={0} max={100} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label={t("intensityAria")} data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
               <span className="sm-hint">{Math.round(cardPaper.opacity * 100)} %</span>
             </div>
           )}
@@ -521,11 +525,11 @@ function ZoneSection({
   );
 
   const warning = s && !s.style.ok && (
-    <p className="sm-warn" role="status" data-testid="fond-warning" title={ratioTip(s.style.ratio)}>
+    <p className="sm-warn" role="status" data-testid="fond-warning" title={read.tip(s.style.ratio)}>
       <span className="sm-alert" aria-hidden="true">
         !
       </span>
-      {readabilityText(s.style.ratio)} : le texte se lit mal sur cette couleur. Essaie une teinte plus claire ou plus foncée.
+      {t("warning", { verdict: read.text(s.style.ratio) })}
     </p>
   );
 
@@ -545,14 +549,14 @@ function ZoneSection({
         <span className="tc-seg" role="radiogroup" aria-label={text.radio} data-testid={`fond-kind-${slot}`}>
           {KINDS.map((k) => (
             <button key={k.kind} type="button" role="radio" aria-checked={view === k.kind} data-kind={k.kind} onClick={() => pickKind(k.kind)}>
-              {k.kind === "none" ? text.none : k.label}
+              {k.kind === "none" ? text.none : t(`kind_${k.kind}`)}
             </button>
           ))}
         </span>
       </div>
       {view === "color" && z && color && s ? (
         <>
-          {colorRows("Couleur")}
+          {colorRows(t("color"))}
           {notices}
           {shape}
           {contour}
@@ -571,7 +575,7 @@ function ZoneSection({
                 textOver={blockHasText(uid)}
                 onChange={(p, continuous) => set({ ...("size" in p ? { size: p.size ?? undefined } : {}), ...("opacity" in p ? { opacity: p.opacity ?? undefined } : {}) }, continuous)}
               />
-              {colorRows("Couleur dessous", z.layer === "fond" || slot === "fond" ? { label: "Aucune couleur sous le motif", onPick: () => setColor(undefined) } : undefined)}
+              {colorRows(t("colorBelow"), z.layer === "fond" || slot === "fond" ? { label: t("noColorBelow"), onPick: () => setColor(undefined) } : undefined)}
               {notices}
               {shape}
               {contour}
@@ -617,6 +621,7 @@ function FondPanel({
   onClose: () => void;
   anchor: PopoverAnchor;
 }) {
+  const t = useTranslations("editFondMenu");
   const defaults = themeDefaults ?? resolveSurface({});
   const { fc, outer } = readLayout(stored, defaults);
   const onSet = (slot: Slot) => (next: Zone | null, continuous = false) => {
@@ -634,7 +639,7 @@ function FondPanel({
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) });
   };
   return (
-    <Popover anchor={anchor} label="Fond et carte du bloc" testId="fond-menu" onClose={onClose}>
+    <Popover anchor={anchor} label={t("panelLabel")} testId="fond-menu" onClose={onClose}>
       <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={isPair(caps) && fc.fond !== null && fc.carte !== null} onMargin={onMargin} onSet={onSet("fond")} />
       <ZoneSection uid={uid} slot="carte" z={fc.carte} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={false} onSet={onSet("carte")} />
     </Popover>

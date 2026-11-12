@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -29,13 +30,14 @@ const path = (locale: string, slug: string) => (slug ? `/${locale}/${slug}` : `/
 const addresses = (p: AdminPageRow) => `${path("fr", p.slug.fr)} · ${path("en", p.slug.en)}`;
 
 function PreviewPage({ id, small }: { id: number; small?: boolean }) {
+  const t = useTranslations("pagesMgr");
   return (
     <form method="post" action="/admin/apercu" target="_blank">
       <input type="hidden" name="page" value={id} />
       {/* « Quitter l'aperçu » ramène ici. */}
       <input type="hidden" name="retour" value="/admin/pages" />
       <button type="submit" className={`a-btn${small ? " a-btn-small" : ""}`}>
-        Prévisualiser <span aria-hidden="true">↗</span>
+        {t("preview")} <span aria-hidden="true">↗</span>
       </button>
     </form>
   );
@@ -45,6 +47,7 @@ function PreviewPage({ id, small }: { id: number; small?: boolean }) {
 
 function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
+  const t = useTranslations("pagesMgr");
   const [title, setTitle] = useState({ fr: "", en: "" });
   const [slug, setSlug] = useState({ fr: "", en: "" });
   const [touched, setTouched] = useState({ fr: false, en: false });
@@ -73,8 +76,8 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <ConfirmDialog
       open={open}
-      title="Créer une page"
-      confirmLabel="Créer la page"
+      title={t("createTitle")}
+      confirmLabel={t("createConfirm")}
       busy={busy}
       onClose={() => {
         reset();
@@ -88,27 +91,27 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
             setErrors(result.fieldErrors ?? {});
             return;
           }
-          toast("Page créée · pas encore en ligne");
+          toast(t("created"));
           reset();
           // Droit dans l'éditeur visuel : c'est là qu'on compose la page.
           router.push(`/admin/pages/${result.data.id}/editer`);
         })
       }
     >
-      <p className="muted">La page est créée sans être publiée : tu la composes dans l&apos;éditeur, puis « Publier » dans l&apos;éditeur la met en ligne.</p>
+      <p className="muted">{t("createIntro")}</p>
       <div className="a-form-grid a-section-tight">
-        <TextField label="Titre en français" value={title.fr} onChange={(v) => setT("fr", v)} error={errors["title.fr"]} placeholder="Carnets" />
+        <TextField label={t("titleFr")} value={title.fr} onChange={(v) => setT("fr", v)} error={errors["title.fr"]} placeholder="Carnets" />
         <TextField
-          label="Titre en anglais"
-          help="Facultatif : le titre français sinon."
+          label={t("titleEn")}
+          help={t("titleEnHelp")}
           value={title.en}
           onChange={(v) => setT("en", v)}
           error={errors["title.en"]}
           placeholder="Sketchbooks"
         />
         <TextField
-          label="Adresse en français"
-          help={`Ton site${path("fr", slug.fr || "…")}`}
+          label={t("slugFr")}
+          help={t("siteHelp", { path: path("fr", slug.fr || "…") })}
           value={slug.fr}
           onChange={(v) => {
             setTouched((t) => ({ ...t, fr: true }));
@@ -117,8 +120,8 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
           error={errors["slug.fr"]}
         />
         <TextField
-          label="Adresse en anglais"
-          help={`Ton site${path("en", slug.en || "…")}`}
+          label={t("slugEn")}
+          help={t("siteHelp", { path: path("en", slug.en || "…") })}
           value={slug.en}
           onChange={(v) => {
             setTouched((t) => ({ ...t, en: true }));
@@ -136,39 +139,41 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSummary }) {
   const router = useRouter();
+  const t = useTranslations("pagesMgr");
+  const format = useFormatter();
   const [busy, start] = useTransition();
   return (
     <section className="a-panel" aria-labelledby="p-corbeille">
-      <h2 id="p-corbeille">Pages supprimées</h2>
+      <h2 id="p-corbeille">{t("trashHeading")}</h2>
       <p className="a-help a-panel-intro">
-        Une page supprimée n&apos;est plus sur le site ni dans le menu. Elle reste {TRASH_DAYS} jours ici : restaure-la en un clic, après quoi elle est effacée pour de bon.
+        {t("trashIntro", { days: TRASH_DAYS })}
       </p>
       <EmptyTrash summary={summary} />
       {pages.length === 0 ? (
-        <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+        <p className="muted" data-testid="corbeille-vide">{t("trashEmpty")}</p>
       ) : (
         <div className="a-table-wrap">
           <table className="a-table a-table-stack">
             <thead>
               <tr>
-                <th scope="col">Page</th>
-                <th scope="col">Supprimée</th>
+                <th scope="col">{t("colPage")}</th>
+                <th scope="col">{t("colDeleted")}</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t("colActions")}</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {pages.map((p) => (
                 <tr key={p.id} data-testid="corbeille-ligne">
-                  <td data-label="Page">
+                  <td data-label={t("colPage")}>
                     <strong>{p.title}</strong>
                     <span className="a-sub">{addresses(p)}</span>
                   </td>
-                  <td data-label="Supprimée">
-                    {p.deletedAt ? new Date(p.deletedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""}
+                  <td data-label={t("colDeleted")}>
+                    {p.deletedAt ? format.dateTime(new Date(p.deletedAt), { day: "numeric", month: "long" }) : ""}
                     <span className="a-sub">
-                      effacée dans {p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS} jour{p.deletedAt && daysLeft(p.deletedAt) < 2 ? "" : "s"}
+                      {t("erasedIn", { count: p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS })}
                     </span>
                   </td>
                   <td className="a-row-actions">
@@ -185,7 +190,7 @@ function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSu
                         })
                       }
                     >
-                      Restaurer
+                      {t("restore")}
                     </button>
                     <PurgeItem kind="page" id={p.id} name={p.title} lost={lostWithPage(p.blocks, p.hasDraft)} />
                   </td>
@@ -205,6 +210,7 @@ type Pending = { kind: "delete"; page: AdminPageRow } | null;
 
 export default function PagesManager({ pages: allPages, trashed, view, summary }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille"; summary: TrashSummary }) {
   const router = useRouter();
+  const t = useTranslations("pagesMgr");
   // Pages spéciales (lot 89, « Page introuvable ») : rangées à part, à la fin ; ni menu, ni renommage, ni suppression.
   const pages = allPages.filter((p) => !p.special);
   const specials = allPages.filter((p) => p.special);
@@ -227,16 +233,16 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
   const act = (fn: () => Promise<{ ok: boolean; message?: string; data?: unknown }>, success: string) =>
     start(async () => {
       const result = await fn();
-      if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
+      if (!result.ok) return toast(result.message ?? t("actionFailed"), "error");
       toast(success);
       // Avertissements non bloquants à la mise en ligne (lot 52), comme dans l'éditeur.
       const warn = (result.data as { warnings?: { missingAlt: unknown[]; untranslated: number } } | null | undefined)?.warnings;
       if (warn && warn.missingAlt.length > 0) {
         const n = warn.missingAlt.length;
-        toast(`${n} image${n > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google). À compléter dans les médias.`, "success", undefined, 9000);
+        toast(t("missingAlt", { count: n }), "success", undefined, 9000);
       }
-      if ((warn as { notInMenu?: boolean } | undefined)?.notInMenu) toast("Cette page est en ligne mais n'apparaît dans aucun menu : utilise « Ajouter au menu ».", "success", undefined, 9000);
-      if (warn && warn.untranslated > 0) toast(`${untranslatedLabel(warn.untranslated)} : les visiteurs anglophones verront ces passages vides ou en français.`, "success", undefined, 9000);
+      if ((warn as { notInMenu?: boolean } | undefined)?.notInMenu) toast(t("notInMenuToast"), "success", undefined, 9000);
+      if (warn && warn.untranslated > 0) toast(t("untranslatedToast", { label: untranslatedLabel(warn.untranslated) }), "success", undefined, 9000);
       router.refresh();
     });
 
@@ -246,30 +252,27 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
     <>
       <div className="a-toolbar">
         <button type="button" className="a-btn a-btn-primary" onClick={() => setCreating(true)}>
-          Créer une page
+          {t("createTitle")}
         </button>
       </div>
 
       <section className="a-panel" aria-labelledby="p-menu">
-        <h2 id="p-menu">Ordre du menu</h2>
-        <p className="a-help a-panel-intro">
-          Fais glisser les pages par leur poignée, ou utilise le clavier : Espace pour saisir, flèches pour déplacer, Espace
-          pour poser.
-        </p>
+        <h2 id="p-menu">{t("menuHeading")}</h2>
+        <p className="a-help a-panel-intro">{t("menuHelp")}</p>
         {menu.length === 0 ? (
-          <p className="muted">Aucune page dans le menu.</p>
+          <p className="muted">{t("menuEmpty")}</p>
         ) : (
           <SortableList
             items={menu}
             getId={(p) => String(p.id)}
-            getLabel={(p) => p.title || "Page sans titre"}
+            getLabel={(p) => p.title || t("untitled")}
             onReorder={setMenu}
             render={(p, i) => (
               <div className="a-sortable-row">
                 <DragHandle />
                 <span className="a-sortable-pos mono">{i + 1}</span>
-                <span className="a-sortable-title">{p.title || <span className="muted">Page sans titre</span>}</span>
-                {!p.published && <span className="a-tag">Pas encore en ligne</span>}
+                <span className="a-sortable-title">{p.title || <span className="muted">{t("untitled")}</span>}</span>
+                {!p.published && <span className="a-tag">{t("notLive")}</span>}
               </div>
             )}
           />
@@ -278,69 +281,69 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
           <p className="a-save-state" aria-live="polite">
             {menuDirty ? (
               <>
-                <span className="a-dot" aria-hidden="true" /> Nouvel ordre non enregistré
+                <span className="a-dot" aria-hidden="true" /> {t("orderDirty")}
               </>
             ) : (
               <>
-                <span aria-hidden="true">✓</span> Ordre enregistré
+                <span aria-hidden="true">✓</span> {t("orderSaved")}
               </>
             )}
           </p>
           {menuDirty && (
             <button type="button" className="a-btn" onClick={() => setMenu(menuSaved)} disabled={busy}>
-              Annuler
+              {t("cancel")}
             </button>
           )}
           <button
             type="button"
             className="a-btn a-btn-primary"
             disabled={!menuDirty || busy}
-            onClick={() => act(() => reorderMenuAction(menu.map((p) => p.id)), "Ordre du menu enregistré")}
+            onClick={() => act(() => reorderMenuAction(menu.map((p) => p.id)), t("orderToast"))}
           >
-            Enregistrer l&apos;ordre
+            {t("saveOrder")}
           </button>
         </div>
       </section>
 
       <section className="a-panel" aria-labelledby="p-toutes">
-        <h2 id="p-toutes">Toutes les pages</h2>
+        <h2 id="p-toutes">{t("allHeading")}</h2>
         <div className="a-table-wrap">
           <table className="a-table a-table-stack">
             <thead>
               <tr>
-                <th scope="col">Page</th>
-                <th scope="col">État</th>
-                <th scope="col">Menu</th>
+                <th scope="col">{t("colPage")}</th>
+                <th scope="col">{t("colState")}</th>
+                <th scope="col">{t("colMenu")}</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t("colActions")}</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {pages.map((p) => (
                 <tr key={p.id}>
-                  <td data-label="Page">
+                  <td data-label={t("colPage")}>
                     {/* Entrée principale : l'éditeur visuel. */}
                     <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
                       {p.title}
                     </Link>
-                    <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                    <span className="muted"> · {t("blocks", { count: p.blocks })}</span>
                     {p.hasDraft && (
                       <>
                         {" "}
-                        <span className="a-tag a-tag-draft" title="Des modifications de l'éditeur ne sont pas encore publiées.">
-                          Modifications non publiées
+                        <span className="a-tag a-tag-draft" title={t("unpublishedChangesTitle")}>
+                          {t("unpublishedChanges")}
                         </span>
                       </>
                     )}
                     {/* L'adresse reste visible, en petit : le titre est ce qu'on cherche. */}
                     <span className="a-sub mono">{addresses(p)}</span>
                   </td>
-                  <td data-label="État">
-                    {p.published ? <span className="a-badge">En ligne</span> : <span className="a-tag">Pas encore en ligne</span>}
+                  <td data-label={t("colState")}>
+                    {p.published ? <span className="a-badge">{t("live")}</span> : <span className="a-tag">{t("notLive")}</span>}
                     {p.untranslated > 0 && (
                       <span className="a-tag a-tag-warn" data-testid="untranslated" title={untranslatedLabel(p.untranslated)}>
-                        Pas traduit en anglais
+                        {t("untranslated")}
                       </span>
                     )}
                     {!isHome(p) && (
@@ -349,17 +352,17 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                         className="a-btn a-btn-small a-btn-quiet"
                         disabled={busy}
                         onClick={() =>
-                          act(() => setPublishedAction(p.id, !p.published), p.published ? `« ${p.title} » retirée du site : elle n'est plus visible` : p.hasDraft ? `« ${p.title} » en ligne, sans ses modifications non publiées` : `« ${p.title} » en ligne`)
+                          act(() => setPublishedAction(p.id, !p.published), p.published ? t("toastOffline", { title: p.title }) : p.hasDraft ? t("toastLiveNoDraft", { title: p.title }) : t("toastLive", { title: p.title }))
                         }
                       >
-                        {p.published ? "Retirer du site" : "Mettre en ligne"}
+                        {p.published ? t("takeOffline") : t("putOnline")}
                       </button>
                     )}
                   </td>
-                  <td data-label="Menu">
+                  <td data-label={t("colMenu")}>
                     {p.published && p.navOrder === null && !isHome(p) && (
                       <p className="a-tag a-tag-warn" data-testid="not-in-menu">
-                        Cette page est en ligne mais n&apos;apparaît dans aucun menu
+                        {t("notInMenu")}
                       </p>
                     )}
                     <button
@@ -369,19 +372,19 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                       onClick={() =>
                         act(
                           () => setInMenuAction(p.id, p.navOrder === null),
-                          p.navOrder === null ? `« ${p.title} » ajoutée au menu` : `« ${p.title} » retirée du menu`,
+                          p.navOrder === null ? t("toastAddedMenu", { title: p.title }) : t("toastRemovedMenu", { title: p.title }),
                         )
                       }
                     >
-                      {p.navOrder === null ? "Ajouter au menu" : "Retirer du menu"}
+                      {p.navOrder === null ? t("addToMenu") : t("removeFromMenu")}
                     </button>
                   </td>
                   <td className="a-row-actions">
                     <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}/editer`}>
-                      Modifier
+                      {t("edit")}
                     </Link>
                     <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/pages/${p.id}`}>
-                      Infos de la page
+                      {t("pageInfo")}
                     </Link>
                     <PreviewPage id={p.id} small />
                     {!isHome(p) && (
@@ -393,7 +396,7 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                           setPending({ kind: "delete", page: p });
                         }}
                       >
-                        Supprimer
+                        {t("delete")}
                       </button>
                     )}
                   </td>
@@ -406,35 +409,35 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
 
       {specials.length > 0 && (
         <section className="a-panel" aria-labelledby="p-speciales" data-testid="pages-speciales">
-          <h2 id="p-speciales">Pages spéciales</h2>
-          <p className="a-help a-panel-intro">Le site les affiche lui-même : tu en composes le contenu comme celui d&apos;une page, mais elles n&apos;ont ni menu, ni adresse à partager.</p>
+          <h2 id="p-speciales">{t("specialsHeading")}</h2>
+          <p className="a-help a-panel-intro">{t("specialsHelp")}</p>
           <div className="a-table-wrap">
             <table className="a-table a-table-stack">
               <thead>
                 <tr>
-                  <th scope="col">Page</th>
-                  <th scope="col">État</th>
+                  <th scope="col">{t("colPage")}</th>
+                  <th scope="col">{t("colState")}</th>
                   <th scope="col">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t("colActions")}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {specials.map((p) => (
                   <tr key={p.id} data-testid="page-speciale">
-                    <td data-label="Page">
+                    <td data-label={t("colPage")}>
                       <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
                         {p.title}
                       </Link>{" "}
                       <span className="a-badge" data-testid="badge-speciale">
-                        Page spéciale
+                        {t("specialBadge")}
                       </span>
-                      <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                      <span className="muted"> · {t("blocks", { count: p.blocks })}</span>
                       {p.hasDraft && (
                         <>
                           {" "}
-                          <span className="a-tag a-tag-draft" title="Des modifications de l'éditeur ne sont pas encore publiées.">
-                            Modifications non publiées
+                          <span className="a-tag a-tag-draft" title={t("unpublishedChangesTitle")}>
+                            {t("unpublishedChanges")}
                           </span>
                         </>
                       )}
@@ -442,21 +445,21 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                         {NOT_FOUND_HELP}
                       </span>
                     </td>
-                    <td data-label="État">
-                      {p.published ? <span className="a-badge">En ligne</span> : <span className="a-tag">Pas encore en ligne</span>}
+                    <td data-label={t("colState")}>
+                      {p.published ? <span className="a-badge">{t("live")}</span> : <span className="a-tag">{t("notLive")}</span>}
                       <button
                         type="button"
                         className="a-btn a-btn-small a-btn-quiet"
                         disabled={busy}
-                        title={p.published ? "Le site reprend la page d'erreur d'origine." : undefined}
-                        onClick={() => act(() => setPublishedAction(p.id, !p.published), p.published ? `« ${p.title} » retirée du site : la page d'erreur d'origine revient` : `« ${p.title} » en ligne`)}
+                        title={p.published ? t("specialOfflineTitle") : undefined}
+                        onClick={() => act(() => setPublishedAction(p.id, !p.published), p.published ? t("toastSpecialOffline", { title: p.title }) : t("toastLive", { title: p.title }))}
                       >
-                        {p.published ? "Retirer du site" : "Mettre en ligne"}
+                        {p.published ? t("takeOffline") : t("putOnline")}
                       </button>
                     </td>
                     <td className="a-row-actions">
                       <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}/editer`}>
-                        Modifier
+                        {t("edit")}
                       </Link>
                       <PreviewPage id={p.id} small />
                     </td>
@@ -472,8 +475,8 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
 
       <ConfirmDialog
         open={pending?.kind === "delete"}
-        title={`Supprimer la page « ${pending?.page.title ?? ""} » ?`}
-        confirmLabel="Supprimer"
+        title={t("deleteTitle", { title: pending?.page.title ?? "" })}
+        confirmLabel={t("delete")}
         danger
         busy={busy}
         // Jamais « Supprimer » proposé pour un refus annoncé : tant que d'autres blocs la montrent, le bouton est inactif.
@@ -503,21 +506,25 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
         {pending && pending.page.blockedBy.length > 0 ? (
           <div className="a-alert" role="alert" data-testid="suppression-bloquee">
             <p>
-              Cette page est utilisée par {pending.page.blockedBy.length} bloc{pending.page.blockedBy.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.
+              {t("blockedIntro", { count: pending.page.blockedBy.length })}
             </p>
             <ul className="a-refs">
               {pending.page.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
-                  {r.trashed && <span className="muted"> (à la corbeille)</span>}
+                  {t.rich("blockRef", {
+                    type: r.blockType,
+                    title: r.pageTitle,
+                    l: (c) => <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{c}</Link>,
+                  })}
+                  {r.trashed && <span className="muted">{t("inTrash")}</span>}
                 </li>
               ))}
             </ul>
           </div>
         ) : (
           <p className="muted">
-            Elle quitte le site et le menu, mais reste {TRASH_DAYS} jours dans la corbeille : tu peux l&apos;y retrouver ou annuler juste après.
-            {pending?.page.hasDraft && " Son brouillon de l'éditeur est conservé ; ses modifications non publiées de projets ou de l'en-tête (réseaux, pied de page) sont abandonnées."}
+            {t("deleteKeep", { days: TRASH_DAYS })}
+            {pending?.page.hasDraft && ` ${t("draftKept")}`}
           </p>
         )}
         {error && <p className="a-alert">{error}</p>}

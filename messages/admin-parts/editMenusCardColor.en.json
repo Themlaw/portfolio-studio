@@ -1,0 +1,7 @@
+{
+  "label": "Card colour",
+  "auto": "Auto: theme colour",
+  "free": "Custom colour {value}",
+  "default": "Default",
+  "tints": "Soft tints"
+}

@@ -5,6 +5,7 @@
  * le cadre du kit n'est posé que sur les photos qui le choisissent (menu « Cadre » de la barre d'une image) ; en le mettant sur Oui,
  * toutes les photos SANS choix l'ont aussi. Un choix explicite (Aucun, Bordure) passe toujours avant.
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { saveThemeFrameAllAction } from "@/app/admin/(espace)/themes/frame-actions";
@@ -12,6 +13,7 @@ import { saveThemeFrameAllAction } from "@/app/admin/(espace)/themes/frame-actio
 import { toast } from "./editing";
 
 export default function PhotoFrameSetting({ initial }: { initial: boolean }) {
+  const t = useTranslations("photoFrame");
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
   const choose = async (next: boolean) => {
@@ -28,17 +30,16 @@ export default function PhotoFrameSetting({ initial }: { initial: boolean }) {
   };
   return (
     <section className="a-panel" aria-labelledby="frame-all" data-testid="frame-all-setting">
-      <h2 id="frame-all">Cadre du thème sur toutes les photos</h2>
+      <h2 id="frame-all">{t("title")}</h2>
       <p className="a-help">
-        Ton thème dessine un cadre. Sur « Non », tes photos n&apos;en ont pas : tu le poses photo par photo, avec le bouton « Cadre » de la barre d&apos;une image. Sur « Oui », toutes les photos qui n&apos;ont
-        pas de choix l&apos;ont.
+        {t("help")}
       </p>
-      <div className="a-seg a-frame-all-seg" role="radiogroup" aria-label="Cadre du thème sur toutes les photos">
+      <div className="a-seg a-frame-all-seg" role="radiogroup" aria-label={t("title")}>
         <button type="button" role="radio" aria-checked={!on} className="a-btn a-btn-small" data-testid="frame-all-off" disabled={busy} onClick={() => choose(false)}>
-          Non
+          {t("no")}
         </button>
         <button type="button" role="radio" aria-checked={on} className="a-btn a-btn-small" data-testid="frame-all-on" disabled={busy} onClick={() => choose(true)}>
-          Oui
+          {t("yes")}
         </button>
       </div>
     </section>

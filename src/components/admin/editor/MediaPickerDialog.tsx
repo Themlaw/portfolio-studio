@@ -5,6 +5,7 @@
  * filtrable par nom et par tags, ou un fichier de l'ordinateur. Chaque image est montrée ENTIÈRE
  * (jamais rognée, fond neutre) avec son nom, comme dans le sélecteur de l'administration.
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { AdminMediaRow } from "@/lib/admin";
@@ -35,6 +36,7 @@ export default function MediaPickerDialog({
   onPick: (mediaId: number) => void;
   onFile: (file: File) => void;
 }) {
+  const t = useTranslations("editorPanelsPicker");
   const ref = useRef<HTMLDialogElement>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -49,7 +51,7 @@ export default function MediaPickerDialog({
   }, [open]);
   const options = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
+    for (const m of media) for (const tg of m.tags) seen.set(tg.label.toLowerCase(), tg.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
   // Ordre du serveur (dernier envoi d'abord) ; lot 112 : plus de plafond à 200, la suite se charge au défilement.
@@ -73,10 +75,10 @@ export default function MediaPickerDialog({
     >
       {open && (
         <>
-          <h2 id={titleId}>{kind === "video" ? "Choisir une vidéo" : kind === "image" ? "Choisir une image" : "Choisir une image ou une vidéo"}</h2>
+          <h2 id={titleId}>{kind === "video" ? t("titleVideo") : kind === "image" ? t("titleImage") : t("titleAny")}</h2>
           <div className="a-dialog-body">
             <label className="a-btn ve-picker-file" htmlFor={inputId}>
-              Envoyer un fichier de l&apos;ordinateur…
+              {t("sendFile")}
             </label>
             <input
               id={inputId}
@@ -89,36 +91,36 @@ export default function MediaPickerDialog({
               }}
             />
             <label className="ve-picker-search">
-              <span className="sr-only">Rechercher par nom ou tag</span>
-              <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <span className="sr-only">{t("search")}</span>
+              <input className="a-input" type="search" placeholder={t("searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
             {options.length > 0 && (
-              <div className="ve-chips" role="group" aria-label="Filtrer par tags">
-                {options.map((t) => {
-                  const on = tags.includes(t);
+              <div className="ve-chips" role="group" aria-label={t("filterTags")}>
+                {options.map((opt) => {
+                  const on = tags.includes(opt);
                   return (
-                    <button key={t} type="button" className="ve-chip" aria-pressed={on} onClick={() => setTags(on ? tags.filter((x) => x !== t) : [...tags, t])}>
-                      {t}
+                    <button key={opt} type="button" className="ve-chip" aria-pressed={on} onClick={() => setTags(on ? tags.filter((x) => x !== opt) : [...tags, opt])}>
+                      {opt}
                     </button>
                   );
                 })}
               </div>
             )}
-            <p className="ve-hint">Clique une image pour la choisir. La petite loupe l&apos;agrandit sans la choisir.</p>
+            <p className="ve-hint">{t("hint")}</p>
             {list.length === 0 ? (
-              <p className="ve-empty">Aucun média ne correspond.</p>
+              <p className="ve-empty">{t("none")}</p>
             ) : (
-              <ul className="ve-picker-grid" aria-label="Bibliothèque" onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
+              <ul className="ve-picker-grid" aria-label={t("library")} onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
                 {list.slice(0, page.count).map((m) => (
                   <li key={m.id}>
-                    <button type="button" onClick={() => onPick(m.id)} aria-label={`Choisir ${m.name}`} title={m.name}>
+                    <button type="button" onClick={() => onPick(m.id)} aria-label={t("choose", { name: m.name })} title={m.name}>
                       <span className="ve-picker-thumb">
                         {m.thumb && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.thumb} alt="" loading="lazy" />
                         )}
                         {m.status === "ready" && m.kind === "image" && !m.alt.fr.trim() && <AltMissing className="a-alt-badge" />}
-                        {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
+                        {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? t("converting") : t("processing")}</span>}
                       </span>
                       <span className="ve-picker-name">{m.name}</span>
                     </button>
@@ -131,7 +133,7 @@ export default function MediaPickerDialog({
           </div>
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
-              Fermer
+              {t("close")}
             </button>
           </div>
         </>

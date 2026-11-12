@@ -5,12 +5,13 @@
  * état enregistré / non enregistré avec bouton « Enregistrer », garde de
  * sortie de page, boîte de confirmation nommant l'objet.
  */
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 /* ---- Toasts ------------------------------------------------------------- */
 
-type ToastAction = { label: string; run: () => void };
-type Toast = { id: number; message: string; tone: "success" | "error"; count: number; action?: ToastAction; ms?: number };
+type ToastAction = { label: string; run: () => void; /** Libellé traduit au rendu (undoToast). */ undo?: boolean };
+type Toast = { id: number; message: string; /** Nom de l'objet supprimé : message « Supprimé · « Nom » » composé au rendu, dans la langue courante. */ undoName?: string; tone: "success" | "error"; count: number; action?: ToastAction; ms?: number };
 let toasts: Toast[] = [];
 let nextId = 1;
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -37,14 +38,14 @@ function schedule(id: number) {
  * Un message identique déjà affiché est fusionné (compteur ×N) et prolongé.
  * `action` : un bouton (ex. « Annuler ») ; le toast reste alors plus longtemps. `ms` : durée choisie.
  */
-export function toast(message: string, tone: Toast["tone"] = "success", action?: ToastAction, ms?: number) {
+export function toast(message: string, tone: Toast["tone"] = "success", action?: ToastAction, ms?: number, undoName?: string) {
   const same = action ? undefined : toasts.find((t) => t.message === message && t.tone === tone && !t.action);
   if (same) {
     toasts = toasts.map((t) => (t === same ? { ...t, count: t.count + 1 } : t));
     schedule(same.id);
   } else {
     const id = nextId++;
-    toasts = [...toasts, { id, message, tone, count: 1, action, ms }];
+    toasts = [...toasts, { id, message, tone, count: 1, action, ms, undoName }];
     while (toasts.length > MAX_TOASTS) {
       clearTimeout(timers.get(toasts[0].id));
       toasts = toasts.slice(1);
@@ -62,12 +63,14 @@ export const UNDO_MS = 10_000;
  * affichés 10 s. `undo` est appelée au clic.
  */
 export function undoToast(name: string, undo: () => void) {
-  toast(`Supprimé · « ${name} »`, "success", { label: "Annuler", run: undo }, UNDO_MS);
+  // Le texte (« Supprimé · « Nom » », « Annuler ») est composé par le Toaster dans la langue de l'interface.
+  toast(`undo:${name}`, "success", { label: "", run: undo, undo: true }, UNDO_MS, name);
 }
 
 const EMPTY: Toast[] = [];
 
 export function Toaster() {
+  const t = useTranslations("common");
   const list = useSyncExternalStore(
     (l) => {
       listeners.add(l);
@@ -78,22 +81,22 @@ export function Toaster() {
   );
   return (
     <div className="a-toasts" role="status" aria-live="polite">
-      {list.map((t) => (
-        <div key={t.id} className={`a-toast a-toast-${t.tone}`}>
-          {t.tone === "success" && <span aria-hidden="true">✓ </span>}
-          {t.message}
-          {t.count > 1 && <span className="a-toast-count"> ×{t.count}</span>}
-          {t.action && (
+      {list.map((it) => (
+        <div key={it.id} className={`a-toast a-toast-${it.tone}`}>
+          {it.tone === "success" && <span aria-hidden="true">✓ </span>}
+          {it.undoName !== undefined ? t("deleted", { name: it.undoName }) : it.message}
+          {it.count > 1 && <span className="a-toast-count"> ×{it.count}</span>}
+          {it.action && (
             <button
               type="button"
               className="a-toast-action"
               onClick={() => {
-                t.action?.run();
-                toasts = toasts.filter((x) => x.id !== t.id);
+                it.action?.run();
+                toasts = toasts.filter((x) => x.id !== it.id);
                 emit();
               }}
             >
-              {t.action.label}
+              {it.action.undo ? t("cancel") : it.action.label}
             </button>
           )}
         </div>
@@ -109,6 +112,7 @@ export function Toaster() {
  * l'admin) tant que `dirty` est vrai.
  */
 export function useUnsavedGuard(dirty: boolean, stillUnsaved?: () => boolean) {
+  const leaveMessage = useTranslations("common")("unsavedLeave");
   // Relu au moment de quitter : l'indicateur peut être en retard d'un rendu
   // (enregistrement déjà fait) ; seul l'état réel décide.
   const still = useRef(stillUnsaved);
@@ -126,7 +130,7 @@ export function useUnsavedGuard(dirty: boolean, stillUnsaved?: () => boolean) {
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target === "_blank" || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return;
       if (still.current && !still.current()) return;
-      if (!window.confirm("Tu as des modifications non enregistrées. Quitter cette page sans les enregistrer ?")) {
+      if (!window.confirm(leaveMessage)) {
         e.preventDefault();
         e.stopImmediatePropagation();
       }
@@ -137,7 +141,7 @@ export function useUnsavedGuard(dirty: boolean, stillUnsaved?: () => boolean) {
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);
     };
-  }, [dirty]);
+  }, [dirty, leaveMessage]);
 }
 
 /** Barre d'état + « Enregistrer », collée en bas de l'écran d'édition. */
@@ -147,7 +151,7 @@ export function SaveBar({
   onSave,
   error,
   note,
-  label = "Enregistrer",
+  label,
   testId,
   className,
 }: {
@@ -161,26 +165,27 @@ export function SaveBar({
   /** Classe en plus (ex. l'en-tête collant de l'éditeur de thème, lot 61). */
   className?: string;
 }) {
+  const t = useTranslations("common");
   return (
     <div className={`a-savebar${className ? ` ${className}` : ""}`} data-dirty={dirty}>
       <p className="a-save-state" aria-live="polite">
         {saving ? (
-          "Enregistrement…"
+          t("saving")
         ) : error ? (
           <span className="a-danger-text">{error}</span>
         ) : dirty ? (
           <>
-            <span className="a-dot" aria-hidden="true" /> Modifications non enregistrées
+            <span className="a-dot" aria-hidden="true" /> {t("unsaved")}
           </>
         ) : (
           <>
-            <span aria-hidden="true">✓</span> Enregistré
+            <span aria-hidden="true">✓</span> {t("saved")}
           </>
         )}
         {note && <span className="a-save-note">{note}</span>}
       </p>
       <button type="button" className="a-btn a-btn-primary" onClick={onSave} disabled={saving || !dirty} data-testid={testId}>
-        {saving ? "Enregistrement…" : label}
+        {saving ? t("saving") : (label ?? t("save"))}
       </button>
     </div>
   );
@@ -216,6 +221,7 @@ export function ConfirmDialog({
   extra?: React.ReactNode;
   confirmDisabled?: boolean;
 }) {
+  const t = useTranslations("common");
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -243,7 +249,7 @@ export function ConfirmDialog({
           <div className="a-dialog-actions">
             {extra}
             <button type="button" className="a-btn" onClick={close} disabled={busy}>
-              {confirmLabel === undefined ? "Fermer" : "Annuler"}
+              {confirmLabel === undefined ? t("close") : t("cancel")}
             </button>
             {confirmLabel !== undefined && (
               <button
@@ -252,7 +258,7 @@ export function ConfirmDialog({
                 onClick={onConfirm}
                 disabled={busy || confirmDisabled}
               >
-                {busy ? "Un instant…" : confirmLabel}
+                {busy ? t("pleaseWait") : confirmLabel}
               </button>
             )}
           </div>

@@ -17,6 +17,7 @@
  * posé dans des variables CSS d'aperçu (`--px…`, voir free-dom.ts) ; au relâchement il devient un aperçu gardé jusqu'à
  * l'acquittement du serveur (edit/optimistic.ts : refus = valeur d'origine rétablie). Rien de ceci n'existe en public.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { clampCrop, contentBounds, FREE_MAX_W, FREE_MIN_W, snapBox, snapCrop, type FreeBox, type FreeCrop, type FreeGuides, type FreeItem } from "@/blocks/free-board";
@@ -152,6 +153,8 @@ const norm = (deg: number) => {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export default function FreeLayer({ selected, dragging, announce }: { selected: string | null; dragging: boolean; announce: (s: string) => void }) {
+  const t = useTranslations("editMenusFree");
+  const lang = useLocale().slice(0, 2);
   const [tick, setTick] = useState(0);
   const [sel, setSelState] = useState<Sel | null>(null);
   const [frameOpen, setFrameOpen] = useState(false);
@@ -233,7 +236,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
         fb,
       };
     },
-    [],
+    [t],
   );
 
   /** Début d'un recadrage par un bord ou un coin du cadre (lot 113) : les marges de départ, le plan en pixels, le contenu pour le magnétisme. */
@@ -331,7 +334,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           const colW = g.cell.gridW / g.cell.cols;
           g.dCols = Math.round((hd.includes("e") ? dx : -dx) / colW);
         }
-        setBadge(`${wpx} × ${hpx} px${sn.snap ? ` · ${sn.snap === "contenu" ? "contenu" : sn.snap}` : ""}${g.cell && g.dCols ? ` · ${g.dCols > 0 ? "+" : ""}${g.dCols} colonne${Math.abs(g.dCols) > 1 ? "s" : ""}` : ""}`);
+        setBadge(`${wpx} × ${hpx} px${sn.snap ? ` · ${sn.snap === "contenu" ? t("snapContent") : sn.snap}` : ""}${g.cell && g.dCols ? ` · ${t("columns", { count: Math.abs(g.dCols), signed: `${g.dCols > 0 ? "+" : ""}${g.dCols}` })}` : ""}`);
         bump();
         return;
       }
@@ -389,11 +392,11 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
         const c = g.lastCrop;
         if (commit && c && JSON.stringify(c) !== JSON.stringify(g.crop0)) {
           commitCrop(g.ref, c, g.canvas!.aspect);
-          announce("Cadre de la planche recadré.");
+          announce(t("cropDone"));
         } else clearCrop(g.ref.zone);
         if (commit && g.cell && g.dCols) {
           postIntent({ kind: "grid-op", uid: g.cell.grid, op: g.cell.justified ? { op: "alone", index: g.cell.index, alone: g.dCols > 0 } : { op: "span", index: g.cell.index, dw: g.dCols } });
-          announce("Largeur de la case changée.");
+          announce(t("cellWidth"));
         }
         return;
       }
@@ -402,7 +405,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
         return;
       }
       commitPlace(g.ref, g.id, g.last);
-      announce(g.kind === "move" ? "Image déplacée." : g.kind === "resize" ? "Image redimensionnée." : "Image pivotée.");
+      announce(g.kind === "move" ? t("moved") : g.kind === "resize" ? t("resized") : t("rotated"));
     };
     const up = () => end(true);
     const cancel = () => end(false);
@@ -426,7 +429,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
       document.removeEventListener("pointerup", up, true);
       document.removeEventListener("pointercancel", cancel, true);
     };
-  }, [announce, bump, setSel, startGesture]);
+  }, [announce, bump, setSel, startGesture, t]);
 
   // « + Image » au centre d'une zone vide ; clavier (flèches, Suppr, Échap) sur l'image choisie.
   useEffect(() => {
@@ -462,7 +465,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
         e.stopPropagation();
         send(ref, { op: "remove", id: s.id });
         setSel(null);
-        announce("Image retirée.");
+        announce(t("removed"));
       } else if (e.key === "Escape") {
         e.stopPropagation();
         setSel(null);
@@ -474,7 +477,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [announce, bump, setSel]);
+  }, [announce, bump, setSel, t]);
 
   // L'image choisie n'existe plus (retirée, Annuler) : plus de sélection.
   useEffect(() => {
@@ -559,7 +562,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
             data-h="rot"
             data-testid="free-handle-rot"
             role="presentation"
-            title="Faire pivoter (Maj : par pas de 15°)"
+            title={t("rotateHandle")}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               e.preventDefault();
@@ -569,25 +572,25 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           />
         </div>
         {!gesturing && (
-          <div ref={(el) => keepInView(el, barLeft)} className="pe-slot-tools" role="toolbar" aria-label="Image de la planche libre" data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content" }}>
+          <div ref={(el) => keepInView(el, barLeft)} className="pe-slot-tools" role="toolbar" aria-label={t("barLabel")} data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content" }}>
             <button type="button" data-testid="free-replace" onClick={() => send(ref, { op: "pick", id: sel.id })}>
-              Remplacer
+              {t("replace")}
             </button>
             <button type="button" className="pe-danger" data-testid="free-remove" onClick={() => { send(ref, { op: "remove", id: sel.id }); setSel(null); }}>
-              Supprimer
+              {t("remove")}
             </button>
-            <button type="button" data-testid="free-front" title="Passer devant les autres images" onClick={() => send(ref, { op: "front", id: sel.id })}>
-              Devant
+            <button type="button" data-testid="free-front" title={t("frontTitle")} onClick={() => send(ref, { op: "front", id: sel.id })}>
+              {t("front")}
             </button>
-            <button type="button" data-testid="free-back" title="Passer derrière les autres images" onClick={() => send(ref, { op: "back", id: sel.id })}>
-              Derrière
+            <button type="button" data-testid="free-back" title={t("backTitle")} onClick={() => send(ref, { op: "back", id: sel.id })}>
+              {t("back")}
             </button>
-            <label className="pe-slot-radius" title="Arrondi de cette image">
-              <span>Arrondi</span>
-              <select aria-label="Arrondi de cette image" data-testid="free-radius" value={style.radius ?? "none"} onChange={(e) => sendFreeLook(ref, sel.id, { radius: e.target.value === "none" ? null : (e.target.value as Radius) })}>
+            <label className="pe-slot-radius" title={t("radiusTitle")}>
+              <span>{t("radius")}</span>
+              <select aria-label={t("radiusTitle")} data-testid="free-radius" value={style.radius ?? "none"} onChange={(e) => sendFreeLook(ref, sel.id, { radius: e.target.value === "none" ? null : (e.target.value as Radius) })}>
                 {RADII.map((r) => (
                   <option key={r} value={r}>
-                    {r === "none" ? "Aucun" : RADIUS_LABELS[r]}
+                    {r === "none" ? t("radiusNone") : RADIUS_LABELS[r]}
                   </option>
                 ))}
               </select>
@@ -597,13 +600,13 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 aria-haspopup="dialog"
                 aria-expanded={frameOpen}
                 data-testid="free-frame-button"
-                title={isVideo ? "Cadre autour de cette vidéo" : "Cadre autour de cette photo"}
+                title={isVideo ? t("frameTitleVideo") : t("frameTitlePhoto")}
                 onClick={() => {
                   setFrameOpen((o) => !o);
                   window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "free-frame" } }));
                 }}
               >
-                Cadre
+                {t("frame")}
               </button>
             {!isVideo && (
               <button
@@ -611,14 +614,14 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 aria-haspopup="dialog"
                 aria-expanded={bgOpen}
                 data-testid="free-imgbg-button"
-                title="Fond derrière cette image (utile pour un PNG détouré)"
+                title={t("bgTitle")}
                 onClick={() => {
                   setBgOpen((o) => !o);
                   window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "free-bg" } }));
                 }}
               >
                 {imageBgCss(style.bg) && <span className="sm-swatch" data-testid="free-imgbg-swatch" style={{ background: imageBgCss(style.bg) ?? undefined }} aria-hidden="true" />}
-                Fond image
+                {t("bg")}
               </button>
             )}
             {isAnim && (
@@ -642,16 +645,16 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
             {isVideo && hasAudio && <VideoSoundSeg now={soundNow} onChange={(sound) => sendFreeLook(ref, sel.id, { sound })} testId="free-sound-choice" attr="data-free-sound-set" />}
             {isVideo && (
               <>
-                <button type="button" data-testid="free-poster" title="Image d'attente de la vidéo (sinon une image de la vidéo)" onClick={() => send(ref, { op: "pick", id: sel.id, poster: true })}>
-                  Affiche
+                <button type="button" data-testid="free-poster" title={t("posterTitle")} onClick={() => send(ref, { op: "pick", id: sel.id, poster: true })}>
+                  {t("poster")}
                 </button>
                 {hasPoster && (
-                  <button type="button" data-testid="free-poster-clear" title="Revenir à l'image de la vidéo" onClick={() => send(ref, { op: "poster", id: sel.id, media: null })}>
-                    Sans affiche
+                  <button type="button" data-testid="free-poster-clear" title={t("posterClearTitle")} onClick={() => send(ref, { op: "poster", id: sel.id, media: null })}>
+                    {t("posterClear")}
                   </button>
                 )}
-                <span className="pe-free-sound" data-testid="free-sound-state" title={hasAudio ? "Cette vidéo a du son : un bouton son s'affiche sur le site" : "Cette vidéo est muette : pas de bouton son"}>
-                  {hasAudio ? "Avec son" : "Sans son"}
+                <span className="pe-free-sound" data-testid="free-sound-state" title={hasAudio ? t("soundOnTitle") : t("soundOffTitle")}>
+                  {hasAudio ? t("soundOn") : t("soundOff")}
                 </span>
               </>
             )}
@@ -684,7 +687,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
             data-c={h}
             data-testid={`free-crop-${h}`}
             role="presentation"
-            title={inCell && (h.includes("e") || h.includes("w")) ? "Glisser pour changer la largeur de la case (colonnes) et la hauteur de la planche" : "Glisser pour recadrer le cadre de la planche (Alt : sans magnétisme, Échap : annuler)"}
+            title={inCell && (h.includes("e") || h.includes("w")) ? t("cropCellTitle") : t("cropTitle")}
             style={{ left: zr.left + zr.width * fx, top: zr.top + zr.height * fy }}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
@@ -703,7 +706,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
   }
 
   return (
-    <div className="pe-layer pe-free-layer" lang="fr">
+    <div className="pe-layer pe-free-layer" lang={lang}>
       {cropView}
       {selView}
       {guides?.v.map((v) => <span key={`v${v}`} className="pe-free-guide" data-axis="v" data-testid="free-guide" style={{ left: guides.zone.left + ((v - guides.fb.l) / guides.fb.w) * guides.zone.width, top: guides.zone.top, height: guides.zone.height }} />)}
@@ -714,6 +717,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
 
 /** Rotation en degrés, par pas de 1° (−180 à 180) : validée à Entrée ou en quittant le champ. */
 function RotationField({ value, onCommit }: { value: number; onCommit: (rot: number) => void }) {
+  const t = useTranslations("editMenusFree");
   const [text, setText] = useState(String(value));
   const apply = (raw: string) => {
     const n = Math.round(Number(raw));
@@ -724,7 +728,7 @@ function RotationField({ value, onCommit }: { value: number; onCommit: (rot: num
   };
   return (
     <label className="pe-free-rotlabel">
-      <span>Rotation</span>
+      <span>{t("rotation")}</span>
       <input
         className="pe-free-rot"
         type="number"
@@ -733,7 +737,7 @@ function RotationField({ value, onCommit }: { value: number; onCommit: (rot: num
         max={180}
         step={1}
         value={text}
-        aria-label="Rotation en degrés"
+        aria-label={t("rotationLabel")}
         data-testid="free-rotation"
         // Une saisie se valide à Entrée ou en quittant le champ (les flèches du champ aussi, au relâchement).
         onChange={(e) => setText(e.target.value)}

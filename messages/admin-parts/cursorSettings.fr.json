@@ -1,0 +1,16 @@
+{
+  "kind": {
+    "default": "Normal",
+    "pointer": "Clic (survol de ce qui se clique)"
+  },
+  "hotspot": "Point chaud : {x}, {y} px",
+  "groundBg": "le fond",
+  "groundDeep": "le fond profond",
+  "groundSurface": "la surface",
+  "title": "Curseurs de la souris",
+  "systemHelp": "Les curseurs du système. Pour les dessiner : groupe « 9 · Curseur » du kit Photoshop (normal, et au survol de ce qui se clique).",
+  "useDrawn": "Utiliser les curseurs dessinés sur le site",
+  "useDrawnHelp": "Décoché : les curseurs du système, tes dessins restent gardés. Sur le site public seulement (pas dans l'administration) ; les champs de texte gardent leur barre de saisie.",
+  "cursorEmpty": "Curseur vide.",
+  "cursorProblem": "Curseur presque invisible sur {labels} ({percent} % de ses pixels ressortent à 3:1) : ajoute un contour clair ou foncé."
+}

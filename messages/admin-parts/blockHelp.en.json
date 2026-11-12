@@ -1,0 +1,10 @@
+{
+  "starterText": "Text",
+  "starterTextDesc": "A single paragraph: no title, no label.",
+  "starterTitle": "Title",
+  "starterTitleDesc": "A title alone, with an optional label.",
+  "starterTitleText": "Title + text",
+  "starterTitleTextDesc": "A title with a paragraph below.",
+  "sampleTextProblem": "Replace the sample text in this Text block (or delete it).",
+  "sampleTitleProblem": "Replace the sample text in this title (or delete it)."
+}

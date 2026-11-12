@@ -1,0 +1,20 @@
+{
+  "addLabel": "+ Ajouter une étiquette",
+  "removeLabel": "Retirer l'étiquette",
+  "addTitle": "+ Ajouter un titre",
+  "removeTitle": "Retirer le titre",
+  "addIntro": "+ Ajouter une présentation",
+  "removeIntro": "Retirer la présentation",
+  "addEmailButton": "+ Ajouter un bouton e-mail",
+  "removeButton": "Retirer le bouton",
+  "addCaption": "+ Ajouter une légende",
+  "removeCaption": "Retirer la légende",
+  "addName": "+ Ajouter ton nom",
+  "removeName": "Retirer ton nom",
+  "addContactLabel": "+ Ajouter l'étiquette du contact",
+  "removeContactLabel": "Retirer l'étiquette du contact",
+  "removeEmailButton": "Retirer le bouton e-mail",
+  "addSocialLabel": "+ Ajouter l'étiquette des réseaux",
+  "removeSocialLabel": "Retirer l'étiquette des réseaux",
+  "addShortTitle": "+ Titre"
+}

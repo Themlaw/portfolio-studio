@@ -1,0 +1,23 @@
+{
+  "show": "Afficher les premiers pas",
+  "title": "Premiers pas",
+  "allDone": "Tout est fait",
+  "progress": "{done} sur {total}",
+  "hide": "Masquer",
+  "doneSr": "(fait)",
+  "theme_title": "Choisir un thème",
+  "theme_text": "Le thème donne les couleurs, les polices et l'ambiance de tout ton site.",
+  "theme_cta": "Choisir un thème",
+  "project_title": "Créer un projet et y mettre des images",
+  "project_text": "Un projet rassemble tes images. Celles que tu envoies depuis un projet y sont ajoutées directement.",
+  "project_cta": "Ouvrir les projets",
+  "page_title": "L'afficher sur une page",
+  "page_text": "Un projet n'est visible que si une page l'affiche : ajoute un bloc « Projet » à une page.",
+  "page_cta": "Choisir une page",
+  "publish_title": "Publier",
+  "publish_text": "Tant qu'une page n'est pas publiée, personne ne la voit sur ton site.",
+  "publish_cta": "Publier une page",
+  "about_title": "Remplir « À propos » et le contact",
+  "about_text": "Ton nom, ta présentation et ton adresse e-mail, pour qu'on puisse te contacter.",
+  "about_cta": "Remplir mes informations"
+}

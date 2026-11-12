@@ -132,7 +132,8 @@ if (await apply.isEnabled()) {
 }
 
 /* ---- K6 : texte du tuto ------------------------------------------------------------------------------------------------ */
-const slides = readFileSync("src/app/admin/(espace)/themes/tuto/slides.ts", "utf8");
+// Lot 130b : les textes du tuto sont dans le catalogue (messages/admin-parts/themeTuto.fr.json).
+const slides = readFileSync("messages/admin-parts/themeTuto.fr.json", "utf8");
 ok("K6 tuto : plus de « logo d'une seule couleur »", !/logo d'une seule couleur/.test(slides) && /une seule couleur teintée par le Nom du site/.test(slides));
 
 await browser.close();

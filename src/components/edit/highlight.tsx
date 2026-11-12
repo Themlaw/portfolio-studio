@@ -10,8 +10,10 @@
  * `useRoleHighlight` les re-mesure à chaque rendu, défilement et redimensionnement et renvoie la légende
  * « utilisé par » ; `HighlightBoxes` dessine contours et halo (couleurs de l'interface d'édition, jamais du thème).
  */
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { AdminT } from "@/i18n/admin-lang";
 import type { BaseKey } from "@/themes/palette";
 
 import "@/app/admin/highlight.css";
@@ -40,24 +42,24 @@ function computedOf(variable: string): string {
 
 const hasOwnText = (el: Element) => [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent ?? "").trim() !== "");
 
-/** Nom d'usage d'un élément pour la légende (« titres », « paragraphes »…). */
+/** Clé d'usage d'un élément pour la légende (editMenusHighlight : « titres », « paragraphes »…). */
 function usageOf(el: Element): string {
   const tag = el.tagName.toLowerCase();
-  if (el.closest("header.site-header")) return tag === "a" || el.closest("nav") ? "menu" : "en-tête";
-  if (el.closest("footer")) return "pied de page";
-  if (el.classList.contains("eyebrow")) return "étiquettes";
-  if (/^h[1-6]$/.test(tag)) return "titres";
-  if (tag === "button" || el.classList.contains("btn") || el.getAttribute("role") === "button") return "boutons";
-  if (tag === "a") return "liens";
-  if (tag === "figcaption" || el.classList.contains("caption-text")) return "légendes";
-  if (tag === "input" || tag === "textarea" || tag === "select") return "champs";
-  if (tag === "p" || tag === "li" || tag === "span") return "paragraphes";
+  if (el.closest("header.site-header")) return tag === "a" || el.closest("nav") ? "menu" : "header";
+  if (el.closest("footer")) return "footer";
+  if (el.classList.contains("eyebrow")) return "eyebrows";
+  if (/^h[1-6]$/.test(tag)) return "headings";
+  if (tag === "button" || el.classList.contains("btn") || el.getAttribute("role") === "button") return "buttons";
+  if (tag === "a") return "links";
+  if (tag === "figcaption" || el.classList.contains("caption-text")) return "captions";
+  if (tag === "input" || tag === "textarea" || tag === "select") return "fields";
+  if (tag === "p" || tag === "li" || tag === "span") return "paragraphs";
   if (tag === "section" || tag === "article") return "sections";
-  if (tag === "hr") return "filets";
-  return "cartes et encadrés";
+  if (tag === "hr") return "rules";
+  return "cards";
 }
 
-export function findUsers(role: BaseKey): Found {
+export function findUsers(role: BaseKey, t: AdminT): Found {
   const target = computedOf(ROLE_VAR[role]);
   const boxes: Box[] = [];
   const counts = new Map<string, number>();
@@ -89,7 +91,7 @@ export function findUsers(role: BaseKey): Found {
     }
     if (boxes.length < 80) boxes.push({ top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height });
   }
-  const uses = [...counts].sort((a, b) => b[1] - a[1]).map(([name]) => name).slice(0, 6);
+  const uses = [...counts].sort((a, b) => b[1] - a[1]).map(([key]) => t(key)).slice(0, 6);
   return { boxes, frame, uses, count: [...counts.values()].reduce((a, b) => a + b, 0) };
 }
 
@@ -98,6 +100,7 @@ export function findUsers(role: BaseKey): Found {
  * d'éléments, usages) quand elle change : l'éditeur la renvoie à son panneau.
  */
 export function useRoleHighlight(role: BaseKey | null, report: (role: BaseKey, count: number, uses: string[]) => void): Found | null {
+  const t = useTranslations("editMenusHighlight");
   const [found, setFound] = useState<Found | null>(null);
   const [tick, setTick] = useState(0);
   const lastInfo = useRef("");
@@ -135,14 +138,14 @@ export function useRoleHighlight(role: BaseKey | null, report: (role: BaseKey, c
       setFound(null);
       return;
     }
-    const f = findUsers(role);
+    const f = findUsers(role, t);
     setFound(f);
     const key = `${role}|${f.count}|${f.uses.join(",")}`;
     if (key !== lastInfo.current) {
       lastInfo.current = key;
       reportRef.current(role, f.count, f.uses);
     }
-  }, [role]);
+  }, [role, t]);
   useEffect(() => {
     if (!role) lastInfo.current = "";
     // Après le rendu en cours (le DOM de la page est à jour), hors du corps de l'effet.

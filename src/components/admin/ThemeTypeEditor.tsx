@@ -6,6 +6,7 @@
  * « Thème » = aucune valeur posée (clé absente, rendu d'avant). Mêmes rôles et
  * mêmes sélecteurs que les styles du site (src/lib/look.ts) : ordre thème < site < texte.
  */
+import { useTranslations } from "next-intl";
 import { useId } from "react";
 
 import { TEXT_ROLES, type Theme } from "@/themes/schema";
@@ -14,19 +15,11 @@ type TypeTokens = NonNullable<Theme["tokens"]["type"]>;
 type RoleStyle = NonNullable<TypeTokens[(typeof TEXT_ROLES)[number]]>;
 type Role = (typeof TEXT_ROLES)[number];
 
-const ROLE_LABELS: Record<Role, [string, string]> = {
-  h1: ["Titre de page", "Seulement ce qui diffère des « Titres » pour le grand titre d'une page (laisse « Thème » pour qu'il suive les titres)."],
-  h2: ["Titres", "Tous les titres du site : titre de page, sections, projets, collections."],
-  eyebrow: ["Petits textes d'étiquette", "Petits textes au-dessus des titres."],
-  body: ["Texte courant", "Paragraphes."],
-  caption: ["Légendes", "Légendes des œuvres, métier."],
-  menu: ["Menu", "Navigation de l'en-tête et du pied."],
-  brand: ["Logo", "Nom du site dans l'en-tête, quand il n'y a pas d'image."],
-};
-const FONT_LABELS = { display: "Police des titres", body: "Police du texte", caption: "Police des légendes" } as const;
+const FONT_KEYS = ["display", "body", "caption"] as const;
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 
 export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tokens"]["type"]; onChange: (next: TypeTokens | undefined) => void }) {
+  const t = useTranslations("themeType");
   const idBase = useId();
   const current: TypeTokens = value ?? {};
   const setRole = (role: Role, patch: Partial<Record<keyof RoleStyle, unknown>>) => {
@@ -38,10 +31,9 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
   };
   return (
     <div className="a-type-roles" data-testid="theme-type">
-      <h3 className="a-subhead">Styles par rôle</h3>
+      <h3 className="a-subhead">{t("title")}</h3>
       <p className="a-help">
-        Affine la police, la graisse, l&apos;italique, la casse et l&apos;espacement des lettres de chaque rôle de texte. « Thème » garde le réglage
-        d&apos;origine ; les styles du site et ceux d&apos;un texte précis passent toujours par-dessus.
+        {t("intro")}
       </p>
       {TEXT_ROLES.map((role) => {
         const s = current[role] ?? {};
@@ -49,24 +41,24 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
         const touched = Object.keys(s).length > 0;
         return (
           <fieldset key={role} className="a-fieldset a-type-role" data-role={role}>
-            <legend>{ROLE_LABELS[role][0]}</legend>
-            <p className="a-help">{ROLE_LABELS[role][1]}</p>
+            <legend>{t(`roles.${role}.title`)}</legend>
+            <p className="a-help">{t(`roles.${role}.help`)}</p>
             <div className="a-type-grid">
               <div className="a-field">
-                <label htmlFor={`${id}-font`}>Police</label>
+                <label htmlFor={`${id}-font`}>{t("font")}</label>
                 <select id={`${id}-font`} className="a-input a-select" value={s.font ?? ""} onChange={(e) => setRole(role, { font: e.target.value || undefined })}>
-                  <option value="">Thème</option>
-                  {(Object.keys(FONT_LABELS) as (keyof typeof FONT_LABELS)[]).map((f) => (
+                  <option value="">{t("theme")}</option>
+                  {FONT_KEYS.map((f) => (
                     <option key={f} value={f}>
-                      {FONT_LABELS[f]}
+                      {t(`fonts.${f}`)}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="a-field">
-                <label htmlFor={`${id}-weight`}>Graisse</label>
+                <label htmlFor={`${id}-weight`}>{t("weight")}</label>
                 <select id={`${id}-weight`} className="a-input a-select" value={s.weight ?? ""} onChange={(e) => setRole(role, { weight: e.target.value ? Number(e.target.value) : undefined })}>
-                  <option value="">Thème</option>
+                  <option value="">{t("theme")}</option>
                   {WEIGHTS.map((w) => (
                     <option key={w} value={w}>
                       {w}
@@ -75,23 +67,23 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
                 </select>
               </div>
               <div className="a-field">
-                <label htmlFor={`${id}-italic`}>Italique</label>
+                <label htmlFor={`${id}-italic`}>{t("italic")}</label>
                 <select id={`${id}-italic`} className="a-input a-select" value={s.italic === undefined ? "" : s.italic ? "1" : "0"} onChange={(e) => setRole(role, { italic: e.target.value === "" ? undefined : e.target.value === "1" })}>
-                  <option value="">Thème</option>
-                  <option value="1">Oui</option>
-                  <option value="0">Non</option>
+                  <option value="">{t("theme")}</option>
+                  <option value="1">{t("yes")}</option>
+                  <option value="0">{t("no")}</option>
                 </select>
               </div>
               <div className="a-field">
-                <label htmlFor={`${id}-case`}>Casse</label>
+                <label htmlFor={`${id}-case`}>{t("case")}</label>
                 <select id={`${id}-case`} className="a-input a-select" value={s.case ?? ""} onChange={(e) => setRole(role, { case: e.target.value || undefined })}>
-                  <option value="">Thème</option>
-                  <option value="normal">Normale</option>
-                  <option value="upper">Majuscules</option>
+                  <option value="">{t("theme")}</option>
+                  <option value="normal">{t("caseNormal")}</option>
+                  <option value="upper">{t("caseUpper")}</option>
                 </select>
               </div>
               <div className="a-field">
-                <label htmlFor={`${id}-tracking`}>Espacement des lettres</label>
+                <label htmlFor={`${id}-tracking`}>{t("tracking")}</label>
                 <input
                   id={`${id}-tracking`}
                   className="a-input"
@@ -99,7 +91,7 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
                   min={-0.05}
                   max={0.4}
                   step={0.01}
-                  placeholder="Thème"
+                  placeholder={t("theme")}
                   value={s.tracking ?? ""}
                   onChange={(e) => {
                     const n = e.target.value === "" ? undefined : Math.round(Number(e.target.value) * 100) / 100;
@@ -110,7 +102,7 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
             </div>
             {touched && (
               <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange(Object.fromEntries(Object.entries(current).filter(([k]) => k !== role)) as TypeTokens)}>
-                Revenir au thème d&apos;origine
+                {t("resetRole")}
               </button>
             )}
           </fieldset>

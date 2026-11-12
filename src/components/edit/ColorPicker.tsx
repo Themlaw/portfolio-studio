@@ -20,6 +20,7 @@
  * Les couleurs affichées ici sont des données calculées (jamais écrites en dur).
  */
 import Alpha from "@uiw/react-color-alpha";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
@@ -27,7 +28,7 @@ import { PALETTE, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
 
 import { HueStrip, SaturationPlane, textHoldsFocus } from "./ColorPlane";
-import { ratioTip, readabilityText } from "./readability";
+import { useReadability } from "./useReadability";
 
 import { useDismiss } from "./useDismiss";
 
@@ -85,6 +86,7 @@ export type ColorPickerProps = {
 export type SolidOptions = { onReset?: () => void; resetLabel?: string; /** Pas de bouton de retour (sélecteur de l'administration, lot 29). */ noReset?: boolean };
 
 export default function ColorPicker({ value, onChange, swatch }: ColorPickerProps) {
+  const t = useTranslations("editMenusColor");
   const [open, setOpen] = useState(false);
   const custom = isCustomColor(value) ? value : undefined;
   const trigger = useRef<HTMLButtonElement>(null);
@@ -125,8 +127,8 @@ export default function ColorPicker({ value, onChange, swatch }: ColorPickerProp
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        aria-label="Couleur personnalisée"
-        title="Couleur personnalisée"
+        aria-label={t("custom")}
+        title={t("custom")}
         className="tc-swatch tc-wheel"
         style={{ backgroundImage: wheelGradient() }}
         onClick={() => setOpen((o) => !o)}
@@ -213,6 +215,8 @@ export function Popover({
   solid,
   live,
 }: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions; live?: boolean }) {
+  const t = useTranslations("editMenusColor");
+  const read = useReadability();
   const box = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<{ hsva: Hsva; prev: string; bg: string | null; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
@@ -395,7 +399,7 @@ export function Popover({
       className="cp"
       data-inline={solid ? "" : undefined}
       role="dialog"
-      aria-label={solid ? "Choisir la couleur" : "Couleur personnalisée"}
+      aria-label={solid ? t("choose") : t("custom")}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -406,61 +410,61 @@ export function Popover({
       }}
     >
       <div className="cp-top">
-        <span className="cp-now" style={{ background: hex }} role="img" aria-label={`Couleur actuelle ${hex}`} title={`Actuelle ${hex}`} />
+        <span className="cp-now" style={{ background: hex }} role="img" aria-label={t("currentAria", { hex })} title={t("currentTitle", { hex })} />
         <button
           type="button"
           className="cp-prev"
           style={{ background: prev }}
-          aria-label={`Revenir à la couleur précédente ${prev}`}
-          title={`Précédente ${prev} : cliquer pour revenir`}
+          aria-label={t("prevAria", { prev })}
+          title={t("prevTitle", { prev })}
           onClick={() => apply(rgbToHsv(parseColor(prev)!, hsva.h), true)}
         />
-        <span className="cp-flabel">Actuelle / précédente</span>
+        <span className="cp-flabel">{t("currentPrev")}</span>
       </div>
       <div className="cp-plane">
         <SaturationPlane h={hsva.h} s={hsva.s} v={hsva.v} onChange={(s, v) => apply({ ...hsva, s, v })} />
         <HueStrip h={hsva.h} onChange={(h) => apply({ ...hsva, h })} />
       </div>
       {!solid && <div className="cp-slider">
-        <span>Opacité</span>
+        <span>{t("opacity")}</span>
         <Alpha
           hsva={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
           style={alphaVars}
           radius={7}
           onChange={(c) => apply({ ...hsva, a: clamp(c.a, 0, 1) })}
-          innerProps={{ role: "slider", "aria-label": "Opacité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.a * 100) }}
+          innerProps={{ role: "slider", "aria-label": t("opacityAria"), "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.a * 100) }}
         />
       </div>}
 
       <div className="cp-fields">
-        <span className="cp-flabel">Code couleur</span>
+        <span className="cp-flabel">{t("code")}</span>
         <input
           className="cp-hex"
           spellCheck={false}
           maxLength={40}
-          aria-label="Code couleur"
-          title="Colle un code couleur : hexadécimal (avec #), rgb ou hsl"
-          {...fieldProps("hex", hex, (t) => {
-            const c = parseColor(t);
-            if (c && (/^#?[0-9a-f]{3,8}$/i.test(t.trim()) || /^(rgb|hsl)a?\(.*\)$/i.test(t.trim()))) apply(rgbToHsv(c, hsva.h));
+          aria-label={t("code")}
+          title={t("codeTitle")}
+          {...fieldProps("hex", hex, (text) => {
+            const c = parseColor(text);
+            if (c && (/^#?[0-9a-f]{3,8}$/i.test(text.trim()) || /^(rgb|hsl)a?\(.*\)$/i.test(text.trim()))) apply(rgbToHsv(c, hsva.h));
           })}
         />
       </div>
 
       {!solid && <><div className="cp-preview" style={bg ? { background: bg } : undefined}>
         <span className="cp-sample" style={{ color: hex }}>
-          Aa Exemple de texte
+          {t("sample")}
         </span>
       </div>
-      <p className="cp-contrast" role="status" data-low={low || undefined} title={contrast === null ? undefined : ratioTip(contrast)}>
-        {contrast === null ? "Lisibilité non mesurable ici." : `${readabilityText(contrast)} sur le fond du thème.`}
+      <p className="cp-contrast" role="status" data-low={low || undefined} title={contrast === null ? undefined : read.tip(contrast)}>
+        {contrast === null ? t("notMeasurable") : t("onThemeBg", { verdict: read.text(contrast) })}
       </p></>}
 
       {state.recent.length > 0 && (
-        <div className="cp-chips" role="group" aria-label="Couleurs récentes">
-          <span className="cp-flabel">Récentes</span>
+        <div className="cp-chips" role="group" aria-label={t("recentGroup")}>
+          <span className="cp-flabel">{t("recent")}</span>
           {state.recent.map((c) => (
-            <button key={c} type="button" className="cp-chip" style={{ background: c }} title={c} aria-label={`Couleur récente ${c}`} onClick={() => apply(rgbToHsv(parseColor(c)!, hsva.h), true)} />
+            <button key={c} type="button" className="cp-chip" style={{ background: c }} title={c} aria-label={t("recentOne", { c })} onClick={() => apply(rgbToHsv(parseColor(c)!, hsva.h), true)} />
           ))}
         </div>
       )}
@@ -477,7 +481,7 @@ export function Popover({
               onClose();
             }}
           >
-            {solid ? (solid.resetLabel ?? "Revenir au thème") : "Retirer la couleur"}
+            {solid ? (solid.resetLabel ?? t("backToTheme")) : t("remove")}
           </button>
         )}
         <button
@@ -487,7 +491,7 @@ export function Popover({
             onClose();
           }}
         >
-          Fermer
+          {t("close")}
         </button>
       </div>
     </div>

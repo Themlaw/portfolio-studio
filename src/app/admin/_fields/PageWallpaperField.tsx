@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import type { PagePaper } from "@/themes/wallpaper";
 import { WALLPAPER_OPACITY_MIN, WALLPAPER_SIZE_MAX, WALLPAPER_SIZE_MIN } from "@/themes/schema";
 
@@ -11,6 +13,7 @@ type Choice = { id: number; name: string; thumb: string | null; size: number; op
  * CETTE page seulement. `value` null = comme le site. Le choix passe par l'éditeur (brouillon de la page, rechargement de la toile).
  */
 export default function PageWallpaperField({ value, onChange, choices }: { value: PagePaper | null; onChange: (v: PagePaper | null) => void; choices: Choice[] }) {
+  const t = useTranslations("fields");
   const mode = value ? value.mode : "site";
   const current = value?.mode === "wallpaper" ? choices.find((c) => c.id === value.wallpaper) : undefined;
   const size = value?.mode === "wallpaper" ? (value.size ?? current?.size ?? 300) : 300;
@@ -20,13 +23,13 @@ export default function PageWallpaperField({ value, onChange, choices }: { value
   return (
     <div className="a-span-2 a-page-wallpaper" data-testid="page-wallpaper">
       <fieldset className="a-fieldset">
-        <legend className="a-field-label">Papier peint de la page</legend>
-        <div className="a-seg" role="radiogroup" aria-label="Papier peint de la page">
+        <legend className="a-field-label">{t("wpTitle")}</legend>
+        <div className="a-seg" role="radiogroup" aria-label={t("wpTitle")}>
           <button type="button" role="radio" aria-checked={mode === "site"} data-mode="site" className="a-btn a-btn-small" onClick={() => onChange(null)}>
-            Comme le site
+            {t("wpSite")}
           </button>
           <button type="button" role="radio" aria-checked={mode === "none"} data-mode="none" className="a-btn a-btn-small" onClick={() => onChange({ mode: "none" })}>
-            Aucun
+            {t("wpNone")}
           </button>
           <button
             type="button"
@@ -37,18 +40,16 @@ export default function PageWallpaperField({ value, onChange, choices }: { value
             disabled={!choices.length}
             onClick={() => mode !== "wallpaper" && choices[0] && pick(choices[0].id)}
           >
-            Un papier peint
+            {t("wpOne")}
           </button>
         </div>
         <p className="a-help">
-          {choices.length
-            ? "« Comme le site » : rien ne change. « Aucun » ou un papier peint remplace le papier du site sur cette page seulement."
-            : "Aucun papier peint dans la bibliothèque : importe-en dans « Thèmes » → « Papiers peints »."}
+          {choices.length ? t("wpHelp") : t("wpEmpty")}
         </p>
       </fieldset>
       {value?.mode === "wallpaper" && (
         <>
-          <div className="a-wp-choices" role="radiogroup" aria-label="Motif" data-testid="page-wallpaper-choices">
+          <div className="a-wp-choices" role="radiogroup" aria-label={t("wpPattern")} data-testid="page-wallpaper-choices">
             {choices.map((c) => (
               <button key={c.id} type="button" role="radio" aria-checked={value.wallpaper === c.id} className="a-wp-choice" data-wallpaper-id={c.id} title={c.name} onClick={() => pick(c.id)}>
                 <span className="a-wp-thumb" aria-hidden="true">
@@ -58,14 +59,14 @@ export default function PageWallpaperField({ value, onChange, choices }: { value
                 <span className="a-wp-name">{c.name}</span>
               </button>
             ))}
-            {!current && <p className="a-help">Ce papier peint n&apos;est plus dans la bibliothèque : la page n&apos;en montre plus. Choisis-en un autre.</p>}
+            {!current && <p className="a-help">{t("wpGone")}</p>}
           </div>
           <label className="a-field">
-            Taille du motif : {size} px
+            {t("wpSize", { size })}
             <input type="range" min={WALLPAPER_SIZE_MIN} max={WALLPAPER_SIZE_MAX} step={1} value={size} data-testid="page-wallpaper-size" onChange={(e) => set({ size: Number(e.target.value) })} />
           </label>
           <label className="a-field">
-            Opacité : {Math.round(opacity * 100)} %
+            {t("wpOpacity", { percent: Math.round(opacity * 100) })}
             <input
               type="range"
               min={Math.round(WALLPAPER_OPACITY_MIN * 100)}
@@ -78,7 +79,7 @@ export default function PageWallpaperField({ value, onChange, choices }: { value
           </label>
           {(value.size !== undefined || value.opacity !== undefined) && (
             <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange({ mode: "wallpaper", wallpaper: value.wallpaper })}>
-              Reprendre les réglages du motif
+              {t("wpReset")}
             </button>
           )}
         </>

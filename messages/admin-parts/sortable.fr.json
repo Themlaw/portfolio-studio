@@ -1,0 +1,12 @@
+{
+  "move": "Déplacer {label}",
+  "quoted": "« {label} »",
+  "theItem": "l'élément",
+  "picked": "{label} saisi, position {position} sur {total}.",
+  "over": "{label} en position {position} sur {total}.",
+  "outside": "{label} hors de la liste.",
+  "dropped": "{label} posé en position {position} sur {total}.",
+  "putBack": "{label} reposé.",
+  "cancelled": "Déplacement annulé : {label} reste à sa place.",
+  "instructions": "Pour déplacer : Espace pour saisir, flèches haut et bas pour choisir la place, Espace pour poser, Échap pour annuler."
+}

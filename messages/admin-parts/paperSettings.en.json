@@ -1,0 +1,8 @@
+{
+  "title": "Drawn paper",
+  "underHeader": "Paper under the top banner",
+  "underHeaderHelp": "Unticked (default): the sticky banner at the top is a flat fill of the background colour, the tile covers the rest of the site. Ticked: the tile also goes behind the navigation.",
+  "onCards": "Paper visible on the cards",
+  "onCardsHelp": "Unticked (default): block cards are opaque flat fills that hide the paper. Ticked: the paper is drawn over each card's colour, under its content. Each card can keep its own choice (“Card” menu on the canvas: “Like the site”, “Under the card” or “On the card”).",
+  "intensity": "Paper intensity on the cards: {pct}%"
+}

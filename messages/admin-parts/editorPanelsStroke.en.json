@@ -1,0 +1,6 @@
+{
+  "opacity": "Opacity: {opacity}%",
+  "none": "No colour: the original drawing",
+  "opacityLabel": "{title}: opacity",
+  "reset": "Back to the original drawing"
+}

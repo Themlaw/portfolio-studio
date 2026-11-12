@@ -30,6 +30,7 @@ import { fail, type ActionResult } from "@/lib/edit/result";
 import { enqueueCropWarm } from "@/lib/jobs/crop-warm";
 import { revalidateNav, revalidatePage, revalidateProject, revalidateSettings } from "@/lib/revalidate";
 import { audited } from "@/lib/journal/audit";
+import { adminT } from "@/i18n/admin-msg";
 
 const Id = z.number().int().positive();
 
@@ -40,6 +41,8 @@ function pageId(id: unknown): number | null {
 
 export const createPageAction = audited("createPageAction", async function createPageAction(input: unknown): Promise<ActionResult<{ id: number }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const result = createPage(input);
   if (result.ok) revalidateNav();
   return result;
@@ -51,6 +54,8 @@ export const createPageAction = audited("createPageAction", async function creat
  */
 export const savePageInfoAction = audited("savePageInfoAction", async function savePageInfoAction(id: unknown, input: unknown, rev: unknown, keepOldAddress?: unknown): Promise<DraftResult<{ rev: number; redirected: number }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   const result = savePageInfo(pid, input, rev, { keepOldAddress: keepOldAddress !== false });
@@ -67,6 +72,8 @@ export const savePageInfoAction = audited("savePageInfoAction", async function s
  */
 export const saveDraftAction = audited("saveDraftAction", async function saveDraftAction(id: unknown, draft: unknown, rev: unknown): Promise<DraftResult<{ savedAt: number; rev: number }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return saveDraft(pid, draft, rev);
@@ -94,6 +101,8 @@ export const pasteStyleAction = audited("pasteStyleAction", async function paste
 /** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
 export const publishDraftAction = audited("publishDraftAction", async function publishDraftAction(id: unknown, rev: unknown, live?: unknown): Promise<DraftResult<PublishResult>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   // `live` : l'éditeur a obtenu la confirmation « Mettre cette page en ligne ? » (lot 51) ; un seul geste met contenu et page en ligne.
@@ -115,6 +124,8 @@ export const publishDraftAction = audited("publishDraftAction", async function p
 /** Abandonner les modifications : brouillon et surcouche de la page effacés. */
 export const discardDraftAction = audited("discardDraftAction", async function discardDraftAction(id: unknown, rev: unknown): Promise<DraftResult<{ projects: number[]; rev: number }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   const result = discardDraft(pid, rev);
@@ -132,6 +143,8 @@ export const discardDraftAction = audited("discardDraftAction", async function d
  */
 export const boardAction = audited("boardAction", async function boardAction(id: unknown, projectId: unknown, op: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return boardOp(pid, projectId, op, rev);
@@ -144,6 +157,8 @@ export const boardAction = audited("boardAction", async function boardAction(id:
  */
 export const restoreBoardAction = audited("restoreBoardAction", async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown, from?: unknown): Promise<DraftResult<BoardResult>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return restoreBoard(pid, snap, rev, from);
@@ -156,22 +171,28 @@ export const restoreBoardAction = audited("restoreBoardAction", async function r
  */
 export const siteDraftAction = audited("siteDraftAction", async function siteDraftAction(id: unknown, snap: unknown, rev: unknown, pageRev: unknown): Promise<DraftResult<SiteResult>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   // `pageRev` : obligatoire pour l'éditeur (la toile s'en sert pour savoir quand son rendu a rattrapé l'écriture).
-  if (pageRev === undefined) return fail("Requête invalide (version de la page manquante) : recharge l'éditeur.");
+  if (pageRev === undefined) return fail(t("Requête invalide (version de la page manquante) : recharge l'éditeur."));
   return saveSiteDraft(pid, snap, rev, pageRev);
 });
 
 /** « Annuler ces changements du site » : efface le brouillon commun du site (les pages gardent les leurs). */
 export const discardSiteDraftAction = audited("discardSiteDraftAction", async function discardSiteDraftAction(rev: unknown): Promise<DraftResult<{ rev: number; snap: SiteSnap }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   return discardSiteDraft(rev);
 });
 
 /** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */
 export const createDraftProjectAction = audited("createDraftProjectAction", async function createDraftProjectAction(id: unknown, title: unknown): Promise<ActionResult<{ id: number; slug: string; title: string }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return createDraftProject(pid, title);
@@ -179,8 +200,10 @@ export const createDraftProjectAction = audited("createDraftProjectAction", asyn
 
 export const setPublishedAction = audited("setPublishedAction", async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<{ warnings?: ReturnType<typeof publishWarnings> } | null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid || typeof published !== "boolean") return fail("Requête invalide.");
+  if (!pid || typeof published !== "boolean") return fail(t("Requête invalide."));
   const result = setPublished(pid, published);
   if (result.ok) {
     syncDraftFlags(pid, { published });
@@ -194,8 +217,10 @@ export const setPublishedAction = audited("setPublishedAction", async function s
 
 export const setInMenuAction = audited("setInMenuAction", async function setInMenuAction(id: unknown, inMenu: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid || typeof inMenu !== "boolean") return fail("Requête invalide.");
+  if (!pid || typeof inMenu !== "boolean") return fail(t("Requête invalide."));
   const result = setInMenu(pid, inMenu);
   if (result.ok) {
     syncDraftFlags(pid, { inMenu });
@@ -207,8 +232,10 @@ export const setInMenuAction = audited("setInMenuAction", async function setInMe
 /** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : voir `addToMenuFromEditor`. */
 export const addToMenuFromEditorAction = audited("addToMenuFromEditorAction", async function addToMenuFromEditorAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail("Requête invalide.");
+  if (!pid) return fail(t("Requête invalide."));
   const result = addToMenuFromEditor(pid);
   if (result.ok) revalidateNav();
   return result;
@@ -216,6 +243,8 @@ export const addToMenuFromEditorAction = audited("addToMenuFromEditorAction", as
 
 export const reorderMenuAction = audited("reorderMenuAction", async function reorderMenuAction(ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const result = reorderMenu(ids);
   if (result.ok) revalidateNav();
   return result;
@@ -226,6 +255,8 @@ export const deletePageAction = audited("deletePageAction", async function delet
   id: unknown,
 ): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: PageReference[] }> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   const result = deletePage(pid);
@@ -236,6 +267,8 @@ export const deletePageAction = audited("deletePageAction", async function delet
 /** Restaure une page de la corbeille (l'adresse reprise entre-temps est remplacée par une variante libre). */
 export const restorePageAction = audited("restorePageAction", async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean; unpublished?: string }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   const result = restorePage(pid);
@@ -254,6 +287,8 @@ export const restorePageAction = audited("restorePageAction", async function res
  */
 export const installFontAction = audited("installFontAction", async function installFontAction(family: unknown, weight: unknown, italic: unknown): Promise<ActionResult<InstallResult>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const result = await installGoogleFont(family, weight, italic);
   // Nouvelle face : la feuille @font-face (réglages) change sur toutes les pages.
   if (result.ok && result.data.installed) revalidateSettings();

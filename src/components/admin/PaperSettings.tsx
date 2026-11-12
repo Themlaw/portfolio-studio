@@ -6,16 +6,19 @@
  * elle gêne la lecture, donc il reste un aplat de la couleur de fond sauf si
  * on demande le contraire ici.
  */
+import { useTranslations } from "next-intl";
+
 import { PAPER_ON_CARDS_DEFAULT, PAPER_OVER_HERO_MAX, type KitAssets, type Theme } from "@/themes/schema";
 
 export default function PaperSettings({ theme, onChange }: { theme: Theme; onChange: (kit: KitAssets) => void }) {
+  const t = useTranslations("paperSettings");
   const kit = theme.assets.kit ?? {};
   if (!kit.paper) return null;
   const paper = kit.paper;
   return (
     <section className="a-panel" aria-labelledby="t-papier">
       <h3 id="t-papier" className="a-subhead">
-        Papier dessiné
+        {t("title")}
       </h3>
       <label className="a-guide-check">
         <input
@@ -29,11 +32,10 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
             onChange({ ...kit, paper: next });
           }}
         />
-        Papier sous le bandeau du haut
+        {t("underHeader")}
       </label>
       <p className="a-help">
-        Décoché (par défaut) : le bandeau collant du haut est un aplat de la couleur de fond, la tuile couvre le reste du site. Coché : la tuile passe
-        aussi derrière la navigation.
+        {t("underHeaderHelp")}
       </p>
       <label className="a-guide-check">
         <input
@@ -47,15 +49,14 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
             onChange({ ...kit, paper: next });
           }}
         />
-        Papier visible sur les cartes
+        {t("onCards")}
       </label>
       <p className="a-help">
-        Décoché (par défaut) : les cartes des blocs sont des aplats opaques qui cachent le papier. Coché : le papier est dessiné par-dessus la couleur
-        de chaque carte, sous son contenu. Chaque carte peut garder son choix (menu « Carte » de la toile : « Comme le site », « Sous la carte » ou « Sur la carte »).
+        {t("onCardsHelp")}
       </p>
       {paper.onCards && (
         <label className="a-field">
-          Intensité du papier sur les cartes : {Math.round((paper.onCardsOpacity ?? PAPER_ON_CARDS_DEFAULT) * 100)} %
+          {t("intensity", { pct: Math.round((paper.onCardsOpacity ?? PAPER_ON_CARDS_DEFAULT) * 100) })}
           <input
             type="range"
             min={0}

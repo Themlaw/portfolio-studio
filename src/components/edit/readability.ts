@@ -16,6 +16,9 @@ export function readability(ratio: number, need: number = AA): Readability {
 /** Rapport avec virgule française, une décimale (« 4,0 »). */
 export const frRatio = (n: number) => n.toFixed(1).replace(".", ",");
 
+/** Le même rapport avec le séparateur décimal de la langue d'interface (« 4,0 » en français, « 4.0 » en anglais). */
+export const fmtRatio = (n: number, lang = "fr") => (lang === "en" ? n.toFixed(1) : frRatio(n));
+
 /** « Lisibilité : bonne » */
 export const readabilityText = (ratio: number, need: number = AA) => `Lisibilité : ${readability(ratio, need).label}`;
 

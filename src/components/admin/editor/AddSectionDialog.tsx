@@ -7,10 +7,11 @@
  * c'est ce qu'on cherche le plus souvent) en premier. Un choix ferme
  * la fenêtre ; l'ajout et l'édition en place du texte d'aide sont faits par l'éditeur (VisualEditor).
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef } from "react";
 
 import { pickerGroups } from "@/blocks/groups";
-import { STARTER_LIST, type TextStarter } from "@/blocks/help-text";
+import { starterList, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry } from "@/blocks/editor-types";
 
 import BlockThumb from "./thumbs";
@@ -34,6 +35,7 @@ export default function AddSectionDialog({
   onPick: (choice: AddChoice) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("editorPanelsAdd");
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -41,7 +43,9 @@ export default function AddSectionDialog({
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
   }, [open]);
-  const groups = useMemo(() => pickerGroups(catalog, STARTER_LIST), [catalog]);
+  const tHelp = useTranslations("blockHelp");
+  const tl = useTranslations("blockRegLabels");
+  const groups = useMemo(() => pickerGroups(catalog, starterList(tHelp), "", tl), [catalog, tHelp, tl]);
   return (
     <dialog
       ref={ref}
@@ -54,7 +58,7 @@ export default function AddSectionDialog({
     >
       {open && (
         <>
-          <h2 id="ve-add-title">Ajouter un bloc</h2>
+          <h2 id="ve-add-title">{t("title")}</h2>
           <p className="ve-add-where">{where}</p>
           {groups.map((g) => (
             <section key={g.id} className="ve-group" data-group={g.id} aria-label={g.label}>
@@ -84,8 +88,8 @@ export default function AddSectionDialog({
                       </button>
                       {taken && <p className="ve-card-note">{c.single}</p>}
                       {c.models.length > 0 && (
-                        <div className="ve-models" role="group" aria-label={`Modèles de départ : ${c.label}`}>
-                          <span className="ve-models-title">Modèles :</span>
+                        <div className="ve-models" role="group" aria-label={t("starterModels", { label: c.label })}>
+                          <span className="ve-models-title">{t("models")}</span>
                           {c.models.map((m) => (
                             <button key={m.key} type="button" className="ve-model" data-key={m.key} data-type={m.type} title={m.description} onClick={() => onPick({ kind: "block", key: m.key })}>
                               {m.short ?? m.label}
@@ -102,8 +106,8 @@ export default function AddSectionDialog({
                     <button type="button" className="ve-card ve-add-card" data-type="board-strip" data-key="board-strip" onClick={() => onPick({ kind: "carousel" })}>
                       <BlockThumb type="image" preset="board-strip" />
                       <span>
-                        <strong>Images qui défilent</strong>
-                        <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans un bloc « Projet ».</span>
+                        <strong>{t("carousel")}</strong>
+                        <span className="ve-card-desc">{t("carouselDesc")}</span>
                       </span>
                     </button>
                   </li>
@@ -113,7 +117,7 @@ export default function AddSectionDialog({
           ))}
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
-              Fermer
+              {t("close")}
             </button>
           </div>
         </>

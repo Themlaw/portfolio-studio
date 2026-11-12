@@ -16,10 +16,11 @@ import WallpaperAlign from "@/components/WallpaperAlign";
 import { cardBorderSignature, cardStyle, paperSignature, paperAttributes, readSurface, resolveSurface, type CardPalette, type Surface } from "@/themes/surface";
 import Head, { HeadOps } from "./Head";
 import { childLevel, headVisible, isHeadType, isOverType, type Head as HeadData } from "./head";
-import { BLOCKS } from "./registry";
+import { BLOCKS, blockTypeLabel } from "./registry";
 import { readReveal, revealAttrs } from "./reveal";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 /**
  * Rend les blocs d'une page. Chaque bloc est validé par le schéma de son
@@ -120,6 +121,13 @@ function withZone(node: ReactNode, type: string, layers: { surface: Surface | un
   return withSurface(withFond(node, type, layers.background, join, ctx, key, zone), layers.surface, card, ctx.edit, key, join, zone);
 }
 
+/** Bloc invalide, sur la toile seulement : dit quoi faire, dans la langue d'interface de l'admin (lot 130b). */
+async function EditNote({ kind, type, issues }: { kind: "unreadable" | "unknownType" | "incomplete"; type?: string; issues?: string }) {
+  const { ta } = await editI18n({ edit: true });
+  const { ta: tr } = await editI18n({ edit: true }, "blockReg");
+  return <p data-edit-invalid="">{kind === "incomplete" ? ta("incomplete", { label: blockTypeLabel(type ?? "", tr), issues: issues ?? "" }) : ta(kind)}</p>;
+}
+
 function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null, join: FondJoin = { prev: false, next: false }): ReactNode {
   // En édition, la clé suit le contenu : un bloc modifié (texte saisi en
   // place dans le DOM) est remonté à neuf au rafraîchissement.
@@ -161,17 +169,17 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     );
   if (block.corrupt) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} (${block.type}) : props JSON illisibles, ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Bloc illisible : supprime-le.</p>) : null;
+    return ctx.edit ? wrap(<EditNote kind="unreadable" />) : null;
   }
   if (!def) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} : type inconnu « ${block.type} », ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Type de bloc inconnu : supprime-le.</p>) : null;
+    return ctx.edit ? wrap(<EditNote kind="unknownType" />) : null;
   }
   const parsed = def.schema.safeParse(block.props);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(racine)"}: ${i.message}`).join(" ; ");
     if (!ctx.edit) console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} (${block.type}) invalide, ignoré — ${issues}`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">{def.label} incomplet : complète-le dans « Réglages » ({issues}).</p>) : null;
+    return ctx.edit ? wrap(<EditNote kind="incomplete" type={block.type} issues={issues} />) : null;
   }
   const { Component } = def;
   // Titre de composant (lot 128) : rendu ICI, dans la zone du composant (après la carte, le fond et les réglages `look`), jamais dans une enveloppe de plus.
@@ -306,6 +314,7 @@ export async function effectivePalette(ctx: BlockContext): Promise<CardPalette> 
 }
 
 export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {
+  const { ta, lang } = await editI18n(ctx);
   // Toute la page, pour les blocs qui se calculent depuis son contenu (compteurs).
   const baseCtx: BlockContext = { ...ctx, pageBlocks: blocks.filter((b) => !b.corrupt).map((b) => ({ type: b.type, props: b.props })) };
   // Le thème n'est lu que pour une carte (ou en édition, qui peut en créer une) : les pages sans carte restent comme avant.
@@ -350,9 +359,9 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
       {alignWallpapers && <WallpaperAlign />}
       {ctx.edit && (
         // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).
-        <div className="pe-add-end" data-edit-add-end="" lang="fr">
+        <div className="pe-add-end" data-edit-add-end="" lang={lang}>
           <button type="button" data-edit-add="end">
-            <span aria-hidden="true">+</span> Ajouter un bloc
+            <span aria-hidden="true">+</span> {ta("addBlock")}
           </button>
         </div>
       )}

@@ -15,6 +15,7 @@ import { revalidateTheme } from "@/lib/revalidate";
 import { IMPORT_LIMITS, importThemePackage, ThemeImportError } from "@/lib/themes/transfer";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
 import { auditedRoute } from "@/lib/journal/audit";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,9 @@ const json = (status: number, body: unknown) =>
 
 export const POST = auditedRoute("theme-import", async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
+  const t = adminT("actions");
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   let tmpPath: string | null = null;
   try {
     const file = await receiveOneFile(request, uploadTmpDir(), { maxBytes: IMPORT_LIMITS.maxZipBytes });
@@ -35,9 +38,9 @@ export const POST = auditedRoute("theme-import", async function POST(request: Re
     return json(200, { ok: true, theme });
   } catch (error) {
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
-    if (error instanceof ThemeImportError) return json(422, { ok: false, message: `Import refusé : ${error.message}` });
+    if (error instanceof ThemeImportError) return json(422, { ok: false, message: `${t("importRefused")} ${error.message}` });
     console.error("[themes] import en échec", error);
-    return json(500, { ok: false, message: "L'import a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur." });
+    return json(500, { ok: false, message: t("L'import a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.") });
   } finally {
     if (tmpPath) await rm(tmpPath, { force: true });
   }

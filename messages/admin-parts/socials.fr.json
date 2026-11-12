@@ -1,0 +1,12 @@
+{
+  "none": "Aucun réseau pour l'instant.",
+  "missingHref": "Adresse manquante",
+  "placeholder": "Lien à compléter : ce réseau n'apparaît pas sur le site tant que son adresse est vide.",
+  "edit": "Modifier",
+  "editLabel": "Modifier {label}",
+  "moveUp": "Monter {label}",
+  "moveDown": "Descendre {label}",
+  "remove": "Retirer {label}",
+  "cancel": "Annuler",
+  "add": "+ Réseau"
+}

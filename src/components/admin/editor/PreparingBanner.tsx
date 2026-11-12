@@ -9,6 +9,7 @@
  * - Mon thème en brouillon : « Publier cette version » (fenêtre avant → après).
  * « Arrêter l'aperçu » : retour au thème en ligne. Dans tous les cas l'éditeur se recharge pour reprendre le bon thème.
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { activateThemeAction, adoptOldThemeAction, applyModelAction } from "@/app/admin/(espace)/themes/actions";
@@ -36,6 +37,7 @@ async function previewMine(id: string): Promise<void> {
 type Dialog = { kind: "replace" } | { kind: "publish"; mineId: string; version: number; fresh: boolean } | null;
 
 export default function PreparingBanner({ preparing, flush }: { preparing: PreparingInfo; flush: () => Promise<unknown> }) {
+  const t = useTranslations("editorPanelsPreparing");
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
 
@@ -61,7 +63,7 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
       return;
     }
     if (result.data.second) {
-      toast(`Second thème créé : « ${preparing.name} » (dans « Mes anciens thèmes »)`);
+      toast(t("secondCreated", { name: preparing.name }));
       setDialog(null);
       await leavePreview();
       window.location.reload();
@@ -114,16 +116,12 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
     window.location.reload();
   };
 
-  const label = preparing.kind === "model" ? "Utiliser ce modèle" : preparing.kind === "old" ? "En faire mon thème" : "Publier cette version";
+  const label = preparing.kind === "model" ? t("useModel") : preparing.kind === "old" ? t("adoptOld") : t("publishVersion");
   const sentence =
     preparing.kind === "mine" ? (
-      <>
-        Tu prépares <strong>{preparing.name}</strong> (version {preparing.mineVersion}, brouillon) : elle n&apos;est pas encore en ligne (tes visiteurs voient encore « {preparing.liveLabel} »).
-      </>
+      <>{t.rich("sentenceMine", { name: preparing.name, version: preparing.mineVersion ?? "", live: preparing.liveLabel, strong: (c) => <strong>{c}</strong> })}</>
     ) : (
-      <>
-        Tu prépares le thème <strong>{preparing.name}</strong> : il n&apos;est pas encore en ligne (tes visiteurs voient encore « {preparing.liveName} »).
-      </>
+      <>{t.rich("sentenceOther", { name: preparing.name, live: preparing.liveName, strong: (c) => <strong>{c}</strong> })}</>
     );
 
   return (
@@ -134,31 +132,31 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
           {label}
         </button>
         <button type="button" className="a-btn a-btn-small" disabled={busy} onClick={() => void stop()} data-testid="preparing-stop">
-          Arrêter l&apos;aperçu
+          {t("stop")}
         </button>
       </span>
 
       <ConfirmDialog
         open={dialog?.kind === "replace"}
-        title={`Remplacer mon thème (version ${preparing.mineVersion ?? ""}) par ${preparing.name} ?`}
-        confirmLabel="Remplacer"
+        title={t("replaceTitle", { version: preparing.mineVersion ?? "", name: preparing.name })}
+        confirmLabel={t("replace")}
         busy={busy}
         onClose={() => setDialog(null)}
         onConfirm={() => void applyThisModel("replace")}
         extra={
           <button type="button" className="a-btn" onClick={() => void applyThisModel("second")} disabled={busy} data-testid="replace-second">
-            Créer un second thème
+            {t("second")}
           </button>
         }
       >
-        <p data-testid="replace-text">Tu pourras revenir à la version {preparing.mineVersion}.</p>
-        <p className="muted">« Remplacer » ajoute une nouvelle version à Mon thème (la version {preparing.mineVersion} reste dans l&apos;historique). Ton site ne change pas tant que tu ne publies pas.</p>
+        <p data-testid="replace-text">{t("replaceText", { version: preparing.mineVersion ?? "" })}</p>
+        <p className="muted">{t("replaceNote", { version: preparing.mineVersion ?? "" })}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={dialog?.kind === "publish"}
-        title={dialog?.kind === "publish" ? (dialog.fresh ? `Version ${dialog.version} de Mon thème créée : la mettre en ligne ?` : `Publier la version ${dialog.version} de « ${preparing.name} » ?`) : ""}
-        confirmLabel="Publier cette version"
+        title={dialog?.kind === "publish" ? (dialog.fresh ? t("publishFresh", { version: dialog.version }) : t("publishTitle", { version: dialog.version, name: preparing.name })) : ""}
+        confirmLabel={t("publishVersion")}
         busy={busy}
         onClose={() => (dialog?.kind === "publish" && dialog.fresh ? void later(dialog.mineId) : setDialog(null))}
         onConfirm={() => dialog?.kind === "publish" && void publish(dialog.mineId)}
@@ -166,9 +164,9 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
         <p className="a-swap" data-testid="activate-swap">
           <span>{preparing.liveLabel}</span>
           <span aria-hidden="true">→</span>
-          <strong>Mon thème : v{dialog?.kind === "publish" ? dialog.version : ""}</strong>
+          <strong>{t("swap", { version: dialog?.kind === "publish" ? dialog.version : "" })}</strong>
         </p>
-        <p className="muted">Tous tes visiteurs verront cette version dès maintenant, sur toutes les pages.{dialog?.kind === "publish" && dialog.fresh ? " Sinon elle reste en brouillon : tu la retrouves dans l'éditeur et sur l'écran Thèmes." : ""}</p>
+        <p className="muted">{t("publishNote")}{dialog?.kind === "publish" && dialog.fresh ? ` ${t("publishLater")}` : ""}</p>
       </ConfirmDialog>
     </div>
   );

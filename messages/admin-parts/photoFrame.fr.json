@@ -1,0 +1,6 @@
+{
+  "title": "Cadre du thème sur toutes les photos",
+  "help": "Ton thème dessine un cadre. Sur « Non », tes photos n'en ont pas : tu le poses photo par photo, avec le bouton « Cadre » de la barre d'une image. Sur « Oui », toutes les photos qui n'ont pas de choix l'ont.",
+  "no": "Non",
+  "yes": "Oui"
+}

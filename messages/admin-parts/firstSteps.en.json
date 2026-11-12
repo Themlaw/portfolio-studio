@@ -1,0 +1,23 @@
+{
+  "show": "Show getting started",
+  "title": "Getting started",
+  "allDone": "All done",
+  "progress": "{done} of {total}",
+  "hide": "Hide",
+  "doneSr": "(done)",
+  "theme_title": "Choose a theme",
+  "theme_text": "The theme sets the colors, fonts and mood of your whole site.",
+  "theme_cta": "Choose a theme",
+  "project_title": "Create a project and add images",
+  "project_text": "A project gathers your images. Images you upload from a project are added to it directly.",
+  "project_cta": "Open projects",
+  "page_title": "Show it on a page",
+  "page_text": "A project is only visible if a page displays it: add a “Project” block to a page.",
+  "page_cta": "Choose a page",
+  "publish_title": "Publish",
+  "publish_text": "Until a page is published, nobody can see it on your site.",
+  "publish_cta": "Publish a page",
+  "about_title": "Fill in “About” and contact",
+  "about_text": "Your name, your introduction and your email address, so people can get in touch.",
+  "about_cta": "Fill in my details"
+}

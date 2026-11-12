@@ -8,6 +8,7 @@ import { ratioCss } from "@/lib/images/formats";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { MAX_TILES, TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
 
+import { TileAddRow, TileCover, TileNote, TileToolbar } from "@/components/CollectionTileTools";
 import EditOnly from "@/components/EditOnly";
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
@@ -101,26 +102,9 @@ export default function CollectionTiles({
       ...(styles?.[key] ? { style: styles[key] } : {}),
     };
   };
-  const toolbar = (i: number) => (
-    <span className="pe-tile-tools" role="group" aria-label="Entrée">
-      <button type="button" data-edit-tile-op="up" data-index={i} disabled={i === 0} aria-label="Monter l'entrée" title="Monter l'entrée">↑</button>
-      <button type="button" data-edit-tile-op="down" data-index={i} disabled={i >= itemCount - 1} aria-label="Descendre l'entrée" title="Descendre l'entrée">↓</button>
-      <button type="button" data-edit-tile-op="remove" data-index={i} className="pe-danger" aria-label="Retirer l'entrée" title="Retirer l'entrée">✕</button>
-    </span>
-  );
+  const toolbar = (i: number) => <TileToolbar index={i} itemCount={itemCount} />;
   /** Couverture (lot 26), depuis la tuile : choisir une image, ou revenir à celle de la collection. */
-  const coverTools = (tile: Tile) => (
-    <span className="pe-tile-cover" role="group" aria-label={`Couverture de l'entrée « ${tile.title} »`}>
-      <button type="button" data-edit-tile-op="cover" data-index={tile.itemIndex} data-page-id={tile.pageId} title="Choisir l'image de couverture de cette entrée dans la médiathèque, ou en envoyer une">
-        Changer la couverture
-      </button>
-      {tile.ownCover && (
-        <button type="button" data-edit-tile-op="cover-clear" data-index={tile.itemIndex} data-page-id={tile.pageId} title="Reprendre la couverture de la collection">
-          Couverture automatique
-        </button>
-      )}
-    </span>
-  );
+  const coverTools = (tile: Tile) => <TileCover title={tile.title} itemIndex={tile.itemIndex} pageId={tile.pageId} ownCover={Boolean(tile.ownCover)} />;
   const fixed = ratio && ratio !== "auto" ? ratio : undefined;
   const geo = TILE_GEOMETRY[size];
   return (
@@ -128,21 +112,18 @@ export default function CollectionTiles({
       {tiles.map((tile, tileIndex) =>
         tile.broken ? (
           <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">
-            Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
+            <EditOnly><TileNote kind="broken" /></EditOnly>
             {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
         ) : tile.noImage ? (
           <p key={tile.key} data-edit-invalid="" data-tile-noimage="" className="pe-tile-broken">
-            L&apos;entrée « {tile.title || `Page ${tile.pageId}`} » n&apos;a pas d&apos;image : elle n&apos;apparaît pas sur le site tant que tu n&apos;en as pas choisi une.
+            <EditOnly><TileNote kind="noimage" title={tile.title} pageId={tile.pageId} /></EditOnly>
             {edit && <EditOnly>{coverTools(tile)}</EditOnly>}
             {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
         ) : tile.empty ? (
           <p key={tile.key} data-edit-invalid="" data-tile-empty="" className="pe-tile-broken">
-            Cette collection n&apos;a encore aucune œuvre publiée.{" "}
-            <span className="pe-tile-empty-why">
-              La tuile « {tile.title || tile.collectionName} » n&apos;apparaît pas sur le site tant que la collection {tile.collectionName ? `« ${tile.collectionName} » ` : ""}est vide : publie une œuvre dans cette collection.
-            </span>
+            <EditOnly><TileNote kind="empty" title={tile.title} collectionName={tile.collectionName} /></EditOnly>
             {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
         ) : (
@@ -205,12 +186,7 @@ export default function CollectionTiles({
       )}
       {tools && (
         <EditOnly>
-          <div className="pe-tile-add-row">
-            <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= MAX_TILES || candidates.length === 0}>
-              + Ajouter une entrée
-            </button>
-            {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages publiées ont déjà une entrée.</span>}
-          </div>
+          <TileAddRow candidates={candidates} disabled={itemCount >= MAX_TILES || candidates.length === 0} hasCandidates={candidates.length > 0 || itemCount >= MAX_TILES} />
         </EditOnly>
       )}
     </div>

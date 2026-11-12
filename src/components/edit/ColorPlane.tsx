@@ -10,6 +10,7 @@
  * à la main) et posés en styles en ligne : aucune feuille injectée, la toile reste sous CSP.
  * Clavier : flèches (Maj = pas de 10) ; rôles slider avec une valeur lisible (`aria-valuetext`).
  */
+import { useTranslations } from "next-intl";
 import { useRef } from "react";
 
 import { hueStripGradient, planeToSv, saturationPlane, stripToHue } from "@/lib/color";
@@ -58,6 +59,7 @@ function useDrag(onPoint: (fx: number, fy: number) => void) {
 const pct = (n: number) => Math.round(n * 100);
 
 export function SaturationPlane({ h, s, v, onChange }: { h: number; s: number; v: number; onChange: (s: number, v: number) => void }) {
+  const t = useTranslations("editMenusPlane");
   const drag = useDrag((fx, fy) => {
     const p = planeToSv(fx, fy);
     onChange(p.s, p.v);
@@ -67,11 +69,11 @@ export function SaturationPlane({ h, s, v, onChange }: { h: number; s: number; v
       className="cp-sv"
       tabIndex={0}
       role="slider"
-      aria-label="Saturation et luminosité : flèches gauche et droite pour la saturation, haut et bas pour la luminosité, Maj pour aller plus vite"
+      aria-label={t("sv")}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct(s)}
-      aria-valuetext={`Saturation ${pct(s)} %, luminosité ${pct(v)} %`}
+      aria-valuetext={t("svText", { s: pct(s), v: pct(v) })}
       style={saturationPlane(h)}
       {...drag}
       onKeyDown={(e) => {
@@ -89,6 +91,7 @@ export function SaturationPlane({ h, s, v, onChange }: { h: number; s: number; v
 }
 
 export function HueStrip({ h, onChange }: { h: number; onChange: (h: number) => void }) {
+  const t = useTranslations("editMenusPlane");
   const drag = useDrag((_fx, fy) => onChange(stripToHue(fy)));
   return (
     <div
@@ -96,11 +99,11 @@ export function HueStrip({ h, onChange }: { h: number; onChange: (h: number) => 
       tabIndex={0}
       role="slider"
       aria-orientation="vertical"
-      aria-label="Teinte : flèches haut et bas, Maj pour aller plus vite"
+      aria-label={t("hue")}
       aria-valuemin={0}
       aria-valuemax={360}
       aria-valuenow={Math.round(h)}
-      aria-valuetext={`Teinte ${Math.round(h)}°`}
+      aria-valuetext={t("hueText", { h: Math.round(h) })}
       style={{ backgroundImage: hueStripGradient() }}
       {...drag}
       onKeyDown={(e) => {

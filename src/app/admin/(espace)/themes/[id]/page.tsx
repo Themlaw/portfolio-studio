@@ -13,15 +13,19 @@ import { withFrameRing } from "@/lib/kit/frame-ring";
 import { getMineState } from "@/lib/themes/versions";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminT } from "@/i18n/admin-server";
 
-export const metadata = { title: "Modifier un thème" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("themePages"))("edit.title") };
+}
 
 export default async function ThemeEditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ etape?: string; onglet?: string }> }) {
   await requireAdmin();
+  const t = await getAdminT("themePages");
   const { id } = await params;
   const { etape, onglet } = await searchParams;
   const { activeId, themes } = getThemeOverview();
-  const theme = themes.find((t) => t.id === id);
+  const theme = themes.find((th) => th.id === id);
   if (!theme) notFound();
   const mine = getMineState();
   const isMine = mine?.id === theme.id;
@@ -38,7 +42,7 @@ export default async function ThemeEditPage({ params, searchParams }: { params: 
         initial={await withFrameRing(theme)}
         isActive={active && !isMine}
         mine={isMine && mine ? { version: mine.version, publishedVersion: mine.publishedVersion, live: mine.live, published: mine.published } : null}
-        activeName={themes.find((t) => t.id === activeId)?.name}
+        activeName={themes.find((th) => th.id === activeId)?.name}
         sitePalette={active ? (readPublishedSite().styles?.palette ?? {}) : {}}
         pages={pages}
         editorHref={home ? `/admin/pages/${home.id}/editer` : undefined}
@@ -59,7 +63,7 @@ export default async function ThemeEditPage({ params, searchParams }: { params: 
         wallpapers={
           <>
             <p className="a-help a-step-intro">
-              Tes motifs dessinés, à répéter en fond : sur une page entière, derrière un grand bloc, ou sur les cartes. Importe-en autant que tu veux (PNG ou WebP sur fond transparent).
+              {t("edit.wallpapersIntro")}
             </p>
             <WallpaperLibrary initial={listWallpapersForAdmin()} trashed={listWallpapersForAdmin(true)} counts={wallpaperUseCounts()} cards={getCardWallpaperSetting()} />
           </>

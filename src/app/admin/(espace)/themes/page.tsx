@@ -14,11 +14,15 @@ import { getPreparingTheme } from "@/lib/theme";
 import { getThemeLibrary } from "@/lib/themes/versions";
 import { presetThumb } from "@/themes/presets";
 import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminT } from "@/i18n/admin-server";
 
-export const metadata = { title: "Thèmes" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("themePages"))("themes.title") };
+}
 
 export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ nouvelle?: string; via?: string }> }) {
   await requireAdmin();
+  const t = await getAdminT("themePages");
   const library = getThemeLibrary();
   const preparing = await getPreparingTheme();
   const previewOn = (await draftMode()).isEnabled;
@@ -29,8 +33,8 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader
-        title="Thèmes"
-        intro="Les modèles ne changent jamais : tu as un seul thème à toi, « Mon thème », que tu fais évoluer version après version (couleurs, kit Photoshop, import). Seul ce qui est en ligne est vu par tes visiteurs : prévisualise, puis publie."
+        title={t("themes.title")}
+        intro={t("themes.intro")}
         action={
           <div className="a-header-actions">
             {/* Tuto du kit : le bouton « Télécharger le kit » de la slide 2 vise Mon thème (sinon le thème en ligne). */}
@@ -41,7 +45,7 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
               <form method="post" action="/admin/apercu/quitter">
                 <input type="hidden" name="retour" value="/admin/themes" />
                 <button type="submit" className="a-btn" data-testid="quit-preview">
-                  Quitter l&apos;aperçu
+                  {t("themes.quitPreview")}
                 </button>
               </form>
             )}
@@ -52,10 +56,9 @@ export default async function ThemesPage({ searchParams }: { searchParams: Promi
       {getLiveTheme()?.assets?.kit?.frame && <PhotoFrameSetting initial={getThemeFrameAllSetting()} />}
       {total === 0 ? (
         <div className="a-empty">
-          <h2>Aucun thème enregistré</h2>
+          <h2>{t("themes.noneTitle")}</h2>
           <p>
-            Le site s&apos;affiche avec l&apos;apparence par défaut. Les thèmes livrés sont installés au premier démarrage
-            d&apos;une base neuve.
+            {t("themes.noneBody")}
           </p>
         </div>
       ) : (

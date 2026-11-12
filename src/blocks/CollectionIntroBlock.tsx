@@ -7,6 +7,7 @@ import { boardWorkCount } from "@/lib/gallery";
 import { ownLayoutOf } from "./board-layout";
 import { boardRefs, countKey, pageCounts } from "./tree";
 import { collection, inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const collectionIntroSchema = z.object({
   collection,
@@ -32,6 +33,7 @@ export default async function CollectionIntroBlock({
   props: z.infer<typeof collectionIntroSchema>;
   ctx: BlockContext;
 }) {
+  const { ta } = await editI18n(ctx);
   const heading = (
     <>
       <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
@@ -70,7 +72,7 @@ export default async function CollectionIntroBlock({
     <section className="page-top shell pb-[clamp(1rem,3vw,2rem)]">
       <header className="page-head max-w-2xl">
         {heading}
-        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les projets de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: ta("counterHint"), "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
           {tg("count", { count: counts.works })} · {tp("count", { count: counts.projects })}
         </p>
       </header>

@@ -20,7 +20,11 @@
  * conversion avait écrit) ; sinon la valeur d'origine revient exactement. Un aller-retour sans retouche rend donc l'état de départ.
  */
 
+import type { AdminT } from "@/i18n/admin-lang";
+
 import { upgradeLook } from "../lib/look";
+
+import { problemMsg } from "./block-msg";
 
 import { MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, PLACE_ID, railIds, railList, type BoardItem } from "./board-layout";
 
@@ -192,10 +196,10 @@ export type ConvertCtx = {
 export type ConvertResult = { item: BoardItem; look: Json | undefined } | { error: string };
 
 /** Ce composant peut-il changer de forme ? Message (français simple) s'il ne le peut pas, sinon la forme d'arrivée. */
-export function convertTarget(item: Pick<BoardItem, "type" | "props">): { to: "grid" | "strip" } | { reason: string } {
+export function convertTarget(item: Pick<BoardItem, "type" | "props">, t?: AdminT): { to: "grid" | "strip" } | { reason: string } {
   if (item.type === "grid") return { to: "strip" };
-  if (item.type === "strip") return item.props.source === "own" ? { to: "grid" } : { reason: "Cette bande montre les images du projet : elle ne peut pas devenir une grille." };
-  return { reason: "Seules une grille et des images qui défilent peuvent se transformer l'une en l'autre." };
+  if (item.type === "strip") return item.props.source === "own" ? { to: "grid" } : { reason: problemMsg("stripCannotConvert", undefined, t) };
+  return { reason: problemMsg("convertOnly", undefined, t) };
 }
 
 const cleanLookObj = (look: Json): Json | undefined => {
@@ -207,13 +211,13 @@ const cleanLookObj = (look: Json): Json | undefined => {
 /**
  * Le composant dans l'autre forme (même `uid`, même `box`), et la `look` mise à jour de la rubrique de la page. Ne modifie rien.
  */
-export function convertItem(item: BoardItem, to: "grid" | "strip", ctx: ConvertCtx): ConvertResult {
-  const target = convertTarget(item);
+export function convertItem(item: BoardItem, to: "grid" | "strip", ctx: ConvertCtx, t?: AdminT): ConvertResult {
+  const target = convertTarget(item, t);
   if ("reason" in target) return { error: target.reason };
-  if (target.to !== to) return { error: to === "strip" ? "Ce bloc est déjà en images qui défilent." : "Ce bloc est déjà une grille." };
+  if (target.to !== to) return { error: problemMsg(to === "strip" ? "alreadyStrip" : "alreadyGrid", undefined, t) };
   // Un `look` d'avant le lot 75 (cinq cartes par place) est relu à la nouvelle forme : la conversion écrit toujours `slotLook`.
   const look: Json = isObj(ctx.look) ? (clone(upgradeLook(ctx.look)) as Json) : {};
-  const out = to === "strip" ? toStrip(item, ctx, look) : toGrid(item, ctx, look);
+  const out = to === "strip" ? toStrip(item, ctx, look, t) : toGrid(item, ctx, look, t);
   if ("error" in out) return out;
   return { item: { ...out.item, ...(item.box ? { box: item.box } : {}) }, look: cleanLookObj(look) };
 }
@@ -225,10 +229,10 @@ function sharedProps(from: Json): Json {
   return out;
 }
 
-function toStrip(item: BoardItem, ctx: ConvertCtx, blockLook: Json): { item: BoardItem } | { error: string } {
+function toStrip(item: BoardItem, ctx: ConvertCtx, blockLook: Json, t?: AdminT): { item: BoardItem } | { error: string } {
   const G = item.props;
   const kids = kidsOf(G);
-  if (kids.length > MAX_RAIL_MEDIA) return { error: `Un carrousel garde ${MAX_RAIL_MEDIA} images au plus.` };
+  if (kids.length > MAX_RAIL_MEDIA) return { error: problemMsg("carouselMaxImages", { max: MAX_RAIL_MEDIA }, t) };
   const stash = readStash(G.converted, "strip");
   const placeOf = new Map(stash?.pairs.map(([kid, place]) => [kid, place]) ?? []);
   const gridRadius = isObj(G.look) ? G.look.radius : undefined;
@@ -267,11 +271,11 @@ function toStrip(item: BoardItem, ctx: ConvertCtx, blockLook: Json): { item: Boa
   return { item: { uid: item.uid, type: "strip", props } };
 }
 
-function toGrid(item: BoardItem, ctx: ConvertCtx, blockLook: Json): { item: BoardItem } | { error: string } {
+function toGrid(item: BoardItem, ctx: ConvertCtx, blockLook: Json, t?: AdminT): { item: BoardItem } | { error: string } {
   const S = item.props;
   const media = railList(S);
   const ids = railIds(S);
-  if (media.length > MAX_GRID_CHILDREN) return { error: `Une grille garde ${MAX_GRID_CHILDREN} images au plus : retire-en ${media.length - MAX_GRID_CHILDREN} avant de l'afficher en grille.` };
+  if (media.length > MAX_GRID_CHILDREN) return { error: problemMsg("gridMaxImages", { max: MAX_GRID_CHILDREN, extra: media.length - MAX_GRID_CHILDREN }, t) };
   const stash = readStash(S.converted, "grid");
   const kidOf = new Map(stash?.pairs.map(([kid, place]) => [place, kid]) ?? []);
   const baseKids = new Map(kidsOf(stash?.props ?? {}).map((k) => [k.uid, k]));

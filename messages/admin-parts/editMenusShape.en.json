@@ -1,0 +1,10 @@
+{
+  "extent": "Extent",
+  "full": "Edge to edge",
+  "inset": "With margin",
+  "corners": "Corners",
+  "square": "Square",
+  "step_s": "Small",
+  "step_m": "Medium",
+  "step_l": "Large"
+}

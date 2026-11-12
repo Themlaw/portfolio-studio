@@ -1,0 +1,14 @@
+{
+  "megabytes": "{value} Mo",
+  "title": "Polices téléchargées",
+  "summary": "{count} / {max} polices · {used} sur {limit}. Une police choisie dans l'éditeur est téléchargée par le site ; celles qui ne servent plus sont retirées à la publication, ou ici.",
+  "none": "Aucune police téléchargée : les textes utilisent les polices du thème.",
+  "styles": "{count, plural, one {# style} other {# styles}}",
+  "usedIn": "Utilisée : {list}",
+  "unused": "Inutilisée",
+  "delete": "Supprimer",
+  "deleteTitle": "Supprimer la police « {name} » ?",
+  "connectionLost": "Connexion perdue : réessaie.",
+  "deleted": "« {name} » supprimée",
+  "deleteBody": "Ses fichiers sont effacés du site. Tu pourras la choisir à nouveau dans l'éditeur (elle sera retéléchargée)."
+}

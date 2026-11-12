@@ -23,6 +23,7 @@ import {
   Toggle,
 } from "@/app/admin/_fields";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import Link from "next/link";
@@ -31,16 +32,17 @@ import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon"
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
 import { withContactForm, CONTACT_ACTIONS, CONTACT_ACTION_LABELS, contactActionOf, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
-import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
+import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
-import { applyFreeLook, applyFreeOp, cropOf, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
+import { applyFreeLook, applyFreeOp, cropOf, FREE_FORMATS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
+import type { AdminT } from "@/i18n/admin-lang";
 import { MAX_STEPS, STEPS_MODE_HINTS, STEPS_MODE_LABELS, STEPS_MODES, STEPS_VIEW_LABELS, STEPS_VIEWS, stepsMode, stepsView } from "./etapes";
 import type { L } from "./editor-types";
-import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
-import { soundOf, VIDEO_SOUND_HINTS, VIDEO_SOUND_OPTIONS } from "./video-sound";
-import { applyGridOp, AUTO_HINT, autoCols, isJustified, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
+import { modeOf, videoModeOptions } from "./video-mode";
+import { soundOf, videoSoundOptions } from "./video-sound";
+import { applyGridOp, autoCols, isJustified, keepsShape, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
 type P = Record<string, unknown>;
@@ -51,58 +53,62 @@ function useSet<T extends P>(value: T, onChange: (v: T) => void) {
 }
 
 export function HeroEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
-      <p className="a-help">Ton nom et ton métier sont communs à tout le site (en-tête, profil…) : double-clic (ou double-tap) dessus sur la page pour les modifier. Un lien du menu se renomme avec le crayon « Renommer » qui apparaît sur lui.</p>
+      <p className="a-help">{t("yourNameAndYour")}</p>
       {context.heroBackdrop !== false && (
         <MediaPicker
-          label="Image de fond (facultative)"
-          help="Remplace le décor du thème (ouvertures « calques » et « projecteur »). Sur la page : survole l'ouverture, « Changer le fond » ; « Cadrer » choisit la zone gardée. Vide : le fond du thème."
+          label={t("backgroundImageOptional")}
+          help={t("replacesTheThemeS")}
           value={value.backgroundMediaId as number | undefined}
           onChange={(v) => set("backgroundMediaId", v)}
           error={errorAt(errors, "backgroundMediaId")}
           context={context}
         />
       )}
-      <TextI18n label="Étiquette" help="Petit texte au-dessus de ton nom." value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("label")} help={t("smallTextAboveYour")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextareaI18n
-        label="Phrase d'accroche"
-        help="Utilisée par les thèmes à hero typographique. Entoure le mot à mettre en valeur de <mark>…</mark> (aucun autre balisage). Sur la page : double-clic sur la phrase, sélectionne un mot et « Surligner »."
+        label={t("tagline")}
+        help={t("usedByThemesWith")}
         value={l(value.statement)}
         onChange={(v) => set("statement", v)}
         error={errorAt(errors, "statement")}
       />
       <TextI18n
-        label="Indicateur de défilement"
-        help="Texte sous le titre. Vide : le texte par défaut du site (« Faire défiler »). Modifiable aussi sur la page, avec sa typographie."
+        label={t("scrollIndicator")}
+        help={t("textBelowTheTitle")}
         value={l(value.scroll)}
         onChange={(v) => set("scroll", v)}
         error={errorAt(errors, "scroll")}
       />
-      <Toggle label="Afficher l'indicateur de défilement" checked={value.showScroll !== false} onChange={(v) => set("showScroll", v)} />
+      <Toggle label={t("showTheScrollIndicator")} checked={value.showScroll !== false} onChange={(v) => set("showScroll", v)} />
       <TextI18n
-        label="Bouton demoreel"
-        help="Libellé du bouton (thèmes à hero projecteur). Vide : « Demoreel »."
+        label={t("demoReelButton")}
+        help={t("buttonTextThemesWith")}
         value={l(value.reel)}
         onChange={(v) => set("reel", v)}
         error={errorAt(errors, "reel")}
       />
       <PagePicker
-        label="Page de la demoreel"
-        help="Où mène le bouton « Demoreel » (thèmes à hero projecteur)."
+        label={t("demoReelPage")}
+        help={t("whereTheDemoreelButton")}
         value={value.reelPageId as number | undefined}
         onChange={(v) => set("reelPageId", v)}
         error={errorAt(errors, "reelPageId")}
         context={context}
-        optional="— aucune —"
+        optional={t("none")}
       />
     </>
   );
 }
 
 export function CollectionTilesEditor() {
+  const t = useTranslations("blockEditors");
+  const tf = useTranslations("fields");
+  const tl = useTranslations("blockRegLabels");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   type Item = { collection?: string; pageId?: number; eyebrow: L; title: L; intro: L };
@@ -138,44 +144,47 @@ export function CollectionTilesEditor() {
   };
   return (
     <>
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre du bloc" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextI18n label={t("label")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("blockTitle")} value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
       <Select
-        label="Taille des images"
-        help="Une entrée ne dépasse jamais la hauteur de l'écran : un portrait est réduit, pas coupé."
+        label={t("imageSize")}
+        help={t("anEntryNeverExceeds")}
         value={tileSize(value.size)}
-        options={TILE_SIZES.map((s) => ({ value: s, label: TILE_SIZE_LABELS[s] }))}
+        options={TILE_SIZES.map((s) => ({ value: s, label: tl(`tileSize.${s}`) }))}
         onChange={(v) => set("size", v ?? "medium")}
         error={errorAt(errors, "size")}
       />
-      <FormatSelect label="Format des images" help="Imposé : les images sont cadrées (sur la page, survole une image puis « Cadrer » pour choisir la zone gardée)." />
+      <FormatSelect label={t("imageFormat")} help={t("fixedImagesAreCropped")} />
       <Select
-        label="Entrées"
+        label={t("entries")}
         help={
           mode === "auto"
-            ? "Une entrée par page de collection (page réglée « Cette page est la collection »), dans l'ordre du menu : ajouter, retirer ou dépublier une page change la liste toute seule."
-            : "Tu choisis les entrées, leur ordre et leur page de destination."
+            ? t("oneEntryPerCollection")
+            : t("youChooseTheEntries")
         }
         value={mode}
         options={[
-          { value: "auto", label: "Automatiques" },
-          { value: "manual", label: "Choisies à la main" },
+          { value: "auto", label: t("automatic") },
+          { value: "manual", label: t("handPicked") },
         ]}
         onChange={(v) => switchMode(v === "manual" ? "manual" : "auto")}
       />
       {mode === "auto" ? (
         <div className="a-field" data-testid="tiles-auto">
-          {entries.length === 0 && <p className="a-help">Aucune page de collection publiée pour l&apos;instant.</p>}
+          {entries.length === 0 && <p className="a-help">{t("noCollectionPagePublished")}</p>}
           {entries.map((e) => (
             <fieldset key={e.pageId} className="a-card" data-tile-page={e.pageId}>
-              <legend>{e.title.fr || `Page ${e.pageId}`}</legend>
-              <p className="a-help">Textes de l&apos;en-tête de la page{Object.keys(e.edited).length ? ", sauf ceux que tu as modifiés ici." : "."}</p>
-              <TextI18n label="Étiquette" value={e.eyebrow} onChange={(v) => setEdit(e, "eyebrow", v)} />
-              <TextI18n label="Titre" value={e.title} onChange={(v) => setEdit(e, "title", v)} />
-              <TextareaI18n label="Présentation" value={e.intro} onChange={(v) => setEdit(e, "intro", v)} />
+              <legend>{e.title.fr || t("pageId", { id: e.pageId })}</legend>
+              <p className="a-help">
+                {t("textsFromThePage")}
+                {Object.keys(e.edited).length ? t("exceptTheOnesYou") : "."}
+              </p>
+              <TextI18n label={t("label")} value={e.eyebrow} onChange={(v) => setEdit(e, "eyebrow", v)} />
+              <TextI18n label={t("title")} value={e.title} onChange={(v) => setEdit(e, "title", v)} />
+              <TextareaI18n label={t("introduction")} value={e.intro} onChange={(v) => setEdit(e, "intro", v)} />
               {Object.keys(e.edited).length > 0 && (
                 <button type="button" className="a-btn" onClick={() => onChange({ ...value, edits: edits.filter((x) => x.pageId !== e.pageId).length ? edits.filter((x) => x.pageId !== e.pageId) : undefined })}>
-                  Reprendre les textes de la page
+                  {t("useThePageS")}
                 </button>
               )}
             </fieldset>
@@ -183,22 +192,26 @@ export function CollectionTilesEditor() {
         </div>
       ) : (
         <ListField<Item>
-          label="Liste des entrées"
-          help="Chaque entrée montre une grande image de la collection et mène à sa page. Une entrée dont la page est supprimée ou non publiée est masquée sur le site."
+          label={t("listOfEntries")}
+          help={t("eachEntryShowsA")}
           items={items}
           onChange={(next) => set("items", next)}
           make={() => ({ collection: "characters", eyebrow: EMPTY, title: EMPTY, intro: EMPTY })}
-          addLabel="Ajouter une entrée"
-          itemLabel={(i) => `Entrée ${i + 1}`}
+          addLabel={t("addAnEntry")}
+          itemLabel={(i) => t("entryN", { n: i + 1 })}
           error={errorAt(errors, "items")}
           render={(item, update, i) => (
             <>
               <Select
-                label="Collection"
-                help="Une entrée de collection montre le nombre d'œuvres publiées et, sans image choisie, la couverture de la collection. « Aucune » : une page simple, avec l'image que tu choisis sur la page (obligatoire)."
+                label={t("collection")}
+                help={t("aCollectionEntryShows")}
                 value={item.collection as "characters" | "backgrounds" | "animation" | undefined}
-                options={COLLECTION_OPTIONS}
-                allowEmpty="Aucune (page simple)"
+                options={[
+                  { value: "characters", label: tf("collection_characters") },
+                  { value: "backgrounds", label: tf("collection_backgrounds") },
+                  { value: "animation", label: tf("collection_animation") },
+                ]}
+                allowEmpty={t("noneSimplePage")}
                 onChange={(v) => {
                   const { collection: _c, ...rest } = item;
                   void _c;
@@ -206,10 +219,10 @@ export function CollectionTilesEditor() {
                 }}
                 error={errorAt(errors, `items.${i}.collection`)}
               />
-              <PagePicker label="Page de destination" value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
-              <TextI18n label="Étiquette" value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
-              <TextI18n label="Titre" value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />
-              <TextareaI18n label="Présentation" value={item.intro} onChange={(v) => update({ ...item, intro: v })} error={errorAt(errors, `items.${i}.intro`)} />
+              <PagePicker label={t("destinationPage")} value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
+              <TextI18n label={t("label")} value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
+              <TextI18n label={t("title")} value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />
+              <TextareaI18n label={t("introduction")} value={item.intro} onChange={(v) => update({ ...item, intro: v })} error={errorAt(errors, `items.${i}.intro`)} />
             </>
           )}
         />
@@ -219,17 +232,18 @@ export function CollectionTilesEditor() {
 }
 
 export function FeaturedProjectsEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const more = value.more as { label: L; pageId?: number } | undefined;
   return (
     <>
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
+      <TextI18n label={t("label")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("title")} value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("introduction")} value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
       <ProjectPicker
-        label="Projets affichés"
-        help="Coche les projets dans l'ordre voulu. Si tu n'en coches aucun, tes projets « mis en avant » s'affichent."
+        label={t("projectsShown")}
+        help={t("tickTheProjectsIn")}
         value={value.projects as string[] | undefined}
         onChange={(v) => set("projects", v.length ? v : undefined)}
         error={errorAt(errors, "projects")}
@@ -237,7 +251,7 @@ export function FeaturedProjectsEditor() {
       />
       {!(value.projects as string[] | undefined)?.length && (
         <Select
-          label="Nombre de projets mis en avant"
+          label={t("numberOfFeaturedProjects")}
           value={(value.limit as number) ?? 2}
           options={[1, 2, 3, 4, 5, 6].map((n) => ({ value: n, label: String(n) }))}
           onChange={(v) => set("limit", v ?? 2)}
@@ -245,14 +259,14 @@ export function FeaturedProjectsEditor() {
         />
       )}
       <Toggle
-        label="Lien « voir plus » sous les projets"
+        label={t("seeMoreLinkBelow")}
         checked={Boolean(more)}
         onChange={(on) => set("more", on ? { label: EMPTY } : undefined)}
       />
       {more && (
         <>
-          <TextI18n label="Texte du lien" value={more.label} onChange={(v) => set("more", { ...more, label: v })} error={errorAt(errors, "more.label")} />
-          <PagePicker label="Page de destination" value={more.pageId} onChange={(v) => set("more", { ...more, pageId: v })} error={errorAt(errors, "more.pageId")} context={context} />
+          <TextI18n label={t("linkText")} value={more.label} onChange={(v) => set("more", { ...more, label: v })} error={errorAt(errors, "more.label")} />
+          <PagePicker label={t("destinationPage")} value={more.pageId} onChange={(v) => set("more", { ...more, pageId: v })} error={errorAt(errors, "more.pageId")} context={context} />
         </>
       )}
     </>
@@ -260,16 +274,17 @@ export function FeaturedProjectsEditor() {
 }
 
 export function CollectionIntroEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       <CollectionPicker value={value.collection as string} onChange={(v) => set("collection", v)} error={errorAt(errors, "collection")} />
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
+      <TextI18n label={t("label")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("title")} value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("introduction")} value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
       <Toggle
-        label="Afficher les compteurs (œuvres · projets)"
+        label={t("showTheCountersWorks")}
         checked={(value.showCounts as boolean) ?? true}
         onChange={(v) => set("showCounts", v)}
       />
@@ -278,6 +293,7 @@ export function CollectionIntroEditor() {
 }
 
 export function CollectionProjectsEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
@@ -286,56 +302,59 @@ export function CollectionProjectsEditor() {
       onChange={(v) => set("collection", v)}
       error={errorAt(errors, "collection")}
       exclude={["animation"]}
-      help="Affiche tous les projets qui ont des images dans cette collection."
+      help={t("showsEveryProjectThat")}
     />
   );
 }
 
 export function VideoEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       <MediaPicker
-        label="Demoreel hébergée (facultatif)"
-        help="Une vidéo de ta médiathèque ; sans elle, la demoreel YouTube de la collection Animation s'affiche. Le titre affiché est son texte alternatif."
+        label={t("hostedDemoReelOptional")}
+        help={t("aVideoFromYour")}
         value={value.reelMediaId as number | undefined}
         onChange={(v) => set("reelMediaId", v)}
         error={errorAt(errors, "reelMediaId")}
         context={context}
         kind="video"
       />
-      <TextI18n label="Étiquette de la demoreel" value={l(value.reelEyebrow)} onChange={(v) => set("reelEyebrow", v)} error={errorAt(errors, "reelEyebrow")} />
-      <TextI18n label="Étiquette des extraits" value={l(value.cardsEyebrow)} onChange={(v) => set("cardsEyebrow", v)} error={errorAt(errors, "cardsEyebrow")} />
-      <TextI18n label="Titre des extraits" value={l(value.cardsTitle)} onChange={(v) => set("cardsTitle", v)} error={errorAt(errors, "cardsTitle")} />
+      <TextI18n label={t("demoReelLabel")} value={l(value.reelEyebrow)} onChange={(v) => set("reelEyebrow", v)} error={errorAt(errors, "reelEyebrow")} />
+      <TextI18n label={t("excerptsLabel")} value={l(value.cardsEyebrow)} onChange={(v) => set("cardsEyebrow", v)} error={errorAt(errors, "cardsEyebrow")} />
+      <TextI18n label={t("excerptsTitle")} value={l(value.cardsTitle)} onChange={(v) => set("cardsTitle", v)} error={errorAt(errors, "cardsTitle")} />
     </>
   );
 }
 
 function Paragraphs({ value, onChange, errors, path = "paragraphs", first }: { value: L[]; onChange: (v: L[]) => void; errors: Record<string, string>; path?: string; first?: string }) {
+  const t = useTranslations("blockEditors");
   return (
     <ListField<L>
-      label="Paragraphes"
+      label={t("paragraphs")}
       help={first}
       items={value}
       onChange={onChange}
       make={() => EMPTY}
       min={1}
-      addLabel="Ajouter un paragraphe"
-      itemLabel={(i) => `Paragraphe ${i + 1}`}
+      addLabel={t("addAParagraph")}
+      itemLabel={(i) => t("paragraphN", { n: i + 1 })}
       error={errorAt(errors, path)}
-      render={(p, update, i) => <TextareaI18n label="Texte" value={p} onChange={update} error={errorAt(errors, `${path}.${i}`)} rows={4} />}
+      render={(p, update, i) => <TextareaI18n label={t("text")} value={p} onChange={update} error={errorAt(errors, `${path}.${i}`)} rows={4} />}
     />
   );
 }
 
 export function RichTextEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("titleOptional")} value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
       <Paragraphs value={(value.paragraphs as L[]) ?? [EMPTY]} onChange={(v) => set("paragraphs", v)} errors={errors} />
     </>
   );
@@ -346,11 +365,12 @@ const optional = (v: L): L | undefined => (v.fr || v.en ? v : undefined);
 
 /** Au clic sur un bouton « Me contacter » (lot 125) : formulaire de contact (défaut) ou ancien e-mail. */
 function ContactActionSelect({ idPrefix, prop }: { idPrefix: string; prop: "ctaAction" | "contactAction" }) {
+  const t = useTranslations("blockEditors");
   const { value, onChange } = useBlockEditor();
   const set = useSet(value, onChange);
   const id = `${idPrefix}-${prop}`;
   return (
-    <Field label="Au clic" htmlFor={id} help="Le formulaire s'ouvre dans une fenêtre (ou la page défile jusqu'au formulaire qu'elle contient) ; les messages arrivent dans Admin → Messages. « Ouvrir l'e-mail » lance la messagerie du visiteur.">
+    <Field label={t("onClick")} htmlFor={id} help={t("theFormOpensIn")}>
       <select id={id} className="a-input" value={contactActionOf(value[prop])} onChange={(e) => set(prop, e.target.value === "mail" ? "mail" : undefined)}>
         {CONTACT_ACTIONS.map((a) => (
           <option key={a} value={a}>
@@ -363,6 +383,7 @@ function ContactActionSelect({ idPrefix, prop }: { idPrefix: string; prop: "ctaA
 }
 
 export function ContactEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   const form = value.form === true;
@@ -372,19 +393,19 @@ export function ContactEditor() {
   return (
     <>
       <Toggle
-        label="Avec un formulaire"
-        help="Un formulaire pour t'écrire (champs au choix) à la place du bouton e-mail. Les messages arrivent dans Admin → Messages."
+        label={t("withAForm")}
+        help={t("aFormToWrite")}
         checked={form}
         onChange={setForm}
       />
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", optional(v))} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", optional(v))} error={errorAt(errors, "intro")} />
+      <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("titleOptional")} value={l(value.title)} onChange={(v) => set("title", optional(v))} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("introductionOptional")} value={l(value.intro)} onChange={(v) => set("intro", optional(v))} error={errorAt(errors, "intro")} />
       {form ? (
         <ContactFormEditor />
       ) : (
         <>
-          <TextI18n label="Texte du bouton (facultatif)" help="Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+          <TextI18n label={t("buttonTextOptional")} help={t("emptyNoButton")} value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
           <ContactActionSelect idPrefix={idPrefix} prop="ctaAction" />
         </>
       )}
@@ -393,17 +414,18 @@ export function ContactEditor() {
 }
 
 export function ProfileEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
-      <MediaPicker label="Portrait" value={value.portraitMediaId as number | undefined} onChange={(v) => set("portraitMediaId", v)} error={errorAt(errors, "portraitMediaId")} context={context} />
-      <FormatSelect label="Format du portrait" ratioProp="portraitRatio" mediaProp="portraitMediaId" help="Imposé : le portrait est cadré (sur la page, « Cadrer »)." />
-      <TextI18n label="Légende du portrait (facultative)" value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", optional(v))} error={errorAt(errors, "portraitCaption")} />
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <MediaPicker label={t("portrait")} value={value.portraitMediaId as number | undefined} onChange={(v) => set("portraitMediaId", v)} error={errorAt(errors, "portraitMediaId")} context={context} />
+      <FormatSelect label={t("portraitFormat")} ratioProp="portraitRatio" mediaProp="portraitMediaId" help={t("fixedThePortraitIs")} />
+      <TextI18n label={t("portraitCaptionOptional")} value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", optional(v))} error={errorAt(errors, "portraitCaption")} />
+      <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
       <Toggle
-        label="Afficher ton nom"
-        help="Le nom du site, en grand. À retirer quand l'Ouverture de la page l'affiche déjà."
+        label={t("showYourName")}
+        help={t("theSiteNameLarge")}
         checked={value.showName !== false}
         onChange={(on) => set("showName", on ? undefined : false)}
       />
@@ -411,17 +433,18 @@ export function ProfileEditor() {
         value={(value.paragraphs as L[]) ?? [EMPTY]}
         onChange={(v) => set("paragraphs", v)}
         errors={errors}
-        first="Le premier paragraphe est mis en avant."
+        first={t("theFirstParagraphIs")}
       />
-      <TextI18n label="Étiquette du contact (facultative)" value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", optional(v))} error={errorAt(errors, "contactEyebrow")} />
-      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée, en lien e-mail)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <TextI18n label={t("contactLabelOptional")} value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", optional(v))} error={errorAt(errors, "contactEyebrow")} />
+      <TextI18n label={t("contactButtonTextOptional")} help={t("emptyNoButtonThe")} value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
       <ContactActionSelect idPrefix={idPrefix} prop="contactAction" />
-      <TextI18n label="Étiquette des réseaux (facultative)" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", optional(v))} error={errorAt(errors, "socialEyebrow")} />
+      <TextI18n label={t("socialNetworksLabelOptional")} value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", optional(v))} error={errorAt(errors, "socialEyebrow")} />
     </>
   );
 }
 
 export function ProjectBoardEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   const current = context.projects.find((p) => p.slug === value.project);
@@ -429,28 +452,28 @@ export function ProjectBoardEditor() {
   return (
     <>
     <Field
-      label="Projet"
+      label={t("project")}
       htmlFor={id}
       error={errorAt(errors, "project")}
       help={
         current?.draft
-          ? "Projet créé sur cette page : son nom, son contexte et son année se modifient directement sur la page (double-clic). Il devient public avec la page."
-          : "Les images se placent, se déplacent et se retirent directement sur la page. Le nom et les textes du projet se modifient dans l'écran Projets."
+          ? t("projectCreatedOnThis")
+          : t("imagesArePlacedMoved")
       }
     >
       <select id={id} className="a-input" value={(value.project as string | undefined) ?? ""} onChange={(e) => set("project", e.target.value || undefined)}>
-        <option value="">— Projet du bloc (ou à choisir) —</option>
+        <option value="">{t("theBlockSProject")}</option>
         {context.projects.map((p) => (
           <option key={p.slug} value={p.slug}>
             {p.title}
-            {p.draft ? " (créé sur cette page)" : p.onPage === false ? " (pas encore sur une page)" : ""}
+            {p.draft ? t("createdOnThisPage") : p.onPage === false ? t("notOnAPage") : ""}
           </option>
         ))}
       </select>
     </Field>
-    <Toggle label="Nom et présentation du projet, en tête" checked={value.header !== false} onChange={(on) => set("header", on ? undefined : false)} />
-    <Toggle label="Fond plus soutenu (pour alterner deux projets)" checked={Boolean(value.deep)} onChange={(on) => set("deep", on || undefined)} />
-    {typeof value.collection === "string" && <p className="a-help">Projet limité aux œuvres d&apos;un métier (reprise d&apos;une ancienne page de collection).</p>}
+    <Toggle label={t("projectNameAndIntroduction")} checked={value.header !== false} onChange={(on) => set("header", on ? undefined : false)} />
+    <Toggle label={t("deeperBackgroundToAlternate")} checked={Boolean(value.deep)} onChange={(on) => set("deep", on || undefined)} />
+    {typeof value.collection === "string" && <p className="a-help">{t("projectLimitedToThe")}</p>}
     </>
   );
 }
@@ -458,6 +481,7 @@ export function ProjectBoardEditor() {
 /* ---- Conteneurs et composants (v0.13) ------------------------------------ */
 
 export function FeaturedProjectEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const more = value.more as { label: L; pageId?: number } | undefined;
@@ -466,7 +490,7 @@ export function FeaturedProjectEditor() {
     <>
       <ProjectCombobox
         prefix="ve"
-        label="Projet affiché dans ce bloc"
+        label={t("projectShownInThis")}
         projects={context.projects}
         value={value.project as string | undefined}
         onPick={(slug) => set("project", slug)}
@@ -480,16 +504,12 @@ export function FeaturedProjectEditor() {
         }
       />
       {errorAt(errors, "project") && <p className="a-field-error">{errorAt(errors, "project")}</p>}
-      <p className="a-help">
-        Le titre, la présentation et les images viennent du projet : les modifier ici (sur la page) les change aussi dans l&apos;écran Projets et ailleurs, après
-        publication. {count} bloc{count > 1 ? "s" : ""} dedans : glisse-en un de « Ajouter » DANS le cadre ; un projet ou un titre sans projet propre
-        prend celui-ci.
-      </p>
-      <Toggle label="Lien « voir plus » sous le projet" checked={Boolean(more)} onChange={(on) => set("more", on ? { label: EMPTY } : undefined)} />
+      <p className="a-help">{t("theTitleIntroductionAnd", { count })}</p>
+      <Toggle label={t("seeMoreLinkBelow2")} checked={Boolean(more)} onChange={(on) => set("more", on ? { label: EMPTY } : undefined)} />
       {more && (
         <>
-          <TextI18n label="Texte du lien" value={more.label} onChange={(v) => set("more", { ...more, label: v })} error={errorAt(errors, "more.label")} />
-          <PagePicker label="Page de destination" value={more.pageId} onChange={(v) => set("more", { ...more, pageId: v })} error={errorAt(errors, "more.pageId")} context={context} />
+          <TextI18n label={t("linkText")} value={more.label} onChange={(v) => set("more", { ...more, label: v })} error={errorAt(errors, "more.label")} />
+          <PagePicker label={t("destinationPage")} value={more.pageId} onChange={(v) => set("more", { ...more, pageId: v })} error={errorAt(errors, "more.pageId")} context={context} />
         </>
       )}
     </>
@@ -498,10 +518,11 @@ export function FeaturedProjectEditor() {
 
 /** Choix d'agencement par pictogrammes, avec le nom de chacun (la barre de la grille, sur la toile, propose les mêmes). */
 export function LayoutPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useTranslations("blockEditors");
   return (
     <div className="a-field">
       <span className="a-label" id="ve-layout-label">
-        Agencement
+        {t("arrangement")}
       </span>
       <div className="ve-layouts ve-layouts-named" role="radiogroup" aria-labelledby="ve-layout-label">
         {GRID_LAYOUTS.map((l) => (
@@ -511,16 +532,16 @@ export function LayoutPicker({ value, onChange }: { value: string; onChange: (v:
           </button>
         ))}
       </div>
-      <p className="a-help">Les images remplissent les cases dans l&apos;ordre ; au-delà, le motif se répète. Changer d&apos;agencement ne retire rien. Modifier la taille d&apos;une case passe en « Sur mesure ».</p>
+      <p className="a-help">{t("imagesFillTheCells")}</p>
     </div>
   );
 }
 
-const GAP_CHOICES: [string, string][] = [
-  ["none", "Aucun"],
-  ["tight", "Petit"],
-  ["normal", "Moyen"],
-  ["wide", "Grand"],
+const gapChoices = (t: AdminT): [string, string][] => [
+  ["none", t("none2")],
+  ["tight", t("small")],
+  ["normal", t("medium")],
+  ["wide", t("large")],
 ];
 
 /**
@@ -529,6 +550,8 @@ const GAP_CHOICES: [string, string][] = [
  * sur la toile (barre de la grille et de ses cases).
  */
 export function GridTop() {
+  const t = useTranslations("blockEditors");
+  const tl = useTranslations("blockRegLabels");
   const { value, onChange, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const layout = (value.layout as string) ?? "2";
@@ -545,31 +568,31 @@ export function GridTop() {
   });
   return (
     <>
-      <section className="ve-grid-top" aria-label="Grille : l'essentiel" data-testid="grid-top">
-        <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
+      <section className="ve-grid-top" aria-label={t("gridTheEssentials")} data-testid="grid-top">
+        <Toggle label={t("enlargeOnClick")} checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
         <LayoutPicker value={layout} onChange={(v) => apply({ op: "set", layout: v as GridLayout })} />
         <div className="a-field">
           <span className="a-label" id="ve-gap-label">
-            Espace entre les images
+            {t("spaceBetweenImages")}
           </span>
           <div className="ve-chips" role="radiogroup" aria-labelledby="ve-gap-label" data-testid="grid-gap">
-            {GAP_CHOICES.map(([v, label]) => (
+            {gapChoices(t).map(([v, label]) => (
               <button key={v} type="button" role="radio" aria-checked={((value.gap as string) ?? "normal") === v} data-gap={v} className="ve-chip" onClick={() => set("gap", v)}>
                 {label}
               </button>
             ))}
           </div>
         </div>
-        <FormatSelect label="Format des cases" help="Les vidéos suivent le même format que les images." explicitAuto />
-        {isJustified(value as GridShape) && layout !== "auto" && !keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-justify-hint">{JUSTIFY_HINT}</p>}
-        {keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-keep-hint">{KEEP_SHAPE_HINT}</p>}
+        <FormatSelect label={t("cellFormat")} help={t("videosFollowTheSame")} explicitAuto />
+        {isJustified(value as GridShape) && layout !== "auto" && !keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-justify-hint">{tl("justifyHint")}</p>}
+        {keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-keep-hint">{tl("keepShapeHint")}</p>}
         <p className="a-help" data-testid="grid-count">
-          {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
+          {t("countPlural0No", { count: kids.length })}
         </p>
         {(layout === "custom" || layout === "auto") && (
           <div className="a-field" data-testid="grid-custom">
             <span className="a-label" id="ve-cols-label">
-              Colonnes
+              {t("columns")}
             </span>
             <div className="ve-chips" role="radiogroup" aria-labelledby="ve-cols-label">
               {CUSTOM_COLS.map((c) => (
@@ -578,43 +601,44 @@ export function GridTop() {
                 </button>
               ))}
             </div>
-            {layout === "custom" && <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />}
-            <p className="a-help">{layout === "auto" ? (isJustified(value as GridShape) ? JUSTIFY_HINT : AUTO_HINT) : isJustified(value as GridShape) ? "Sur la page, chaque case a « Seule sur sa ligne » ou « Avec les autres » dans son menu Taille." : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
+            {layout === "custom" && <Toggle label={t("swapLeftAndRight")} checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />}
+            <p className="a-help">{layout === "auto" ? (isJustified(value as GridShape) ? tl("justifyHint") : tl("autoHint")) : isJustified(value as GridShape) ? t("onThePageEach") : t("onThePageEach2")}</p>
           </div>
         )}
         <button type="button" className="a-btn" data-testid="grid-adapt" disabled={kids.length === 0} onClick={() => apply({ op: "adapt", ratios })}>
-          Adapter aux images
+          {t("fitToTheImages")}
         </button>
-        <p className="a-help">Donne à chaque case la forme de son image : un portrait sur deux rangées, un panorama sur deux colonnes.</p>
+        <p className="a-help">{t("givesEachCellThe")}</p>
       </section>
     </>
   );
 }
 
 export function GridAdvanced() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       <details className="ve-advanced" data-testid="grid-advanced">
-        <summary>Réglages avancés</summary>
+        <summary>{t("advancedSettings")}</summary>
         <Select
-          label="Alignement vertical"
+          label={t("verticalAlignment")}
           value={(value.align as string) ?? "stretch"}
           options={[
-            { value: "stretch", label: "Étirer" },
-            { value: "start", label: "En haut" },
-            { value: "center", label: "Au centre" },
-            { value: "end", label: "En bas" },
+            { value: "stretch", label: t("stretch") },
+            { value: "start", label: t("top") },
+            { value: "center", label: t("center") },
+            { value: "end", label: t("bottom") },
           ]}
           onChange={(v) => set("align", v ?? "stretch")}
         />
-        <Toggle label="Espace au-dessus (comme entre deux blocs)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
-        <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-        <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
-        <TextI18n label="Sous la grille : titre (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
-        <TextareaI18n label="Sous la grille : légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
-        <TextI18n label="Sous la grille : date (facultative)" value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
+        <Toggle label={t("spaceAboveAsBetween")} checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
+        <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+        <TextI18n label={t("titleOptional")} value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+        <TextI18n label={t("belowTheGridTitle")} value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+        <TextareaI18n label={t("belowTheGridCaption")} value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
+        <TextI18n label={t("belowTheGridDate")} value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
       </details>
     </>
   );
@@ -631,49 +655,50 @@ export function GridEditor() {
 }
 
 export function ImageEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   // Lot 132 : une animation image par image règle sa cadence ici (6 / 8 / 12 / 24 i/s) et sa boucle ; une image ordinaire n'a rien de plus.
   const animated = Boolean(context.media.find((m) => m.id === value.mediaId)?.anim);
   return (
     <>
-      <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
-      <MediaPicker label="Image" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
+      <Toggle label={t("enlargeOnClick")} checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
+      <MediaPicker label={t("image")} value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
       {animated && (
         <>
           <Select
-            label="Cadence de l'animation"
-            help="Images par seconde. Hors écran, l'animation s'arrête ; avec « réduire les animations » activé sur l'appareil du visiteur, elle montre sa première image."
+            label={t("animationPace")}
+            help={t("animationPaceHelp")}
             value={String((value.fps as number | undefined) ?? 8)}
-            options={[6, 8, 12, 24].map((f) => ({ value: String(f), label: `${f} images par seconde` }))}
+            options={[6, 8, 12, 24].map((f) => ({ value: String(f), label: t("framesPerSecond", { count: f }) }))}
             onChange={(v) => set("fps", v && Number(v) !== 8 ? Number(v) : undefined)}
           />
-          <Toggle label="Jouer en boucle" checked={value.loop !== false} onChange={(v) => set("loop", v ? undefined : false)} />
+          <Toggle label={t("playInLoop")} checked={value.loop !== false} onChange={(v) => set("loop", v ? undefined : false)} />
         </>
       )}
-      <TextI18n label="Titre sous l'image (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
-      <TextareaI18n label="Légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
-      <TextI18n label="Date (facultative)" help="Texte libre court, par exemple « 2026 » ou « mars 2026 »." value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
+      <TextI18n label={t("titleBelowTheImage")} value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+      <TextareaI18n label={t("captionOptional")} value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
+      <TextI18n label={t("dateOptional")} help={t("shortFreeTextFor")} value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
       <Select
-        label="Largeur"
-        help="Dans une grille, l'image occupe sa cellule."
+        label={t("width")}
+        help={t("inAGridThe")}
         value={(value.width as string) ?? "wide"}
         options={[
-          { value: "text", label: "Colonne de texte" },
-          { value: "wide", label: "Largeur du site" },
-          { value: "full", label: "Pleine largeur" },
+          { value: "text", label: t("textColumn") },
+          { value: "wide", label: t("siteWidth") },
+          { value: "full", label: t("fullWidth") },
         ]}
         onChange={(v) => set("width", v ?? "wide")}
       />
-      <FormatSelect help="Imposé : l'image est cadrée (sur la page, survole-la puis « Cadrer » pour choisir la zone gardée)." mediaProp="mediaId" />
+      <FormatSelect help={t("fixedTheImageIs")} mediaProp="mediaId" />
       <Select
-        label="Dans la case"
-        help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier (bandes vides si besoin), « Remplir la case » la rogne. Un recadrage libre (« Cadrer » sur la page) suit son propre format."
+        label={t("inTheCell")}
+        help={t("withNoFixedFormat")}
         value={(value.fit as string) ?? "auto"}
         options={[
-          { value: "auto", label: "Automatique (entière en pleine largeur)" },
-          { value: "contain", label: "Image entière" },
-          { value: "cover", label: "Remplir la case" },
+          { value: "auto", label: t("automaticWholeAtFull") },
+          { value: "contain", label: t("wholeImage") },
+          { value: "cover", label: t("fillTheCell") },
         ]}
         onChange={(v) => set("fit", v === "auto" ? undefined : v)}
       />
@@ -682,6 +707,7 @@ export function ImageEditor() {
 }
 
 export function EtapesEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const mode = stepsMode(value);
@@ -689,11 +715,11 @@ export function EtapesEditor() {
   const items = (Array.isArray(value.items) ? value.items : []) as Step[];
   const max = mode === "compare" ? 2 : MAX_STEPS;
   const setItems = (next: typeof items) => set("items", next);
-  const word = mode === "turn" ? "Vue" : mode === "compare" ? "Image" : "Étape";
+  const word = mode === "turn" ? t("viewWord") : mode === "compare" ? t("imageWord") : t("stepWord");
   return (
     <>
       <Select
-        label="Lecture"
+        label={t("readingMode")}
         help={STEPS_MODE_HINTS[mode]}
         value={mode}
         options={STEPS_MODES.map((m) => ({ value: m, label: STEPS_MODE_LABELS[m] }))}
@@ -701,57 +727,58 @@ export function EtapesEditor() {
         error={errorAt(errors, "mode")}
       />
       {mode === "steps" && (
-        <Select label="Présentation" value={stepsView(value)} options={STEPS_VIEWS.map((v) => ({ value: v, label: STEPS_VIEW_LABELS[v] }))} onChange={(v) => set("view", v === "tabs" ? undefined : v)} error={errorAt(errors, "view")} />
+        <Select label={t("stepsViewLabel")} value={stepsView(value)} options={STEPS_VIEWS.map((v) => ({ value: v, label: STEPS_VIEW_LABELS[v] }))} onChange={(v) => set("view", v === "tabs" ? undefined : v)} error={errorAt(errors, "view")} />
       )}
-      <FormatSelect label="Format commun des images" help="Toutes les images sont recadrées pareil, au centre. Libre : le format de la première." />
+      <FormatSelect label={t("commonImageFormat")} help={t("commonImageFormatHelp")} />
       {mode === "compare" && (
-        <TextField label="Position de départ du curseur (0 à 100)" value={value.start === undefined ? "" : String(value.start)} onChange={(v) => set("start", v.trim() === "" || Number.isNaN(Number(v)) ? undefined : Math.max(0, Math.min(100, Math.round(Number(v)))))} error={errorAt(errors, "start")} />
+        <TextField label={t("cursorStart")} value={value.start === undefined ? "" : String(value.start)} onChange={(v) => set("start", v.trim() === "" || Number.isNaN(Number(v)) ? undefined : Math.max(0, Math.min(100, Math.round(Number(v)))))} error={errorAt(errors, "start")} />
       )}
       <ListField
-        label={mode === "compare" ? "Les deux images (avant, puis après)" : mode === "turn" ? "Les vues, dans l'ordre du tour" : "Les étapes, dans l'ordre"}
-        help={`${items.length} sur ${max} au plus.`}
+        label={mode === "compare" ? t("bothImagesBeforeAfter") : mode === "turn" ? t("viewsInTurnOrder") : t("stepsInOrder")}
+        help={t("itemsCountOfMax", { count: items.length, max })}
         items={items}
         onChange={(next) => setItems(next.slice(0, max))}
         make={(): Step => ({})}
         addLabel={`+ ${word}`}
-        itemLabel={(i) => (mode === "compare" ? (i === 0 ? "Avant" : "Après") : `${word} ${i + 1}`)}
+        itemLabel={(i) => (mode === "compare" ? (i === 0 ? t("beforeWord") : t("afterWord")) : `${word} ${i + 1}`)}
         error={errorAt(errors, "items")}
         render={(item, update, i) => (
           <>
-            <MediaPicker label="Image" value={item.media} onChange={(v) => update({ ...item, media: v })} error={errorAt(errors, `items.${i}.media`)} context={context} />
-            <TextI18n label="Titre (facultatif)" value={l(item.label)} onChange={(v) => update({ ...item, label: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.label`)} />
-            <TextareaI18n label="Légende (facultative)" value={l(item.caption)} onChange={(v) => update({ ...item, caption: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.caption`)} />
+            <MediaPicker label={t("image")} value={item.media} onChange={(v) => update({ ...item, media: v })} error={errorAt(errors, `items.${i}.media`)} context={context} />
+            <TextI18n label={t("titleOptional")} value={l(item.label)} onChange={(v) => update({ ...item, label: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.label`)} />
+            <TextareaI18n label={t("captionOptional")} value={l(item.caption)} onChange={(v) => update({ ...item, caption: v.fr || v.en ? v : undefined })} error={errorAt(errors, `items.${i}.caption`)} />
           </>
         )}
       />
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
+      <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("titleOptional")} value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("introductionOptional")} value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
     </>
   );
 }
 
 export function CvEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       <MediaPicker
-        label="CV (PDF)"
+        label={t("cvPdf")}
         kind="pdf"
-        help="Un PDF de 10 pages au plus (15 Mo) : ses pages s'affichent en images, et le bouton télécharge le PDF d'origine."
+        help={t("aPdfOfAt")}
         value={value.mediaId as number | undefined}
         onChange={(v) => set("mediaId", v)}
         error={errorAt(errors, "mediaId")}
         context={context}
       />
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
-      <TextI18n label="Texte du bouton" help="Vide : « Télécharger mon CV »." value={l(value.button)} onChange={(v) => set("button", v.fr || v.en ? v : undefined)} error={errorAt(errors, "button")} />
+      <TextI18n label={t("label")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("title")} value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("introductionOptional")} value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
+      <TextI18n label={t("buttonText")} help={t("emptyDownloadMyCv")} value={l(value.button)} onChange={(v) => set("button", v.fr || v.en ? v : undefined)} error={errorAt(errors, "button")} />
       <TextField
-        label="Nom du fichier téléchargé"
-        help="Sans extension : lettres minuscules, chiffres et tirets (ex. cv-camille-martin)."
+        label={t("downloadedFileName")}
+        help={t("noExtensionLowercaseLetters")}
         value={(value.fileName as string) ?? ""}
         onChange={(v) => {
           const clean = v.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9-]+/g, "-").slice(0, 60);
@@ -764,14 +791,15 @@ export function CvEditor() {
 }
 
 export function SectionTitleEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const linked = Boolean(value.linked);
   return (
     <>
       <Toggle
-        label="Reprendre le nom et la présentation d'un projet"
-        help="Le titre et la présentation sont ceux du projet : tu les modifies sur la page ; ils changent aussi dans l'écran Projets et sur la page, après publication."
+        label={t("reuseAProjectS")}
+        help={t("theTitleAndIntroduction")}
         checked={linked}
         onChange={(on) => set("linked", on || undefined)}
       />
@@ -779,7 +807,7 @@ export function SectionTitleEditor() {
         <>
           <ProjectCombobox
             prefix="ve"
-            label="Projet repris par ce titre"
+            label={t("projectReusedByThis")}
             projects={context.projects}
             value={value.project as string | undefined}
             onPick={(slug) => set("project", slug)}
@@ -795,20 +823,20 @@ export function SectionTitleEditor() {
           {errorAt(errors, "project") && <p className="a-field-error">{errorAt(errors, "project")}</p>}
         </>
       )}
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("label")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       {!linked && (
         <>
-          <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
-          <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
+          <TextI18n label={t("title")} value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+          <TextareaI18n label={t("introduction")} value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
           <Toggle
-            label="Titre principal de la page (h1)"
-            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de bloc (h2)."
+            label={t("mainPageTitleH1")}
+            help={t("thePageSBig")}
             checked={value.main === true}
             onChange={(on) => set("main", on ? true : undefined)}
           />
           <Toggle
-            label="Compteurs « N œuvres · M projets »"
-            help="Calculés depuis les projets de la page, sous le titre."
+            label={t("countersNWorksM")}
+            help={t("computedFromThePage")}
             checked={value.counts === true}
             onChange={(on) => set("counts", on ? true : undefined)}
           />
@@ -819,12 +847,13 @@ export function SectionTitleEditor() {
 }
 
 export function PageLinkEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
-      <TextI18n label="Texte du lien" value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
-      <PagePicker label="Page de destination" value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
+      <TextI18n label={t("linkText")} value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
+      <PagePicker label={t("destinationPage")} value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
     </>
   );
 }
@@ -832,43 +861,45 @@ export function PageLinkEditor() {
 /* ---- Page introuvable (lot 89) -------------------------------------------- */
 
 export function ExitEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       <TextI18n
-        label="Étiquette (facultative)"
-        help="Vide dans les deux langues : pas d'étiquette. Vide dans une seule langue : le texte par défaut de cette langue."
+        label={t("labelOptional")}
+        help={t("emptyInBothLanguages")}
         value={l(value.eyebrow)}
         onChange={(v) => set("eyebrow", optional(v))}
         error={errorAt(errors, "eyebrow")}
       />
-      <TextI18n label="Titre" help="Vide : le titre par défaut de la langue (« Page introuvable »)." value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextI18n label={t("title")} help={t("emptyTheLanguageS")} value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
       <ListField<L>
-        label="Messages"
-        help="Un seul message : il s'affiche toujours. Plusieurs : un message est tiré au hasard à chaque visite. Un message vide dans une langue reprend le texte par défaut de cette langue."
+        label={t("messages")}
+        help={t("aSingleMessageIt")}
         items={(value.messages as L[]) ?? [EMPTY]}
         onChange={(v) => set("messages", v)}
         make={() => EMPTY}
         min={1}
-        addLabel="Ajouter un message"
-        itemLabel={(i) => `Message ${i + 1}`}
+        addLabel={t("addAMessage")}
+        itemLabel={(i) => t("messageN", { n: i + 1 })}
         error={errorAt(errors, "messages")}
-        render={(m, update, i) => <TextareaI18n label="Texte" value={m} onChange={update} error={errorAt(errors, `messages.${i}`)} rows={3} />}
+        render={(m, update, i) => <TextareaI18n label={t("text")} value={m} onChange={update} error={errorAt(errors, `messages.${i}`)} rows={3} />}
       />
-      <TextI18n label="Texte du bouton" help="Vide : « Retour à l'accueil »." value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
-      <PagePicker label="Destination du bouton" optional="L'accueil" value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
+      <TextI18n label={t("buttonText")} help={t("emptyBackToHome")} value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
+      <PagePicker label={t("buttonDestination")} optional={t("theHomePage")} value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
     </>
   );
 }
 
-const WORK_SOURCES: { value: "all" | "collection" | "manual"; label: string }[] = [
-  { value: "all", label: "Tout le portfolio" },
-  { value: "collection", label: "Une catégorie" },
-  { value: "manual", label: "Une sélection d'œuvres" },
+const workSources = (t: AdminT): { value: "all" | "collection" | "manual"; label: string }[] => [
+  { value: "all", label: t("theWholePortfolio") },
+  { value: "collection", label: t("oneCategory") },
+  { value: "manual", label: t("aSelectionOfWorks") },
 ];
 
 export function RandomWorkEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const source = (value.source as "all" | "collection" | "manual" | undefined) ?? "all";
@@ -877,16 +908,16 @@ export function RandomWorkEditor() {
   return (
     <>
       <Select
-        label="D'où vient l'œuvre"
-        help="Une œuvre publiée est tirée au hasard à chaque visite. Jamais un brouillon, ni une œuvre à la corbeille, ni un projet qu'aucune page n'affiche."
+        label={t("whereTheWorkComes")}
+        help={t("aPublishedWorkIs")}
         value={source}
-        options={WORK_SOURCES}
+        options={workSources(t)}
         onChange={(v) => onChange({ ...value, source: v ?? "all", ...(v === "collection" ? {} : { collection: undefined }), ...(v === "manual" ? {} : { works: undefined }) })}
         error={errorAt(errors, "source")}
       />
-      {source === "collection" && <CollectionPicker label="Catégorie" value={value.collection as string | undefined} onChange={(v) => set("collection", v)} error={errorAt(errors, "collection")} />}
+      {source === "collection" && <CollectionPicker label={t("category")} value={value.collection as string | undefined} onChange={(v) => set("collection", v)} error={errorAt(errors, "collection")} />}
       {source === "manual" && (
-        <Field label="Œuvres de la sélection" help={works.length ? `${chosen.size} choisie${chosen.size > 1 ? "s" : ""} sur ${works.length}.` : "Aucune œuvre publiée pour le moment."} error={errorAt(errors, "works")}>
+        <Field label={t("worksInTheSelection")} help={works.length ? t("chosenChosenOutOf", { chosen: chosen.size, total: works.length }) : t("noPublishedWorkYet")} error={errorAt(errors, "works")}>
           <ul className="a-checklist" data-testid="random-work-picker">
             {works.map((w) => (
               <li key={w.slug}>
@@ -908,13 +939,13 @@ export function RandomWorkEditor() {
           </ul>
         </Field>
       )}
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("labelOptional")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
       <Select
-        label="Largeur"
+        label={t("width")}
         value={(value.width as "text" | "wide" | undefined) ?? "text"}
         options={[
-          { value: "text", label: "Colonne de texte" },
-          { value: "wide", label: "Large" },
+          { value: "text", label: t("textColumn") },
+          { value: "wide", label: t("wide") },
         ]}
         onChange={(v) => set("width", v)}
         error={errorAt(errors, "width")}
@@ -924,54 +955,56 @@ export function RandomWorkEditor() {
 }
 
 export function VideoSingleEditor() {
+  const t = useTranslations("blockEditors");
+  const tl = useTranslations("blockRegLabels");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
       {typeof value.slot === "string" && !value.mediaId && (
-        <p className="a-help">Plan YouTube de la collection Animation (repris de l&apos;ancienne vitrine). Choisis une vidéo de ta médiathèque pour le remplacer.</p>
+        <p className="a-help">{t("youtubeShotFromThe")}</p>
       )}
-      <MediaPicker label="Vidéo" kind="video" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
+      <MediaPicker label={t("video")} kind="video" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
       <Select
-        label="Lecture"
-        help={VIDEO_MODE_HINTS[modeOf(value)]}
+        label={t("playback")}
+        help={tl(`videoMode.hint.${modeOf(value)}`)}
         value={modeOf(value)}
-        options={VIDEO_MODE_OPTIONS}
+        options={videoModeOptions(tl)}
         onChange={(v) => set("mode", v ?? "player")}
       />
       {typeof value.mediaId === "number" && context.media.find((x) => x.id === value.mediaId)?.hasAudio !== false && (
         // Son au départ (lot 127) : seulement pour une vidéo qui a du son ; « Activé » (le défaut) retire le champ.
         <Select
-          label="Son au départ"
-          help={VIDEO_SOUND_HINTS[soundOf(value)]}
+          label={t("soundOnStart")}
+          help={tl(`videoSound.hint.${soundOf(value)}`)}
           value={soundOf(value)}
-          options={VIDEO_SOUND_OPTIONS}
+          options={videoSoundOptions(tl)}
           onChange={(v) => onChange(v === "off" ? { ...value, sound: "off" } : (({ sound: _s, ...rest }) => (void _s, rest))(value))}
         />
       )}
       <Select
-        label="Présentation"
+        label={t("presentation")}
         value={(value.variant as string) ?? "card"}
         options={[
-          { value: "card", label: "Carte : vidéo, titre et légende dessous" },
-          { value: "feature", label: "Grande : étiquette et titre au-dessus" },
-          { value: "plain", label: "Vidéo seule (légende facultative)" },
+          { value: "card", label: t("cardVideoTitleAnd") },
+          { value: "feature", label: t("largeLabelAndTitle") },
+          { value: "plain", label: t("videoOnlyCaptionOptional") },
         ]}
         onChange={(v) => set("variant", v ?? "card")}
       />
       <MediaPicker
-        label="Image d'attente (facultative)"
-        help="Affichée avant la lecture ; sinon, l'image de la vidéo."
+        label={t("placeholderImageOptional")}
+        help={t("shownBeforePlaybackOtherwise")}
         value={value.posterMediaId as number | undefined}
         onChange={(v) => set("posterMediaId", v)}
         error={errorAt(errors, "posterMediaId")}
         context={context}
       />
-      <TextI18n label="Étiquette (présentation « Grande »)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre" help="Vide : le texte alternatif de la vidéo." value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Légende" value={l(value.description)} onChange={(v) => set("description", v.fr || v.en ? v : undefined)} error={errorAt(errors, "description")} />
-      <TextI18n label="Titre sous la vidéo (présentation « Vidéo seule »)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
-      <TextI18n label="Date (facultative)" help="Texte libre court, par exemple « 2026 » ou « mars 2026 »." value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
+      <TextI18n label={t("labelLargePresentation")} value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label={t("title")} help={t("emptyTheVideoS")} value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextareaI18n label={t("caption")} value={l(value.description)} onChange={(v) => set("description", v.fr || v.en ? v : undefined)} error={errorAt(errors, "description")} />
+      <TextI18n label={t("titleBelowTheVideo")} value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+      <TextI18n label={t("dateOptional")} help={t("shortFreeTextFor")} value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
     </>
   );
 }
@@ -979,6 +1012,7 @@ export function VideoSingleEditor() {
 /* ---- Formulaire de contact (v0.13) ---------------------------------------- */
 
 export function ContactFormEditor() {
+  const t = useTranslations("blockEditors");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const fields = (value.fields as FormField[]) ?? [];
@@ -993,33 +1027,36 @@ export function ContactFormEditor() {
   return (
     <>
       <p className="ve-site-note" role="note">
-        <strong>Envoi par e-mail : non configuré</strong> (aucun serveur d&apos;envoi sur ce site). Les messages arrivent dans{" "}
-        <Link href="/admin/messages" target="_blank">
-          Admin → Messages
-        </Link>{" "}
-        ; ton adresse n&apos;apparaît jamais sur la page.
+        <strong>{t("emailSendingNotConfigured")}</strong>{" "}
+        {t.rich("noMailServerOn", {
+          link: (chunks) => (
+            <Link href="/admin/messages" target="_blank">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
       {context.previewForm && (
-        <div className="a-field" role="group" aria-label="Aperçu sur la page">
-          <span className="a-label">Voir sur la page</span>
+        <div className="a-field" role="group" aria-label={t("previewOnThePage")}>
+          <span className="a-label">{t("seeOnThePage")}</span>
           <div className="ve-layouts">
             <button type="button" className="a-btn a-btn-small" onClick={() => context.previewForm!("form")}>
-              Le formulaire
+              {t("theForm")}
             </button>
             <button type="button" className="a-btn a-btn-small" onClick={() => context.previewForm!("success")}>
-              Voir le message de confirmation
+              {t("seeTheConfirmationMessage")}
             </button>
             <button type="button" className="a-btn a-btn-small" onClick={() => context.previewForm!("error")}>
-              Le message d&apos;erreur
+              {t("theErrorMessage")}
             </button>
           </div>
         </div>
       )}
-      <TextI18n label="Objet des messages reçus" value={l(value.subject)} onChange={(v) => set("subject", v)} error={errorAt(errors, "subject")} />
-      <TextI18n label="Texte du bouton" value={l(value.submit)} onChange={(v) => set("submit", v)} error={errorAt(errors, "submit")} />
-      <TextareaI18n label="Message de confirmation" value={l(value.success)} onChange={(v) => set("success", v)} error={errorAt(errors, "success")} />
-      <TextareaI18n label="Message d'erreur" value={l(value.error)} onChange={(v) => set("error", v)} error={errorAt(errors, "error")} />
-      <h3 className="ve-sub">Champs</h3>
+      <TextI18n label={t("subjectOfReceivedMessages")} value={l(value.subject)} onChange={(v) => set("subject", v)} error={errorAt(errors, "subject")} />
+      <TextI18n label={t("buttonText")} value={l(value.submit)} onChange={(v) => set("submit", v)} error={errorAt(errors, "submit")} />
+      <TextareaI18n label={t("confirmationMessage")} value={l(value.success)} onChange={(v) => set("success", v)} error={errorAt(errors, "success")} />
+      <TextareaI18n label={t("errorMessage")} value={l(value.error)} onChange={(v) => set("error", v)} error={errorAt(errors, "error")} />
+      <h3 className="ve-sub">{t("fields")}</h3>
       {errorAt(errors, "fields") && <p className="a-field-error">{errorAt(errors, "fields")}</p>}
       <ol className="ve-list">
         {fields.map((f, i) => (
@@ -1027,46 +1064,46 @@ export function ContactFormEditor() {
             <span className="ve-list-main">
               <p className="a-help">
                 {FIELD_LABELS[f.type]}
-                {f.reply ? " · sert à te répondre" : ""}
+                {f.reply ? t("usedToReplyTo2") : ""}
               </p>
-              <TextI18n label="Libellé" value={l(f.label)} onChange={(v) => update(i, { label: v })} error={errorAt(errors, `fields.${i}.label`)} />
-              <TextI18n label="Texte d'exemple (facultatif)" value={l(f.placeholder)} onChange={(v) => update(i, { placeholder: v.fr || v.en ? v : undefined })} />
-              <TextI18n label="Aide (facultative)" value={l(f.help)} onChange={(v) => update(i, { help: v.fr || v.en ? v : undefined })} />
-              <Toggle label="Obligatoire" checked={f.required} onChange={(on) => update(i, { required: on })} />
+              <TextI18n label={t("labelText")} value={l(f.label)} onChange={(v) => update(i, { label: v })} error={errorAt(errors, `fields.${i}.label`)} />
+              <TextI18n label={t("exampleTextOptional")} value={l(f.placeholder)} onChange={(v) => update(i, { placeholder: v.fr || v.en ? v : undefined })} />
+              <TextI18n label={t("helpOptional")} value={l(f.help)} onChange={(v) => update(i, { help: v.fr || v.en ? v : undefined })} />
+              <Toggle label={t("required")} checked={f.required} onChange={(on) => update(i, { required: on })} />
               {f.type === "email" && (
                 <Toggle
-                  label="Sert à te répondre"
+                  label={t("usedToReplyTo")}
                   checked={Boolean(f.reply)}
                   onChange={(on) => setFields(fields.map((x, j) => ({ ...x, reply: j === i ? on || undefined : on ? undefined : x.reply })))}
                 />
               )}
               {f.type === "select" && (
                 <ListField<{ fr: string; en: string }>
-                  label="Choix proposés"
+                  label={t("choicesOffered")}
                   items={f.options ?? []}
                   onChange={(next) => update(i, { options: next })}
                   make={() => ({ fr: "", en: "" })}
                   min={1}
-                  addLabel="Ajouter un choix"
-                  itemLabel={(k) => `Choix ${k + 1}`}
+                  addLabel={t("addAChoice")}
+                  itemLabel={(k) => t("choiceN", { n: k + 1 })}
                   error={errorAt(errors, `fields.${i}.options`)}
-                  render={(o, up) => <TextI18n label="Choix" value={o} onChange={up} />}
+                  render={(o, up) => <TextI18n label={t("choice")} value={o} onChange={up} />}
                 />
               )}
             </span>
             <span className="ve-list-tools">
-              <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => move(i, -1)}>
+              <button type="button" className="a-icon-btn" aria-label={t("moveUp")} disabled={i === 0} onClick={() => move(i, -1)}>
                 ↑
               </button>
-              <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === fields.length - 1} onClick={() => move(i, 1)}>
+              <button type="button" className="a-icon-btn" aria-label={t("moveDown")} disabled={i === fields.length - 1} onClick={() => move(i, 1)}>
                 ↓
               </button>
               <button
                 type="button"
                 className="a-icon-btn a-danger-text"
-                aria-label="Retirer ce champ"
+                aria-label={t("removeThisField")}
                 disabled={fields.length <= 1 || Boolean(f.reply)}
-                title={f.reply ? "Ce champ sert à te répondre : désactive « Sert à te répondre » d'abord." : undefined}
+                title={f.reply ? t("thisFieldIsUsed") : undefined}
                 onClick={() => setFields(fields.filter((_, j) => j !== i))}
               >
                 ✕
@@ -1077,11 +1114,11 @@ export function ContactFormEditor() {
       </ol>
       {fields.length < MAX_FIELDS && (
         <Select<FieldType>
-          label="Ajouter un champ"
+          label={t("addAField")}
           value={undefined}
-          allowEmpty="— Choisir un type —"
-          options={FIELD_TYPES.map((t) => ({ value: t, label: FIELD_LABELS[t] }))}
-          onChange={(t) => t && setFields([...fields, makeField(t)])}
+          allowEmpty={t("chooseAType")}
+          options={FIELD_TYPES.map((ft) => ({ value: ft, label: FIELD_LABELS[ft] }))}
+          onChange={(ft) => ft && setFields([...fields, makeField(ft)])}
         />
       )}
     </>
@@ -1094,6 +1131,8 @@ export function ContactFormEditor() {
  * que l'on fait en glissant. Les positions se règlent sur la page (glisser, poignées, flèches).
  */
 export function FreeBoardEditor() {
+  const t = useTranslations("blockEditors");
+  const tl = useTranslations("blockRegLabels");
   const { value, onChange, context } = useBlockEditor();
   const [picking, setPicking] = useState<{ id?: string; poster?: boolean } | null>(null);
   const items = freeItems(value);
@@ -1108,27 +1147,27 @@ export function FreeBoardEditor() {
   const ordered = items.slice().sort((a, b) => b.z - a.z);
   return (
     <>
-      <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
+      <Toggle label={t("enlargeOnClick")} checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
       <Select
-        label="Format de la zone"
-        help="La hauteur de la zone suit sa largeur. Pour la raccourcir ou la recadrer librement, tire les poignées des bords et des coins de la zone, sur la page : les images ne bougent pas. Choisir un format redonne la zone entière."
+        label={t("areaFormat")}
+        help={t("theAreaSHeight")}
         value={format}
-        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? "Libre (recadrée)" : FREE_FORMAT_LABELS[f] }))}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? t("freeCropped") : tl(`freeFormat.${f}`) }))}
         onChange={(v) => {
           if (cropped && v === "free") return;
           apply({ op: "set", format: (v as FreeFormat) ?? "3:2" });
         }}
       />
       <Select
-        label="Sur téléphone (moins de 640 px)"
-        help="« À l'échelle » garde la composition telle quelle, en plus petit. « Empilées » met les images en colonne, dans l'ordre de lecture (de haut en bas, puis de gauche à droite)."
+        label={t("onPhonesUnder640")}
+        help={t("scaledKeepsTheComposition")}
         value={phone}
-        options={FREE_PHONE_MODES.map((m) => ({ value: m, label: FREE_PHONE_LABELS[m] }))}
+        options={FREE_PHONE_MODES.map((m) => ({ value: m, label: tl(`freePhone.${m}`) }))}
         onChange={(v) => apply({ op: "set", phone: (v as "scale" | "stack") ?? "scale" })}
       />
-      <section className="ve-board-kids" aria-label="Images de la planche libre">
-        <h3 className="a-subhead">Images du projet</h3>
-        {items.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute une image ci-dessous, ou glisse-la depuis l&apos;onglet Médias directement sur la zone.</p>}
+      <section className="ve-board-kids" aria-label={t("freeBoardImages")}>
+        <h3 className="a-subhead">{t("projectImages")}</h3>
+        {items.length === 0 && <p className="ve-hint">{t("nothingYetAddAn")}</p>}
         <ol className="ve-board-kid-list" data-testid="free-list">
           {ordered.map((it, i) => {
             const m = context.media.find((x) => x.id === it.media);
@@ -1139,21 +1178,21 @@ export function FreeBoardEditor() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={m.thumb} alt="" />
                   ) : (
-                    <span className="muted">n° {it.media}</span>
+                    <span className="muted">{t("noId", { id: it.media })}</span>
                   )}
                 </span>
-                <span className="a-media-field-name">{m?.name ?? `Média n° ${it.media}`}</span>
-                <div className="ve-board-kid-tools" role="group" aria-label={`Image ${i + 1}`}>
+                <span className="a-media-field-name">{m?.name ?? t("mediaNoId", { id: it.media })}</span>
+                <div className="ve-board-kid-tools" role="group" aria-label={t("imageN", { n: i + 1 })}>
                   <button type="button" className="a-btn a-btn-small" onClick={() => setPicking({ id: it.id })}>
-                    Remplacer
+                    {t("replace")}
                   </button>
-                  <button type="button" className="a-icon-btn" aria-label="Passer devant" title="Passer devant" disabled={i === 0} onClick={() => apply({ op: "front", id: it.id })}>
+                  <button type="button" className="a-icon-btn" aria-label={t("bringForward")} title={t("bringForward")} disabled={i === 0} onClick={() => apply({ op: "front", id: it.id })}>
                     ↑
                   </button>
-                  <button type="button" className="a-icon-btn" aria-label="Passer derrière" title="Passer derrière" disabled={i === ordered.length - 1} onClick={() => apply({ op: "back", id: it.id })}>
+                  <button type="button" className="a-icon-btn" aria-label={t("sendBackward")} title={t("sendBackward")} disabled={i === ordered.length - 1} onClick={() => apply({ op: "back", id: it.id })}>
                     ↓
                   </button>
-                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => apply({ op: "remove", id: it.id })}>
+                  <button type="button" className="a-icon-btn a-danger-text" aria-label={t("remove")} onClick={() => apply({ op: "remove", id: it.id })}>
                     ✕
                   </button>
                 </div>
@@ -1161,31 +1200,31 @@ export function FreeBoardEditor() {
                   <>
                     {/* Réglages propres à la vidéo (lot 116) : les mêmes que dans un composant Vidéo ou une case de grille. */}
                     <Select
-                      label="Lecture"
-                      help={VIDEO_MODE_HINTS[it.video ?? "loop"]}
+                      label={t("playback")}
+                      help={tl(`videoMode.hint.${it.video ?? "loop"}`)}
                       value={it.video ?? "loop"}
-                      options={VIDEO_MODE_OPTIONS}
+                      options={videoModeOptions(tl)}
                       onChange={(v) => {
                         const res = applyFreeLook(value, it.id, { video: v === "player" ? "player" : "loop" });
                         if (!("error" in res)) onChange(res.props);
                       }}
                     />
-                    <div className="ve-board-kid-tools" role="group" aria-label="Affiche de la vidéo">
+                    <div className="ve-board-kid-tools" role="group" aria-label={t("videoPoster")}>
                       <button type="button" className="a-btn a-btn-small" data-testid={`free-poster-${i}`} onClick={() => setPicking({ id: it.id, poster: true })}>
-                        {it.poster ? "Changer l'affiche" : "Choisir une affiche"}
+                        {it.poster ? t("changeThePoster") : t("chooseAPoster")}
                       </button>
                       {it.poster && (
                         <button type="button" className="a-btn a-btn-small" onClick={() => apply({ op: "poster", id: it.id, media: null })}>
-                          Sans affiche
+                          {t("noPoster")}
                         </button>
                       )}
                     </div>
                     {m.hasAudio !== false && (
                       <Select
-                        label="Son au départ"
-                        help={VIDEO_SOUND_HINTS[it.sound === "off" ? "off" : "on"]}
+                        label={t("soundOnStart")}
+                        help={tl(`videoSound.hint.${it.sound === "off" ? "off" : "on"}`)}
                         value={it.sound === "off" ? "off" : "on"}
-                        options={VIDEO_SOUND_OPTIONS}
+                        options={videoSoundOptions(tl)}
                         onChange={(v) => {
                           const res = applyFreeLook(value, it.id, { sound: v === "off" ? "off" : null });
                           if (!("error" in res)) onChange(res.props);
@@ -1193,16 +1232,16 @@ export function FreeBoardEditor() {
                       />
                     )}
                     <p className="ve-hint" data-testid={`free-sound-${i}`}>
-                      {m.hasAudio === false ? "Vidéo sans son : pas de bouton son." : "Cette vidéo a du son : un bouton son s'affiche, sur le site comme dans l'Aperçu."}
+                      {m.hasAudio === false ? t("videoWithoutSoundNo") : t("thisVideoHasSound")}
                     </p>
                   </>
                 )}
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <span>Largeur (%)</span>
+                  <span>{t("width2")}</span>
                   <input type="number" min={4} max={150} step={1} value={Math.round(it.w)} data-testid={`free-w-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, w: e.target.valueAsNumber })} />
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <span>Rotation (°)</span>
+                  <span>{t("rotation")}</span>
                   <input type="number" min={-180} max={180} step={1} value={it.rot} data-testid={`free-rot-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, rot: e.target.valueAsNumber })} />
                 </label>
               </li>
@@ -1211,13 +1250,13 @@ export function FreeBoardEditor() {
         </ol>
         <div className="ve-board-kid-add">
           <button type="button" className="a-btn" disabled={items.length >= MAX_FREE_ITEMS} data-testid="free-add-image" onClick={() => setPicking({})}>
-            + Ajouter une image
+            {t("addAnImage")}
           </button>
         </div>
         <MediaPickerDialog
           open={picking !== null}
           media={context.media.filter((m) => m.kind === "image" || (m.kind === "video" && !picking?.poster))}
-          title={picking?.poster ? "Affiche de la vidéo" : picking?.id ? "Remplacer l'image" : "Ajouter une image"}
+          title={picking?.poster ? t("videoPoster") : picking?.id ? t("replaceTheImage") : t("addAnImage2")}
           onClose={() => setPicking(null)}
           onPick={(m) => {
             const at = picking;

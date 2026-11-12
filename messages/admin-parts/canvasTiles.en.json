@@ -1,0 +1,19 @@
+{
+  "entry": "Entry",
+  "up": "Move the entry up",
+  "down": "Move the entry down",
+  "remove": "Remove the entry",
+  "coverGroup": "Cover of the entry “{title}”",
+  "coverTitle": "Choose this entry’s cover image from the media library, or upload one",
+  "coverChange": "Change the cover",
+  "coverClearTitle": "Use the collection’s cover again",
+  "coverClear": "Automatic cover",
+  "broken": "This entry points to a page that was deleted or is not published: it is hidden on the site. Choose another page, or remove it.",
+  "pageFallback": "Page {id}",
+  "noImage": "The entry “{title}” has no image: it does not appear on the site until you choose one.",
+  "emptyHead": "This collection has no published work yet.",
+  "emptyWhy": "The “{tile}” tile does not appear on the site while the collection is empty: publish a work in this collection.",
+  "emptyWhyNamed": "The “{tile}” tile does not appear on the site while the collection “{collection}” is empty: publish a work in this collection.",
+  "addEntry": "+ Add an entry",
+  "allUsed": "All published pages already have an entry."
+}

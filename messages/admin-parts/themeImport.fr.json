@@ -1,0 +1,15 @@
+{
+  "failedStatus": "L'import a échoué (erreur {status}).",
+  "importedVersion": "Importé : version {version} de Mon thème. Prévisualise-la avant de la publier",
+  "importedApart": "« {name} » importé comme thème à part (dans « Mes anciens thèmes »)",
+  "failedNetwork": "L'import a échoué : vérifie ta connexion et réessaie.",
+  "busy": "Import en cours…",
+  "open": "Importer un thème…",
+  "title": "Importer un thème",
+  "chooseFile": "Choisir le fichier .zip…",
+  "where": "Où l'ajouter ?",
+  "asVersion": "Comme nouvelle version de mon thème (conseillé)",
+  "asMine": "Comme mon thème (version 1)",
+  "asApart": "Comme thème à part (dans « Mes anciens thèmes »)",
+  "nothingLive": "Rien n'est mis en ligne : tu prévisualises d'abord, puis tu publies."
+}

@@ -7,13 +7,14 @@
  * système sans perdre les dessins.
  */
 /* eslint-disable @next/next/no-img-element -- PNG de 64 px servis par /media : next/image n'apporte rien. */
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { cursorProblem } from "@/themes/cursor";
 import { resolvePalette } from "@/themes/palette";
 import type { KitAssets, KitCursor, Theme } from "@/themes/schema";
 
-const NAMES = { default: "Normal", pointer: "Clic (survol de ce qui se clique)" } as const;
+type CursorKind = "default" | "pointer";
 
 /** Pixels d'un PNG de même origine (canvas), ou null. */
 function usePixels(url: string | undefined): Uint8ClampedArray | null {
@@ -39,12 +40,13 @@ function usePixels(url: string | undefined): Uint8ClampedArray | null {
   return px && px.url === url ? px.data : null;
 }
 
-function CursorRow({ kind, cursor, grounds }: { kind: keyof typeof NAMES; cursor: KitCursor; grounds: { hex: string; label: string }[] }) {
+function CursorRow({ kind, cursor, grounds }: { kind: CursorKind; cursor: KitCursor; grounds: { hex: string; label: string }[] }) {
+  const t = useTranslations("cursorSettings");
   const pixels = usePixels(cursor.png2x);
-  const problem = pixels ? cursorProblem(pixels, grounds) : null;
+  const problem = pixels ? cursorProblem(pixels, grounds, (key, values) => t(key, values as Record<string, string | number>)) : null;
   return (
     <div className="a-cursor-row" data-cursor={kind}>
-      <strong>{NAMES[kind]}</strong>
+      <strong>{t(`kind.${kind}`)}</strong>
       <div className="a-cursor-grounds">
         {grounds.map((g) => (
           <span key={g.label} className="a-cursor-ground" style={{ background: g.hex }} title={g.label}>
@@ -54,7 +56,7 @@ function CursorRow({ kind, cursor, grounds }: { kind: keyof typeof NAMES; cursor
         ))}
       </div>
       <span className="a-help">
-        Point chaud : {cursor.x}, {cursor.y} px
+        {t("hotspot", { x: cursor.x, y: cursor.y })}
       </span>
       {problem && (
         <p className="a-field-error" role="alert">
@@ -66,23 +68,24 @@ function CursorRow({ kind, cursor, grounds }: { kind: keyof typeof NAMES; cursor
 }
 
 export default function CursorSettings({ theme, onChange }: { theme: Theme; onChange: (kit: KitAssets) => void }) {
+  const t = useTranslations("cursorSettings");
   const kit = theme.assets.kit ?? {};
   const cursors = kit.cursors;
   const has = Boolean(cursors?.default || cursors?.pointer);
   const p = resolvePalette(theme.tokens.color, theme.tokens.palette);
   const grounds = [
-    { hex: p.bg, label: "le fond" },
-    { hex: p.bgDeep, label: "le fond profond" },
-    { hex: p.surface, label: "la surface" },
+    { hex: p.bg, label: t("groundBg") },
+    { hex: p.bgDeep, label: t("groundDeep") },
+    { hex: p.surface, label: t("groundSurface") },
   ];
   return (
     <section className="a-panel" aria-labelledby="t-curseurs">
       <h3 id="t-curseurs" className="a-subhead">
-        Curseurs de la souris
+        {t("title")}
       </h3>
       {!has ? (
         <p className="a-help">
-          Les curseurs du système. Pour les dessiner : groupe « 9 · Curseur » du kit Photoshop (normal, et au survol de ce qui se clique).
+          {t("systemHelp")}
         </p>
       ) : (
         <>
@@ -97,11 +100,10 @@ export default function CursorSettings({ theme, onChange }: { theme: Theme; onCh
                 onChange({ ...kit, cursors: next });
               }}
             />
-            Utiliser les curseurs dessinés sur le site
+            {t("useDrawn")}
           </label>
           <p className="a-help">
-            Décoché : les curseurs du système, tes dessins restent gardés. Sur le site public seulement (pas dans l&apos;administration) ; les champs de texte
-            gardent leur barre de saisie.
+            {t("useDrawnHelp")}
           </p>
           {cursors?.default && <CursorRow kind="default" cursor={cursors.default} grounds={grounds} />}
           {cursors?.pointer && <CursorRow kind="pointer" cursor={cursors.pointer} grounds={grounds} />}

@@ -8,6 +8,7 @@ import { getPoolWorks, sampleWorks, selectWorks, type PoolWork, type WorkSource 
 
 import RandomPick from "./RandomPick";
 import { collection, inline, localized, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 /** Œuvres envoyées au navigateur, qui en tire une à chaque visite (au-delà, un échantillon pris au hasard au rendu). */
 export const MAX_CANDIDATES = 12;
@@ -34,6 +35,7 @@ export const randomWorkSchema = z.object({
  * Disponible sur la page « Page introuvable » ; sur une page ordinaire il serait sans danger (voir le rapport du lot 89).
  */
 export default async function RandomWorkBlock({ props, ctx }: { props: z.infer<typeof randomWorkSchema>; ctx: BlockContext }) {
+  const { ta } = await editI18n(ctx);
   const pool = await getPoolWorks();
   const source: WorkSource | null =
     props.source === "collection" ? (props.collection ? { source: "collection", collection: props.collection } : null) : props.source === "manual" ? { source: "manual", works: props.works ?? [] } : { source: "all" };
@@ -65,13 +67,13 @@ export default async function RandomWorkBlock({ props, ctx }: { props: z.infer<t
   return (
     <section className="shell pt-[var(--section-gap)]" data-random-work-block="">
       {(eyebrow || ctx.edit) && (
-        <p className="eyebrow mb-4 max-w-2xl" {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette (facultative)" } : {})}>
+        <p className="eyebrow mb-4 max-w-2xl" {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": ta("labelOptional") } : {})}>
           {ctx.edit ? (props.eyebrow?.[ctx.locale] ?? "") : eyebrow}
         </p>
       )}
       {candidates.length === 0 ? (
         <p className="text-sm text-ink-soft" data-random-empty="">
-          Aucune œuvre publiée dans cette source : ce bloc ne s&apos;affichera pas sur le site.
+          {ta("noWork")}
         </p>
       ) : ctx.edit || candidates.length === 1 ? (
         figure(candidates[0])

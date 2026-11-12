@@ -1,0 +1,15 @@
+{
+  "zoomImage": "Agrandir l'image : {alt}",
+  "zoomHint": "Touche l'image pour l'agrandir.",
+  "label": "Tuto du kit",
+  "kicker": "Tuto du kit Photoshop",
+  "close": "Fermer",
+  "sendKit": "Renvoyer le kit",
+  "zoomedImage": "Image agrandie : {alt}",
+  "closeImage": "Fermer l'image",
+  "prev": "← Précédent",
+  "progress": "Progression du tuto",
+  "slideLabel": "Slide {n} : {title}",
+  "next": "Suivant →",
+  "finish": "Terminer"
+}

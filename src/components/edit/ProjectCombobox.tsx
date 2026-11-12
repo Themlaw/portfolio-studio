@@ -7,6 +7,7 @@
  * encore sur une page » viennent en premier, signalés. Sans feuille de style
  * propre : classes préfixées (`ve-` dans l'admin, `pe-` sur la toile).
  */
+import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
 
 import { useDismiss } from "./useDismiss";
@@ -26,7 +27,7 @@ export default function ProjectCombobox({
   onCreate,
   label,
   prefix,
-  placeholder = "Chercher un projet existant, ou créer un nouveau projet",
+  placeholder,
   autoFocus = false,
 }: {
   projects: ComboProject[];
@@ -39,6 +40,7 @@ export default function ProjectCombobox({
   autoFocus?: boolean;
 }) {
   const id = useId();
+  const t = useTranslations("editMenusCombo");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -90,7 +92,7 @@ export default function ProjectCombobox({
         autoComplete="off"
         maxLength={120}
         autoFocus={autoFocus}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("placeholder")}
         value={query}
         className={`${prefix}-combo-input`}
         onChange={(e) => {
@@ -140,16 +142,16 @@ export default function ProjectCombobox({
               onClick={() => choose(i)}
               onPointerEnter={() => setActive(i)}
             >
-              {i === firstFresh && <span className={`${prefix}-combo-group`}>Pas encore sur une page</span>}
-              {i === firstRest && firstFresh >= 0 && <span className={`${prefix}-combo-group`}>Déjà sur une page</span>}
+              {i === firstFresh && <span className={`${prefix}-combo-group`}>{t("fresh")}</span>}
+              {i === firstRest && firstFresh >= 0 && <span className={`${prefix}-combo-group`}>{t("onPage")}</span>}
               {o.kind === "create" ? (
                 <>
-                  <strong>Nouveau projet</strong> <small>(sans nom : tu le nommeras ensuite)</small>
+                  <strong>{t("newProject")}</strong> <small>{t("newHint")}</small>
                 </>
               ) : (
                 <>
                   {o.project.title}
-                  {o.project.draft && <small> (créé sur cette page)</small>}
+                  {o.project.draft && <small> {t("draft")}</small>}
                 </>
               )}
             </li>

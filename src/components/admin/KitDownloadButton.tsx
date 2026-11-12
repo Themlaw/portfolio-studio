@@ -7,6 +7,7 @@
  * Lot 122 : `startPart` télécharge UNE partie du kit (un seul .psd, celui de l'archive) ;
  * la préparation est la même (un seul export à la fois, une seule archive en cache).
  */
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { toast } from "./editing";
@@ -33,6 +34,7 @@ export type KitReadyInfo = { parts: KitPartInfo[]; zipBytes: number | null; ms: 
 
 /** Préparation puis téléchargement du kit : l'état vit chez l'appelant (un menu qui se referme ne l'interrompt pas). */
 export function useKitDownload(themeId: string) {
+  const t = useTranslations("kitDownload");
   const [busy, setBusy] = useState(false);
   const anyExport = useExporting();
   const [status, setStatus] = useState("");
@@ -48,17 +50,17 @@ export function useKitDownload(themeId: string) {
     setActive(part?.role ?? "zip");
     setExporting(true);
     setBusy(true);
-    setStatus("Préparation du kit…");
+    setStatus(t("preparing"));
     try {
       // 3 minutes au plus (une conversion vidéo peut passer avant).
       for (let i = 0; i < 120; i++) {
         const res = await fetch(url, { method: "POST", credentials: "same-origin" });
         const body = (await res.json().catch(() => null)) as ({ ok?: boolean; ready?: boolean; status?: string; lastError?: string; message?: string } & Partial<KitReadyInfo>) | null;
-        if (!res.ok || !body?.ok) throw new Error(body?.message ?? `Erreur ${res.status}`);
+        if (!res.ok || !body?.ok) throw new Error(body?.message ?? t("errorStatus", { status: res.status }));
         if (body.ready) {
-          setStatus("Kit prêt : téléchargement.");
+          setStatus(t("ready"));
           if (body.parts) setInfo({ parts: body.parts, zipBytes: body.zipBytes ?? null, ms: body.ms ?? null });
-          setTook((t) => ({ ...t, [part?.role ?? "zip"]: Math.max(1, Math.round((Date.now() - t0) / 1000)) }));
+          setTook((prev) => ({ ...prev, [part?.role ?? "zip"]: Math.max(1, Math.round((Date.now() - t0) / 1000)) }));
           // Téléchargement (Content-Disposition: attachment) sans quitter la page.
           const link = document.createElement("a");
           link.href = part ? `${url}?part=${encodeURIComponent(part.role)}` : url;
@@ -66,16 +68,16 @@ export function useKitDownload(themeId: string) {
           document.body.append(link);
           link.click();
           link.remove();
-          toast(part ? `Partie « ${part.label} » téléchargée` : "Kit Photoshop téléchargé");
+          toast(part ? t("partDownloaded", { label: part.label }) : t("kitDownloaded"));
           return;
         }
-        setStatus(body.status === "running" ? "Génération du kit…" : "Kit en file d'attente (une conversion vidéo est peut-être en cours)…");
+        setStatus(body.status === "running" ? t("generating") : t("queued"));
         await sleep(1500);
       }
-      throw new Error("La préparation du kit prend trop de temps : réessaie dans un moment.");
+      throw new Error(t("tooLong"));
     } catch (error) {
       setStatus("");
-      toast(error instanceof Error ? error.message : "La préparation du kit a échoué.", "error");
+      toast(error instanceof Error ? error.message : t("failed"), "error");
     } finally {
       setBusy(false);
       setActive(null);
@@ -89,6 +91,7 @@ export function useKitDownload(themeId: string) {
 }
 
 export default function KitDownloadButton({ themeId, small = false }: { themeId: string; small?: boolean }) {
+  const t = useTranslations("kitDownload");
   const { start, busy, status, blocked } = useKitDownload(themeId);
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
@@ -103,12 +106,12 @@ export default function KitDownloadButton({ themeId, small = false }: { themeId:
   return (
     <>
       <button type="button" className={`a-btn${small ? " a-btn-small" : ""}`} onClick={start} disabled={busy || blocked} aria-busy={busy} data-testid="kit-download">
-        {busy ? "Préparation du kit…" : "Télécharger le kit Photoshop"}
+        {busy ? t("preparing") : t("download")}
       </button>
       {busy && (
         <span className="a-kit-progress" data-testid="kit-download-progress">
           <span className="a-spinner" aria-hidden="true" />
-          {status || "Préparation du kit…"} {seconds > 0 ? `${seconds} s` : ""} (jusqu&apos;à 20 secondes)
+          {status || t("preparing")} {seconds > 0 ? t("seconds", { n: seconds }) : ""} {t("upTo")}
         </span>
       )}
       <span className="sr-only" aria-live="polite">
@@ -118,24 +121,25 @@ export default function KitDownloadButton({ themeId, small = false }: { themeId:
   );
 }
 
-const formatSize = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
-
 /**
  * « Télécharger une partie seulement » (lot 122) : une entrée par fichier du kit, avec son
  * contenu, son poids et la durée. Les poids sont connus dès que le kit est généré (page rendue avec
  * ou mise à jour après la préparation) ; les noms de calques sont ceux du kit complet.
  */
 export function KitPartsDownload({ themeId, parts: initial, ms: initialMs }: { themeId: string; parts: KitPartInfo[]; ms: number | null }) {
+  const t = useTranslations("kitDownload");
+  const format = useFormatter();
+  const formatSize = (n: number) => (n < 1024 * 1024 ? t("sizeKb", { n: Math.max(1, Math.round(n / 1024)) }) : t("sizeMb", { n: format.number(n / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }));
   const { startPart, busy, status, info, took, active, blocked } = useKitDownload(themeId);
   const parts = info?.parts ?? initial;
   const ms = info?.ms ?? initialMs;
   const known = parts.every((p) => p.bytes !== null);
   return (
     <div className="a-kit-parts" data-testid="kit-parts">
-      <h3 className="a-kit-parts-title">Ou une partie seulement</h3>
+      <h3 className="a-kit-parts-title">{t("partsTitle")}</h3>
       <p className="a-help">
-        Chaque partie est un seul fichier .psd, identique à celui du kit complet (mêmes calques, mêmes noms). Renvoie-le tel quel : seule cette partie est mise à jour, les autres restent comme elles sont.
-        {known ? (ms !== null ? ` Génération du kit : ${Math.max(1, Math.round(ms / 1000))} s (une fois, puis chaque partie se télécharge tout de suite).` : "") : " Le poids de chaque partie s'affiche une fois le kit généré."}
+        {t("partsHelp")}
+        {known ? (ms !== null ? ` ${t("partsGen", { s: Math.max(1, Math.round(ms / 1000)) })}` : "") : ` ${t("partsWeights")}`}
       </p>
       <ul className="a-kit-parts-list">
         {parts.map((p) => (
@@ -144,12 +148,12 @@ export function KitPartsDownload({ themeId, parts: initial, ms: initialMs }: { t
               <strong>{p.label}</strong>
               <small>
                 {" "}
-                · {p.elements.join(", ")} · <span data-testid={`kit-part-size-${p.role}`}>{p.bytes !== null ? formatSize(p.bytes) : "poids connu après génération"}</span>
-                {took[p.role] ? ` · préparé en ${took[p.role]} s` : ""}
+                · {p.elements.join(", ")} · <span data-testid={`kit-part-size-${p.role}`}>{p.bytes !== null ? formatSize(p.bytes) : t("sizeUnknown")}</span>
+                {took[p.role] ? ` · ${t("prepared", { n: took[p.role] })}` : ""}
               </small>
             </span>
             <button type="button" className="a-btn a-btn-small" onClick={() => void startPart(p)} disabled={busy || blocked} aria-busy={busy && active === p.role} data-testid={`kit-part-${p.role}`}>
-              {busy && active === p.role ? "Préparation…" : "Télécharger cette partie"}
+              {busy && active === p.role ? t("preparingShort") : t("downloadPart")}
             </button>
           </li>
         ))}
@@ -157,7 +161,7 @@ export function KitPartsDownload({ themeId, parts: initial, ms: initialMs }: { t
       {busy && (
         <span className="a-kit-progress" data-testid="kit-part-progress">
           <span className="a-spinner" aria-hidden="true" />
-          {status || "Préparation du kit…"}
+          {status || t("preparing")}
         </span>
       )}
     </div>

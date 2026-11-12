@@ -8,6 +8,7 @@ import ContactFormBlock from "./ContactFormBlock";
 import { EmptyHint, FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
 import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
+import { editI18n } from "./edit-i18n";
 
 const F = ContactFormSchema.shape;
 
@@ -52,6 +53,7 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
   const cta = shown(props.cta);
   const nothing = props.eyebrow === undefined && props.title === undefined && props.intro === undefined && props.cta === undefined;
   if (!ctx.edit && !eyebrow && !title && !intro && !cta) return null;
+  const { ta } = await editI18n(ctx);
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   return (
     <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
@@ -64,23 +66,23 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
       >
         <FieldOps ctx={ctx} type="contact" props={props} />
         {nothing && ctx.edit && (
-          <EmptyHint text="Ce contact est vide : ajoute ce que tu veux montrer." actions={[["title", "+ Ajouter un titre"], ["intro", "+ Ajouter une présentation"], ["cta", "+ Ajouter un bouton e-mail"]]} />
+          <EmptyHint text={ta("contactEmpty")} actions={[["title", ta("addTitle")], ["intro", ta("addIntro")], ["cta", ta("addEmailButton")]]} />
         )}
-        {eyebrow && <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>{tr(props.eyebrow!, ctx.locale)}</Eyebrow>}
+        {eyebrow && <Eyebrow {...inline(ctx, "eyebrow")} {...ph(ta("label"))}>{tr(props.eyebrow!, ctx.locale)}</Eyebrow>}
         {title && (
-          <h2 className="mx-auto mt-4 max-w-2xl font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} {...ph("Titre")}>
+          <h2 className="mx-auto mt-4 max-w-2xl font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} {...ph(ta("title"))}>
             {tr(props.title!, ctx.locale)}
           </h2>
         )}
         {intro && (
-          <p className="mx-auto mt-5 max-w-xl text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...ph("Présentation")}>
+          <p className="mx-auto mt-5 max-w-xl text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...ph(ta("intro"))}>
             {tr(props.intro!, ctx.locale)}
           </p>
         )}
         {cta && (
           <ContactCta ctx={ctx} action={props.ctaAction} className="btn mt-8">
             {/* Enveloppé en édition, et en public seulement si le texte a son propre style : sans style, le HTML public ne change pas. */}
-            {ctx.edit || textStyle(ctx, "cta").style ? <span {...inline(ctx, "cta")} {...ph("Texte du bouton")}>{tr(props.cta!, ctx.locale)}</span> : tr(props.cta!, ctx.locale)}
+            {ctx.edit || textStyle(ctx, "cta").style ? <span {...inline(ctx, "cta")} {...ph(ta("buttonText"))}>{tr(props.cta!, ctx.locale)}</span> : tr(props.cta!, ctx.locale)}
             <span aria-hidden="true">→</span>
           </ContactCta>
         )}

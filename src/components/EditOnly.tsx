@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore, type ReactNode } from "react";
 
+import { AdminIntlBoundary } from "./AdminIntl";
+
 /**
  * Commandes d'édition de la toile (lot 31) : rendues SEULEMENT quand la toile de l'éditeur est en mode édition
  * (`html[data-edit-canvas]`, posé par EditLayer). Jamais dans le HTML serveur, jamais en Aperçu, jamais en public, ni dans
@@ -19,5 +21,6 @@ export default function EditOnly({ children, fallback = null }: { children: Reac
     () => document.documentElement.hasAttribute("data-edit-canvas"),
     () => false,
   );
-  return <>{on ? children : fallback}</>;
+  // Lot 130b : les commandes parlent la langue de l'interface d'admin (fournisseur imbriqué, voir AdminIntl).
+  return <>{on ? <AdminIntlBoundary>{children}</AdminIntlBoundary> : fallback}</>;
 }

@@ -1,0 +1,15 @@
+{
+  "onSite": "on the site",
+  "choose": "Choose a font",
+  "searchPlaceholder": "Search among {count} fonts",
+  "search": "Search for a font",
+  "category": "Category",
+  "all": "All",
+  "list": "Fonts",
+  "default": "Default font (global style)",
+  "recentGroup": "Recent fonts",
+  "recent": "Recent",
+  "themeFonts": "Theme and site fonts",
+  "google": "Google Fonts · downloaded by the site on first use",
+  "empty": "No font matches."
+}

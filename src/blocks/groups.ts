@@ -5,25 +5,33 @@
  * le registre, l'éditeur (client) et les tests Node.
  */
 
+import type { AdminT } from "@/i18n/admin-lang";
+
+import { FR_LABELS } from "./block-msg";
+
+/** `label` : français ; dans l'interface, les groupes sont traduits par `groupLabel(id, t)` (espace blockRegLabels). */
 export const BLOCK_GROUPS = [
-  { id: "text", label: "Texte" },
-  { id: "projects", label: "Projets" },
-  { id: "media", label: "Images et vidéos" },
-  { id: "grids", label: "Grilles" },
-  { id: "other", label: "Autres" },
+  { id: "text", label: FR_LABELS.group.text },
+  { id: "projects", label: FR_LABELS.group.projects },
+  { id: "media", label: FR_LABELS.group.media },
+  { id: "grids", label: FR_LABELS.group.grids },
+  { id: "other", label: FR_LABELS.group.other },
 ] as const;
 
 export type BlockGroup = (typeof BLOCK_GROUPS)[number]["id"];
+
+/** Libellé d'un groupe dans la langue de `t` (espace blockRegLabels) ; sans `t`, le français. */
+export const groupLabel = (id: BlockGroup, t?: AdminT): string => (t ? t(`group.${id}`) : FR_LABELS.group[id]);
 
 export const GROUP_LABELS: Record<BlockGroup, string> = Object.fromEntries(BLOCK_GROUPS.map((g) => [g.id, g.label])) as Record<BlockGroup, string>;
 
 export type Groupable = { group?: BlockGroup; order?: number; hidden?: boolean };
 
 /** Entrées proposables rangées par groupe (ordre des groupes, puis `order`) ; groupes vides omis. */
-export function groupEntries<T extends Groupable>(entries: T[]): { id: BlockGroup; label: string; entries: T[] }[] {
+export function groupEntries<T extends Groupable>(entries: T[], t?: AdminT): { id: BlockGroup; label: string; entries: T[] }[] {
   return BLOCK_GROUPS.map((g) => ({
     id: g.id,
-    label: g.label,
+    label: groupLabel(g.id, t),
     entries: entries.filter((e) => !e.hidden && e.group === g.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   })).filter((g) => g.entries.length > 0);
 }
@@ -64,13 +72,14 @@ export function pickerGroups<T extends Groupable & { type: string; label: string
   catalog: T[],
   starters: S[],
   query = "",
+  t?: AdminT,
 ): PickerGroup<T, S>[] {
   // Les modèles de départ d'un type (`preset`) se rangent sous sa carte : « Grille » propose « Avec 3 images », « Avec des vidéos »…
   const models = (type: string) => catalog.filter((c) => c.preset && c.type === type && !c.hidden).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const groups = groupEntries(catalog.filter((c) => !STARTER_BLOCKS.includes(c.type) && !c.preset));
+  const groups = groupEntries(catalog.filter((c) => !STARTER_BLOCKS.includes(c.type) && !c.preset), t);
   return BLOCK_GROUPS.map((g) => ({
     id: g.id,
-    label: g.label,
+    label: groupLabel(g.id, t),
     starters: g.id === "text" ? starters.filter((s) => matchesSearch(s, query)) : [],
     entries: (groups.find((x) => x.id === g.id)?.entries ?? [])
       .map((e) => ({ ...e, models: models(e.type) }))

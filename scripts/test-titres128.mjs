@@ -116,29 +116,30 @@ ok("T5 registre : textes en place `head.title` / `head.eyebrow` des seuls types 
 /* ---- R. rendu --------------------------------------------------------------------------------------------------- */
 if (Head && head) {
   const ctx = (extra = {}) => ({ locale: "fr", pageId: 1, ...extra });
-  const render = (props, extra = {}) => renderToStaticMarkup(createElement(Head.default ?? Head.Head, { head: props.head, ctx: ctx(extra.ctx), level: extra.level ?? 2, at: props.head?.at, ...(extra.rest ?? {}) }));
-  const html = render({ head: { eyebrow: T("Printemps 2026"), title: T("Carnet de mer") } });
+  const render = async (props, extra = {}) => renderToStaticMarkup(await (Head.default ?? Head.Head)({ head: props.head, ctx: ctx(extra.ctx), level: extra.level ?? 2, at: props.head?.at, ...(extra.rest ?? {}) }));
+  const html = await render({ head: { eyebrow: T("Printemps 2026"), title: T("Carnet de mer") } });
   ok("R1 premier niveau : <h2> pour le titre, <p class=eyebrow> pour le sous-titre (jamais un titre)", /<h2[^>]*>Carnet de mer<\/h2>/.test(html) && /<p[^>]*class="eyebrow[^"]*"[^>]*>Printemps 2026<\/p>/.test(html) && !/<h1/.test(html), html);
   ok("R2 le sous-titre précède le titre", html.indexOf("Printemps") < html.indexOf("Carnet"));
-  ok("R3 niveau 3 : <h3>", /<h3[^>]*>Carnet de mer<\/h3>/.test(render({ head: { title: T("Carnet de mer") } }, { level: 3 })));
+  ok("R3 niveau 3 : <h3>", /<h3[^>]*>Carnet de mer<\/h3>/.test(await render({ head: { title: T("Carnet de mer") } }, { level: 3 })));
   ok("R4 public : aucun repère d'édition (data-inline, data-placeholder)", !/data-inline|data-placeholder|pe-/.test(html), html);
-  ok("R5 titre vide (public) : rien du tout, pas même l'enveloppe", render({ head: { title: E } }) === "" && render({ head: { title: E, eyebrow: E } }) === "" && render({ head: undefined }) === "");
-  ok("R6 titre vide + sous-titre rempli : seul le sous-titre", (() => { const h = render({ head: { title: E, eyebrow: T("Seul") } }); return /Seul/.test(h) && !/<h2/.test(h); })());
-  const edit = render({ head: { title: E } }, { ctx: { edit: true } });
+  ok("R5 titre vide (public) : rien du tout, pas même l'enveloppe", await render({ head: { title: E } }) === "" && await render({ head: { title: E, eyebrow: E } }) === "" && await render({ head: undefined }) === "");
+  const h6 = await await render({ head: { title: E, eyebrow: T("Seul") } });
+  ok("R6 titre vide + sous-titre rempli : seul le sous-titre", /Seul/.test(h6) && !/<h2/.test(h6));
+  const edit = await render({ head: { title: E } }, { ctx: { edit: true } });
   ok("R7 toile : titre vide présent, `data-inline=\"head.title\"` et indication", /data-inline="head\.title"/.test(edit) && /data-placeholder="Titre"/.test(edit) && /<h2/.test(edit), edit);
-  const edit2 = render({ head: { title: T("A"), eyebrow: E } }, { ctx: { edit: true } });
+  const edit2 = await render({ head: { title: T("A"), eyebrow: E } }, { ctx: { edit: true } });
   ok("R8 toile : sous-titre vide présent avec son repère", /data-inline="head\.eyebrow"/.test(edit2) && /data-placeholder="Sous-titre"/.test(edit2), edit2);
-  const styled = render({ head: { title: T("A") } }, { ctx: { look: { text: { "head.title": { italic: true } } } } });
+  const styled = await render({ head: { title: T("A") } }, { ctx: { look: { text: { "head.title": { italic: true } } } } });
   ok("R9 style local (barre Aa, `look.text[head.title]`) posé en ligne, même en public", /<h2[^>]*style="[^"]*italic/.test(styled), styled);
-  const below = render({ head: { title: T("A"), at: "below" } });
+  const below = await render({ head: { title: T("A"), at: "below" } });
   ok("R10 dessous : `data-at=\"below\"`", /data-at="below"/.test(below), below);
-  const above = render({ head: { title: T("A") } });
+  const above = await render({ head: { title: T("A") } });
   ok("R11 dessus : `data-at=\"above\"`", /data-at="above"/.test(above), above);
-  const over = render({ head: { title: T("A"), at: "over" } }, { rest: { over: true } });
+  const over = await render({ head: { title: T("A"), at: "over" } }, { rest: { over: true } });
   ok("R12 sur l'image : `data-at=\"over\"`", /data-at="over"/.test(over), over);
-  const en = renderToStaticMarkup(createElement(Head.default ?? Head.Head, { head: { title: { fr: "Carnet", en: "Notebook" } }, ctx: ctx({ locale: "en" }), level: 2 }));
+  const en = renderToStaticMarkup(await (Head.default ?? Head.Head)({ head: { title: { fr: "Carnet", en: "Notebook" } }, ctx: ctx({ locale: "en" }), level: 2 }));
   ok("R13 langue : le texte anglais en anglais", /Notebook/.test(en) && !/Carnet/.test(en));
-  ok("R14 plafond : niveau 7 rendu en <h4>", /<h4/.test(render({ head: { title: T("A") } }, { level: 7 })));
+  ok("R14 plafond : niveau 7 rendu en <h4>", /<h4/.test(await render({ head: { title: T("A") } }, { level: 7 })));
 }
 
 console.log(failures ? `${failures} ÉCHEC(S)` : "TOUT PASSE");

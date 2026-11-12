@@ -7,6 +7,7 @@
  * utilisées comptent pour la place réservée : les autres sont aussi retirées
  * d'office à la publication et quand la place manque.
  */
+import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -16,10 +17,11 @@ import { ConfirmDialog, toast } from "./editing";
 
 type Row = { family: string; styles: number; bytes: number; uses: string[] };
 
-const mo = (n: number) => `${(n / 1_000_000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Mo`;
-
 export default function FontLibraryPanel({ rows, total, limits }: { rows: Row[]; total: number; limits: { families: number; totalBytes: number } }) {
   const router = useRouter();
+  const t = useTranslations("fonts");
+  const format = useFormatter();
+  const mo = (n: number) => t("megabytes", { value: format.number(n / 1_000_000, { maximumFractionDigits: 1 }) });
   const [pending, setPending] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,25 +29,25 @@ export default function FontLibraryPanel({ rows, total, limits }: { rows: Row[];
   return (
     <section className="a-card a-fonts" aria-labelledby="polices-titre" data-testid="font-library">
       <h2 id="polices-titre">
-        Polices téléchargées
+        {t("title")}
       </h2>
       <p className="a-help">
-        {rows.length} / {limits.families} polices · {mo(total)} sur {mo(limits.totalBytes)}. Une police choisie dans l&apos;éditeur est téléchargée par le site ; celles qui ne servent plus sont retirées à la publication, ou ici.
+        {t("summary", { count: rows.length, max: limits.families, used: mo(total), limit: mo(limits.totalBytes) })}
       </p>
       {rows.length === 0 ? (
-        <p className="a-help">Aucune police téléchargée : les textes utilisent les polices du thème.</p>
+        <p className="a-help">{t("none")}</p>
       ) : (
         <ul className="a-fonts-list">
           {rows.map((r) => (
             <li key={r.family} data-font={r.family}>
               <span className="a-fonts-name">{r.family}</span>
               <span className="a-fonts-meta">
-                {r.styles} style{r.styles > 1 ? "s" : ""} · {mo(r.bytes)}
+                {t("styles", { count: r.styles })} · {mo(r.bytes)}
               </span>
-              <span className="a-fonts-uses">{r.uses.length ? `Utilisée : ${r.uses.slice(0, 4).join(", ")}${r.uses.length > 4 ? "…" : ""}` : "Inutilisée"}</span>
+              <span className="a-fonts-uses">{r.uses.length ? t("usedIn", { list: `${r.uses.slice(0, 4).join(", ")}${r.uses.length > 4 ? "…" : ""}` }) : t("unused")}</span>
               {r.uses.length === 0 && (
                 <button type="button" className="a-btn a-btn-small a-btn-danger" onClick={() => setPending(r.family)}>
-                  Supprimer
+                  {t("delete")}
                 </button>
               )}
             </li>
@@ -54,8 +56,8 @@ export default function FontLibraryPanel({ rows, total, limits }: { rows: Row[];
       )}
       <ConfirmDialog
         open={pending !== null}
-        title={`Supprimer la police « ${pending ?? ""} » ?`}
-        confirmLabel="Supprimer"
+        title={t("deleteTitle", { name: pending ?? "" })}
+        confirmLabel={t("delete")}
         danger
         busy={busy}
         onClose={() => {
@@ -65,18 +67,18 @@ export default function FontLibraryPanel({ rows, total, limits }: { rows: Row[];
         onConfirm={async () => {
           if (!pending) return;
           setBusy(true);
-          const res = await deleteFontAction(pending).catch(() => ({ ok: false as const, message: "Connexion perdue : réessaie." }));
+          const res = await deleteFontAction(pending).catch(() => ({ ok: false as const, message: t("connectionLost") }));
           setBusy(false);
           if (!res.ok) {
             setError(res.message);
             return;
           }
-          toast(`« ${pending} » supprimée`);
+          toast(t("deleted", { name: pending }));
           setPending(null);
           router.refresh();
         }}
       >
-        <p>Ses fichiers sont effacés du site. Tu pourras la choisir à nouveau dans l&apos;éditeur (elle sera retéléchargée).</p>
+        <p>{t("deleteBody")}</p>
         {error && <p className="a-danger-text">{error}</p>}
       </ConfirmDialog>
     </section>

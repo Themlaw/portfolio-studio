@@ -1,0 +1,15 @@
+{
+  "onSite": "sur le site",
+  "choose": "Choisir une police",
+  "searchPlaceholder": "Rechercher parmi {count} polices",
+  "search": "Rechercher une police",
+  "category": "Catégorie",
+  "all": "Toutes",
+  "list": "Polices",
+  "default": "Police par défaut (style global)",
+  "recentGroup": "Polices récentes",
+  "recent": "Récentes",
+  "themeFonts": "Thème et polices du site",
+  "google": "Google Fonts · téléchargée par le site au premier choix",
+  "empty": "Aucune police ne correspond."
+}

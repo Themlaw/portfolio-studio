@@ -1,0 +1,6 @@
+{
+  "sv": "Saturation and brightness: left and right arrows for saturation, up and down for brightness, Shift to go faster",
+  "svText": "Saturation {s}%, brightness {v}%",
+  "hue": "Hue: up and down arrows, Shift to go faster",
+  "hueText": "Hue {h}°"
+}

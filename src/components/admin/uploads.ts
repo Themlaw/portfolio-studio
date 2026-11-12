@@ -5,6 +5,7 @@
  * individuelle), un envoi à la fois ; puis suivi du traitement (le média
  * passe de « processing » à « ready » ou « failed »).
  */
+import { useLocale } from "next-intl";
 import { useEffect, useRef } from "react";
 
 import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
@@ -40,14 +41,24 @@ function writePending(list: Pending[]) {
 
 const isVideo = isVideoFile;
 
+/**
+ * Traducteur des messages d'erreur d'envoi (catalogue `uploads`). Ces fonctions tournent hors de React (callbacks réseau) :
+ * l'UploadQueueProvider (monté dans l'admin) y dépose le traducteur de la langue courante. Sans lui : la clé brute.
+ */
+type Tr = (key: string, values?: Record<string, string | number>) => string;
+let tr: Tr = (key) => key;
+export function setUploadsTranslator(t: Tr) {
+  tr = t;
+}
+
 async function api<T>(url: string, init: RequestInit): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string }> {
   try {
     const res = await fetch(url, { ...init, credentials: "same-origin" });
     const body = (await res.json().catch(() => null)) as ({ ok: boolean; message?: string } & T) | null;
     if (res.ok && body?.ok) return { ok: true, data: body };
-    return { ok: false, status: res.status, message: body?.message ?? `L'envoi a échoué (erreur ${res.status}).` };
+    return { ok: false, status: res.status, message: body?.message ?? tr("sendFailed", { status: res.status }) };
   } catch {
-    return { ok: false, status: 0, message: "Connexion interrompue." };
+    return { ok: false, status: 0, message: tr("connectionLost") };
   }
 }
 
@@ -61,9 +72,9 @@ function putChunk(id: string, offset: number, blob: Blob, onBytes: (n: number) =
     xhr.onload = () => {
       const body = xhr.response as { ok?: boolean; upload?: { offset: number }; message?: string } | null;
       if (xhr.status === 200 && body?.ok && body.upload) resolve({ ok: true, offset: body.upload.offset });
-      else resolve({ ok: false, status: xhr.status, message: body?.message ?? `Morceau refusé (erreur ${xhr.status}).` });
+      else resolve({ ok: false, status: xhr.status, message: body?.message ?? tr("chunkRefused", { status: xhr.status }) });
     };
-    xhr.onerror = () => resolve({ ok: false, status: 0, message: "Connexion interrompue." });
+    xhr.onerror = () => resolve({ ok: false, status: 0, message: tr("connectionLost") });
     xhr.send(blob);
   });
 }
@@ -80,7 +91,7 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
   if (id) {
     const st = await api<{ upload: { offset: number; size: number; chunkSize: number } }>(`/admin/api/upload/${id}/status`, { method: "GET" });
     if (!st.ok) return { ok: false, message: st.message, status: st.status };
-    if (st.data.upload.size !== file.size) return { ok: false, message: "Ce n'est pas le même fichier (taille différente) : choisis le fichier d'origine.", definitive: true };
+    if (st.data.upload.size !== file.size) return { ok: false, message: tr("notSameFile"), definitive: true };
     offset = st.data.upload.offset;
     chunkSize = st.data.upload.chunkSize;
   } else {
@@ -112,7 +123,7 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
         writePending(readPending().filter((p) => p.id !== id));
         return { ok: false, message: res.message, status: res.status, definitive: true };
       }
-      if (attempt >= RETRY_DELAYS.length) return { ok: false, message: `${res.message} L'envoi est mis de côté : « Réessayer » le reprend où il s'est arrêté.`, status: res.status, uploadId: id };
+      if (attempt >= RETRY_DELAYS.length) return { ok: false, message: tr("setAside", { message: res.message }), status: res.status, uploadId: id };
       await sleep(RETRY_DELAYS[attempt++]);
       const st = await api<{ upload: { offset: number } }>(`/admin/api/upload/${id}/status`, { method: "GET" });
       if (st.ok) offset = st.data.upload.offset;
@@ -181,18 +192,18 @@ async function uploadKitFile(file: File, themeId: string, batch: { id: string; l
  * de l'import. Un fichier refusé arrête l'envoi, avec son nom dans le message.
  */
 export async function uploadKit(files: File[], themeId: string, onProgress: (sent: number, total: number) => void): Promise<{ ok: true; importId: string } | { ok: false; message: string }> {
-  if (files.length === 0) return { ok: false, message: "Choisis le kit : l'archive .zip, ou un ou plusieurs fichiers Photoshop (.psd)." };
+  if (files.length === 0) return { ok: false, message: tr("kitChoose") };
   if (files.length === 1) return uploadKitFile(files[0], themeId, undefined, onProgress);
   const bad = files.find((f) => !/\.psd$/i.test(f.name));
-  if (bad) return { ok: false, message: `« ${bad.name} » n'est pas un fichier Photoshop (.psd) : pour plusieurs fichiers, choisis seulement des .psd (ou envoie le .zip seul).` };
-  if (files.length > 3) return { ok: false, message: "Le kit compte 3 fichiers au plus." };
+  if (bad) return { ok: false, message: tr("kitNotPsd", { name: bad.name }) };
+  if (files.length > 3) return { ok: false, message: tr("kitTooMany") };
   const total = files.reduce((n, f) => n + f.size, 0);
   const batch = crypto.randomUUID();
   let done = 0;
   let importId = batch;
   for (const [i, file] of files.entries()) {
     const res = await uploadKitFile(file, themeId, { id: batch, last: i === files.length - 1 }, (sent) => onProgress(done + sent, total));
-    if (!res.ok) return { ok: false, message: `« ${file.name} » : ${res.message}` };
+    if (!res.ok) return { ok: false, message: tr("kitFile", { name: file.name, message: res.message }) };
     importId = res.importId;
     done += file.size;
   }
@@ -223,10 +234,10 @@ export function uploadFile(file: File, onProgress: (ratio: number) => void, tags
       const body = xhr.response as UploadResult | null;
       if (body && typeof body === "object" && "ok" in body) {
         resolve(body.ok ? body : { ...body, status: xhr.status, definitive: xhr.status < 500 && xhr.status !== 408 });
-      } else if (xhr.status === 401 || xhr.status === 403 || xhr.responseURL.includes("/admin/connexion")) resolve({ ok: false, message: "Ta session a expiré : reconnecte-toi.", status: xhr.status });
-      else resolve({ ok: false, message: `L'envoi a échoué (erreur ${xhr.status}). Réessaie.`, status: xhr.status });
+      } else if (xhr.status === 401 || xhr.status === 403 || xhr.responseURL.includes("/admin/connexion")) resolve({ ok: false, message: tr("sessionExpired"), status: xhr.status });
+      else resolve({ ok: false, message: tr("sendFailedRetry", { status: xhr.status }), status: xhr.status });
     };
-    xhr.onerror = () => resolve({ ok: false, message: "Connexion interrompue pendant l'envoi. Réessaie.", status: 0 });
+    xhr.onerror = () => resolve({ ok: false, message: tr("connectionLostRetry"), status: 0 });
     const form = new FormData();
     // Tags d'abord : le serveur les lit avant le fichier.
     if (tags.length) form.append("tags", JSON.stringify(tags));
@@ -298,10 +309,15 @@ export function readVideoFrame(file: File): Promise<{ ratio: number; preview: st
   });
 }
 
-/** « 120 / 512 Mo » */
-export function formatSent(sent = 0, total = 0): string {
-  const mb = (n: number) => (n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",");
-  return `${mb(sent)} / ${mb(total)} Mo`;
+/** Unités et séparateur décimal par langue d'interface (octets : « o / Ko / Mo » en français, « B / KB / MB » en anglais). */
+const SIZE_UNITS = { fr: { b: "o", kb: "Ko", mb: "Mo", dec: "," }, en: { b: "B", kb: "KB", mb: "MB", dec: "." } } as const;
+const unitsFor = (lang: string) => SIZE_UNITS[lang.startsWith("en") ? "en" : "fr"];
+
+/** « 120 / 512 Mo » (`lang` : langue de l'interface, français par défaut ; dans un composant : useSizeFormat). */
+export function formatSent(sent = 0, total = 0, lang = "fr"): string {
+  const u = unitsFor(lang);
+  const mb = (n: number) => (n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", u.dec);
+  return `${mb(sent)} / ${mb(total)} ${u.mb}`;
 }
 
 /** Ratio largeur/hauteur lu dans le navigateur (réserve la place avant l'envoi). */
@@ -350,8 +366,15 @@ export function filesFrom(dt: DataTransfer | null): File[] {
 
 export const hasFiles = (dt: DataTransfer | null) => Boolean(dt && [...dt.types].includes("Files"));
 
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} o`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} Ko`;
-  return `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`;
+export function formatBytes(n: number, lang = "fr"): string {
+  const u = unitsFor(lang);
+  if (n < 1024) return `${n} ${u.b}`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} ${u.kb}`;
+  return `${(n / 1024 / 1024).toFixed(1).replace(".", u.dec)} ${u.mb}`;
+}
+
+/** formatBytes / formatSent dans la langue de l'interface (pour les composants clients). */
+export function useSizeFormat() {
+  const lang = useLocale();
+  return { formatBytes: (n: number) => formatBytes(n, lang), formatSent: (sent = 0, total = 0) => formatSent(sent, total, lang) };
 }

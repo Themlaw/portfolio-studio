@@ -1,0 +1,17 @@
+{
+  "title": "Messages",
+  "intro": "Ce que les visiteurs t'écrivent depuis un formulaire de contact.",
+  "noEmail": "Les messages arrivent ici. Pense à passer voir.",
+  "newCount": "{count, plural, one {# nouveau message} other {# nouveaux messages}}",
+  "full": "Boîte pleine ({total} messages) : les nouveaux envois sont refusés. Supprime des messages pour en recevoir à nouveau.",
+  "summary": "{total, plural, one {{total} message} other {{total} messages}} (gardés un an, {cap} au plus).",
+  "empty": "Aucun message pour l'instant. Ajoute un « Formulaire de contact » à une page depuis l'éditeur.",
+  "badgeNew": "Nouveau",
+  "onPage": " · page « {page} »",
+  "replyTo": "Répondre à {email}",
+  "deletedOne": "Message supprimé",
+  "deleteAll": "Tout supprimer",
+  "deleteAllTitle": "Supprimer les {count} messages ?",
+  "deletedMany": "{count} message(s) supprimé(s)",
+  "irreversible": "Cette action ne s'annule pas."
+}

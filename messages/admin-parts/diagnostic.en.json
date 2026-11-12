@@ -1,0 +1,11 @@
+{
+  "title": "Diagnostics",
+  "intro": "What the site sees of your connection. The IP used should be yours (not a proxy's): it is what limits sign-in attempts. If it is not, adjust AUTH_TRUSTED_PROXY_HOPS (the number of trusted proxies in front of the site).",
+  "clientIp": "Client IP used",
+  "publicUrl": "Public URL (PUBLIC_BASE_URL)",
+  "redirectedDomains": "Domains redirected to the main address (REDIRECT_FROM)",
+  "none": "none",
+  "domainToFix": "Domain: needs fixing",
+  "lastBackup": "Last backup",
+  "absent": "missing"
+}

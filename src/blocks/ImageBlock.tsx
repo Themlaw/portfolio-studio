@@ -21,6 +21,7 @@ import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
 import { BlockCaption, capHost, captionPart } from "./caption";
 import { localizedText, mediaRef, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const imageSchema = z.object({
   mediaId: mediaRef.optional(),
@@ -63,6 +64,7 @@ export const imageSchema = z.object({
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
   // Avant tout await : l'ordre des réclamations est celui du document (lot 54).
   const eager = claimEager(1) > 0;
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.gridCanvas) });
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
   // Toile : la page en vue brouillon, ou une grille de planche (lot 31d : mêmes repères de média et de case que sur une page).
@@ -189,18 +191,18 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {image ? (
         photo
       ) : ctx.edit ? (
-        <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
-          <span>Dépose une image ici</span>
+        <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang={lang}>
+          <span>{ta("dropImage")}</span>
           <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
-            Choisir dans la médiathèque
+            {ta("pickFromLibrary")}
           </button>
         </span>
       ) : (
         // Case vide d'une grille de planche (ancienne donnée) : le même choix que pour une place libre.
-        <span className="pe-media-empty" lang="fr">
-          <span>Case vide</span>
+        <span className="pe-media-empty" lang={lang}>
+          <span>{ta("emptyCell")}</span>
           <button type="button" className="pe-empty-action" data-edit-cell-media="image">
-            + Image
+            {ta("addImage")}
           </button>
         </span>
       )}

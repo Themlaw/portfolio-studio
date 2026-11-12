@@ -1,0 +1,18 @@
+{
+  "addNetwork": "Add a network",
+  "networks": "Networks",
+  "otherLink": "Other link",
+  "editLink": "Edit link",
+  "newNetwork": "New network",
+  "emailAddress": "Email address",
+  "profileAddress": "Profile address",
+  "emailPlaceholder": "name@domain.com",
+  "recognized": "Recognised: {network}",
+  "displayName": "Display name",
+  "displayNameOptional": "Display name (optional)",
+  "namePlaceholder": "E.g. My blog",
+  "invalidAddress": "Invalid address: https://… only (or an email address).",
+  "otherNetwork": "← Another network",
+  "saveLink": "Save the link",
+  "add": "Add"
+}

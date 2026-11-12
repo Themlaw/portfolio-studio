@@ -5,6 +5,7 @@
  * planche partagent ce module : le même menu « Trier par », la même préférence, la même lecture paresseuse des dates, le même
  * chargement progressif (aucune image inaccessible) et la même mise en évidence d'un fichier renvoyé qui existait déjà.
  */
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { backfillTakenAction } from "@/app/admin/(espace)/medias/actions";
@@ -15,13 +16,14 @@ import { useUploadQueue } from "./UploadQueue";
 
 export type MediaSort = "added-desc" | "added-asc" | "name-asc" | "name-desc" | "taken-desc" | "taken-asc";
 
-export const SORTS: { id: MediaSort; label: string }[] = [
-  { id: "added-desc", label: "Ajouté récemment ↓" },
-  { id: "added-asc", label: "Ajouté récemment ↑" },
-  { id: "name-asc", label: "Nom A → Z" },
-  { id: "name-desc", label: "Nom Z → A" },
-  { id: "taken-desc", label: "Date de création ↓" },
-  { id: "taken-asc", label: "Date de création ↑" },
+/** `labelKey` : clé du libellé dans le catalogue `media`. */
+export const SORTS: { id: MediaSort; labelKey: string }[] = [
+  { id: "added-desc", labelKey: "sortAddedDesc" },
+  { id: "added-asc", labelKey: "sortAddedAsc" },
+  { id: "name-asc", labelKey: "sortNameAsc" },
+  { id: "name-desc", labelKey: "sortNameDesc" },
+  { id: "taken-desc", labelKey: "sortTakenDesc" },
+  { id: "taken-asc", labelKey: "sortTakenAsc" },
 ];
 const DEFAULT_SORT: MediaSort = "added-desc";
 const STORE = "pf.editor.mediaSort";
@@ -104,13 +106,14 @@ export function useTakenDates(media: AdminMediaRow[]): AdminMediaRow[] {
 
 /** Menu « Trier par » (même libellés partout). */
 export function MediaSortMenu({ value, onChange, className }: { value: MediaSort; onChange: (s: MediaSort) => void; className?: string }) {
+  const t = useTranslations("media");
   return (
     <label className={`a-sortmenu${className ? ` ${className}` : ""}`}>
-      <span className="a-sortmenu-label">Trier par</span>
+      <span className="a-sortmenu-label">{t("sortBy")}</span>
       <select className="a-input" value={value} onChange={(e) => onChange(e.target.value as MediaSort)} data-testid="media-sort">
         {SORTS.map((s) => (
           <option key={s.id} value={s.id}>
-            {s.label}
+            {t(s.labelKey)}
           </option>
         ))}
       </select>
@@ -181,6 +184,8 @@ export function useWheelToHorizontal(ref: React.RefObject<HTMLElement | null>, a
  */
 export function useReimportReveal(media: AdminMediaRow[], shown: AdminMediaRow[], clearFilters: () => void, reveal: (id: number, index: number) => void): number | null {
   const queue = useUploadQueue();
+  const t = useTranslations("media");
+  const tRef = useRef(t);
   const [pending, setPending] = useState<{ id: number; at: number | null } | null>(null);
   const [flash, setFlash] = useState<number | null>(null);
   const clearRef = useRef(clearFilters);
@@ -188,12 +193,13 @@ export function useReimportReveal(media: AdminMediaRow[], shown: AdminMediaRow[]
   useEffect(() => {
     clearRef.current = clearFilters;
     revealRef.current = reveal;
+    tRef.current = t;
   });
   useEffect(
     () =>
       queue.onMediaCreated((_item, m) => {
         if (!m.reused) return;
-        toast(`Déjà dans la médiathèque · « ${m.name} » : remonté en tête de « Ajouté récemment »`, "success");
+        toast(tRef.current("alreadyInLibrary", { name: m.name }), "success");
         clearRef.current();
         setPending({ id: m.id, at: m.importedAt ?? null });
       }),
@@ -213,8 +219,8 @@ export function useReimportReveal(media: AdminMediaRow[], shown: AdminMediaRow[]
   }, [pending, media, shown]);
   useEffect(() => {
     if (flash === null) return;
-    const t = setTimeout(() => setFlash(null), 4500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setFlash(null), 4500);
+    return () => clearTimeout(timer);
   }, [flash]);
   return flash;
 }

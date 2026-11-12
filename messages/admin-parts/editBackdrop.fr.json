@@ -1,0 +1,23 @@
+{
+  "rowLabel": "Fond du texte :",
+  "rowAria": "Fond du texte",
+  "backdrop_none": "Aucun",
+  "backdrop_shadow": "Ombre douce",
+  "backdrop_band": "Bandeau",
+  "backdrop_highlight": "Surlignage",
+  "chosenColor": "couleur choisie",
+  "auto": "Auto",
+  "dotLabel": "Couleur du fond : {name}",
+  "lowTip": "Texte peu lisible sur ce fond. {tip}",
+  "lowAria": "Texte peu lisible sur ce fond ({verdict})",
+  "popAria": "Couleur du fond du texte",
+  "colorLabel": "Couleur du fond",
+  "otherColor": "Autre couleur…",
+  "keptColor": "Couleur de texte choisie : conservée, même peu lisible.",
+  "autoReadable": "Le texte devient lisible tout seul sur une couleur de fond.",
+  "airLabel": "Aération du fond :",
+  "airAria": "Aération du fond",
+  "air_tight": "Serré",
+  "air_normal": "Normal",
+  "air_airy": "Aéré"
+}

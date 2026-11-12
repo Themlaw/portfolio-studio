@@ -1,0 +1,17 @@
+{
+  "grip": "Glisser « {label} »",
+  "gripTitle": "Glisser (dans un bloc : au milieu de sa ligne)",
+  "collapse": "Replier",
+  "expand": "Déplier",
+  "toFix": "À corriger",
+  "up": "Monter « {label} »",
+  "down": "Descendre « {label} »",
+  "out": "Sortir « {label} » du bloc",
+  "outTitle": "Sortir du bloc",
+  "enter": "Entrer « {label} » dans « {target} »",
+  "enterFallback": "le bloc",
+  "enterTitle": "Entrer dans le bloc voisin",
+  "empty": "Vide : glisse un bloc dedans.",
+  "treeLabel": "Structure de la page",
+  "hint": "Glisse une ligne par sa poignée : entre deux lignes, ou au milieu d'un bloc pour l'y ranger ({max} niveaux de blocs au plus)."
+}

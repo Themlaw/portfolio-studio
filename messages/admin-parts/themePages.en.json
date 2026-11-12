@@ -1,0 +1,27 @@
+{
+  "themes": {
+    "title": "Themes",
+    "intro": "Templates never change: you have a single theme of your own, “My theme”, which you develop version after version (colours, Photoshop kit, import). Only what is online is seen by your visitors: preview, then publish.",
+    "quitPreview": "Exit the preview",
+    "noneTitle": "No theme saved",
+    "noneBody": "The site is shown with the default look. The supplied themes are installed the first time a new database starts."
+  },
+  "edit": {
+    "title": "Edit a theme",
+    "wallpapersIntro": "Your drawn patterns, to repeat as a background: across a whole page, behind a large block, or on the cards. Import as many as you like (PNG or WebP on a transparent background)."
+  },
+  "versions": {
+    "metaTitle": "History of My theme",
+    "title": "History of {name}",
+    "intro": "Each kit, import, template change or editing session adds a version. Going back to a version creates a new, identical one: nothing is lost. The last {count} versions are kept, along with the ones you star and the ones that have been online.",
+    "allThemes": "← All themes"
+  },
+  "frames": {
+    "title": "Frames",
+    "intro": "Your drawn frames, to place around a photo or a video. Import as many as you like (PNG or WebP on a transparent background, or SVG), then pick one in the “Frame” menu of each image."
+  },
+  "wallpapers": {
+    "title": "Wallpapers",
+    "intro": "Your drawn patterns, to repeat as a background: across a whole page, behind a large component, or on the cards. Import as many as you like (PNG or WebP on a transparent background)."
+  }
+}

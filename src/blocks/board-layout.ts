@@ -14,6 +14,8 @@
  * références), l'éditeur (client) et les tests Node.
  */
 
+import type { AdminT } from "@/i18n/admin-lang";
+import { FR_LABELS, problemMsg } from "./block-msg";
 import { HELP_TEXT } from "./help-text";
 import { StrokeTintSchema } from "@/lib/look";
 
@@ -46,12 +48,12 @@ export function captionFieldOf(path: string): CaptionStyleField | null {
   return null;
 }
 
-/** Préréglages de largeur (Petite ~1/3, Moyenne ~1/2, Grande ~2/3, Pleine largeur). */
+/** Préréglages de largeur (Petite ~1/3, Moyenne ~1/2, Grande ~2/3, Pleine largeur). `label` : français ; dans l'interface, `t("boxPreset." + id)` (espace blockRegLabels). */
 export const BOX_PRESETS: { id: string; label: string; width: number }[] = [
-  { id: "small", label: "Petite", width: 33 },
-  { id: "medium", label: "Moyenne", width: 50 },
-  { id: "large", label: "Grande", width: 67 },
-  { id: "full", label: "Pleine largeur", width: 100 },
+  { id: "small", label: FR_LABELS.boxPreset.small, width: 33 },
+  { id: "medium", label: FR_LABELS.boxPreset.medium, width: 50 },
+  { id: "large", label: FR_LABELS.boxPreset.large, width: 67 },
+  { id: "full", label: FR_LABELS.boxPreset.full, width: 100 },
 ];
 export const BOX_MIN = 20;
 export const BOX_ALIGNS = ["left", "center", "right"] as const;
@@ -127,25 +129,11 @@ export const isProjectStrip = (item: { type: string; props: Record<string, unkno
 /** Types proposés dans une planche, dans l'ordre du menu « + Ajouter ». */
 export const BOARD_ITEM_TYPES: BoardItemType[] = ["strip", "grid", "image", "video-single", "free-board", "rich-text"];
 
-/** Libellés simples, tels que l'artiste les lit. */
-export const BOARD_ITEM_LABELS: Record<BoardItemType, string> = {
-  strip: "Images qui défilent",
-  grid: "Grille",
-  image: "Image",
-  "video-single": "Vidéo",
-  "free-board": "Planche libre",
-  "rich-text": "Texte",
-};
+/** Libellés simples, tels que l'artiste les lit (français ; dans l'interface : `t("boardItem.label." + type)`, espace blockRegLabels). */
+export const BOARD_ITEM_LABELS: Record<BoardItemType, string> = FR_LABELS.boardItem.label;
 
-/** Une phrase par type (menu d'ajout). */
-export const BOARD_ITEM_HINTS: Record<BoardItemType, string> = {
-  strip: "Les images du projet en bande, qui défile sur le côté.",
-  grid: "Des images ou des vidéos rangées en colonnes.",
-  image: "Une image seule, jusqu'à la pleine largeur.",
-  "video-single": "Une vidéo de ta médiathèque.",
-  "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
-  "rich-text": "Un paragraphe, avec un titre si tu veux.",
-};
+/** Une phrase par type (menu d'ajout) ; dans l'interface : `t("boardItem.hint." + type)`. */
+export const BOARD_ITEM_HINTS: Record<BoardItemType, string> = FR_LABELS.boardItem.hint;
 
 /** Composants au plus dans la suite d'une planche. */
 export const MAX_BOARD_ITEMS = 12;
@@ -176,69 +164,71 @@ export function projectCaptionStyle(layout: readonly { captionStyle?: unknown }[
 /**
  * Premier problème de forme d'une suite (types permis, uid bien formés et uniques, une seule bande, bornes),
  * ou null. Les réglages de chaque composant se valident ensuite par le schéma de son type (registre).
+ * `t` (espace blockRegProblems) : langue de l'interface ; sans lui, le français.
  */
-export function layoutProblem(raw: unknown): string | null {
-  if (!Array.isArray(raw)) return "Contenu de projet illisible.";
-  if (raw.length > MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} blocs au plus par projet.`;
+export function layoutProblem(raw: unknown, t?: AdminT): string | null {
+  const E = (key: Parameters<typeof problemMsg>[0], values?: Record<string, string | number>) => problemMsg(key, values, t);
+  if (!Array.isArray(raw)) return E("layoutUnreadable");
+  if (raw.length > MAX_BOARD_ITEMS) return E("layoutTooMany", { max: MAX_BOARD_ITEMS });
   const uids = new Set<string>();
   let strips = 0;
   for (const item of raw) {
-    if (!isObj(item) || !isBoardItemType(item.type)) return "Bloc de projet inconnu.";
-    if (typeof item.uid !== "string" || !UID.test(item.uid)) return "Identifiant de bloc invalide.";
-    if (uids.has(item.uid)) return "Blocs de projet en double.";
+    if (!isObj(item) || !isBoardItemType(item.type)) return E("layoutUnknownItem");
+    if (typeof item.uid !== "string" || !UID.test(item.uid)) return E("badUid");
+    if (uids.has(item.uid)) return E("dupItems");
     uids.add(item.uid);
-    if (!isObj(item.props)) return "Réglages d'un bloc illisibles.";
+    if (!isObj(item.props)) return E("propsUnreadable");
     if (item.box !== undefined) {
       const b = item.box as Record<string, unknown>;
-      if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return "Largeur du bloc illisible.";
-      if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return `Largeur du bloc : entre ${BOX_MIN} et 100 %.`;
-      if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du bloc invalide.";
+      if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return E("boxUnreadable");
+      if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return E("boxWidth", { min: BOX_MIN });
+      if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return E("boxAlign");
     }
     if (item.captionStyle !== undefined) {
       const c = item.captionStyle;
-      if (!isObj(c) || Object.keys(c).some((k) => !(CAPTION_STYLE_FIELDS as readonly string[]).includes(k) || !isObj(c[k]))) return "Style des légendes du projet illisible.";
+      if (!isObj(c) || Object.keys(c).some((k) => !(CAPTION_STYLE_FIELDS as readonly string[]).includes(k) || !isObj(c[k]))) return E("captionStyleUnreadable");
     }
     if (item.type === "strip") {
       if (item.props.captions !== undefined) {
         const c = item.props.captions;
-        if (!isObj(c) || Object.keys(c).length > 400) return "Textes des images de la bande illisibles.";
+        if (!isObj(c) || Object.keys(c).length > 400) return E("stripCaptionsUnreadable");
         for (const [key, v] of Object.entries(c)) {
-          if (!CAPTION_KEY.test(key) || !isObj(v) || Object.keys(v).some((f) => !(CAPTION_FIELDS as readonly string[]).includes(f) || !isCaptionText(v[f]))) return "Textes des images de la bande illisibles.";
+          if (!CAPTION_KEY.test(key) || !isObj(v) || Object.keys(v).some((f) => !(CAPTION_FIELDS as readonly string[]).includes(f) || !isCaptionText(v[f]))) return E("stripCaptionsUnreadable");
         }
       }
-      if (item.props.videoMode !== undefined && !isVideoMode(item.props.videoMode)) return "Lecture des vidéos de la bande illisible.";
-      if (item.props.stroke !== undefined && !StrokeTintSchema.safeParse(item.props.stroke).success) return "Couleur du trait de la bande illisible.";
+      if (item.props.videoMode !== undefined && !isVideoMode(item.props.videoMode)) return E("stripVideoMode");
+      if (item.props.stroke !== undefined && !StrokeTintSchema.safeParse(item.props.stroke).success) return E("stripStroke");
       const own = item.props.source === "own";
       if (own) {
         const m = item.props.media;
         const ids = item.props.ids;
-        if (ids !== undefined && (!Array.isArray(ids) || ids.length > MAX_RAIL_MEDIA || ids.some((x) => typeof x !== "string" || !PLACE_ID.test(x)))) return "Places du carrousel illisibles.";
-        if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => x !== null && (!Number.isInteger(x) || (x as number) <= 0)))) return `Un carrousel garde ${MAX_RAIL_MEDIA} médias au plus.`;
+        if (ids !== undefined && (!Array.isArray(ids) || ids.length > MAX_RAIL_MEDIA || ids.some((x) => typeof x !== "string" || !PLACE_ID.test(x)))) return E("railPlaces");
+        if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => x !== null && (!Number.isInteger(x) || (x as number) <= 0)))) return E("railMax", { max: MAX_RAIL_MEDIA });
       } else {
         strips++;
-        if (strips > 1) return "Une seule bande des images du projet est possible.";
+        if (strips > 1) return E("oneStrip");
       }
     }
     const hasChildren = "children" in item.props;
     if (item.type !== "grid") {
-      if (hasChildren) return "Seule une grille en porte d'autres.";
+      if (hasChildren) return E("onlyGridChildren");
       continue;
     }
     const kids = item.props.children;
     if (kids === undefined) continue;
-    if (!Array.isArray(kids)) return "Contenu de la grille illisible.";
-    if (kids.length > MAX_GRID_CHILDREN) return `${MAX_GRID_CHILDREN} blocs au plus par grille.`;
+    if (!Array.isArray(kids)) return E("gridUnreadable");
+    if (kids.length > MAX_GRID_CHILDREN) return E("gridTooMany", { max: MAX_GRID_CHILDREN });
     for (const kid of kids) {
-      if (!isObj(kid) || typeof kid.type !== "string" || !(GRID_CHILD_TYPES as readonly string[]).includes(kid.type)) return "Une grille de projet n'accepte que des images et des vidéos.";
-      if (typeof kid.uid !== "string" || !UID.test(kid.uid) || uids.has(kid.uid)) return "Identifiant de bloc invalide.";
+      if (!isObj(kid) || typeof kid.type !== "string" || !(GRID_CHILD_TYPES as readonly string[]).includes(kid.type)) return E("gridOnlyMedia");
+      if (typeof kid.uid !== "string" || !UID.test(kid.uid) || uids.has(kid.uid)) return E("badUid");
       uids.add(kid.uid);
-      if (!isObj(kid.props) || "children" in kid.props) return "Réglages d'un bloc illisibles.";
+      if (!isObj(kid.props) || "children" in kid.props) return E("propsUnreadable");
     }
   }
   try {
-    if (JSON.stringify(raw).length > MAX_LAYOUT_BYTES) return "Le contenu de ce projet est trop lourd.";
+    if (JSON.stringify(raw).length > MAX_LAYOUT_BYTES) return E("tooHeavy");
   } catch {
-    return "Contenu de projet illisible.";
+    return E("layoutUnreadable");
   }
   return null;
 }

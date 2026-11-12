@@ -6,6 +6,7 @@
  * Collée à un cran, la valeur écrite est le NOM du cran (les anciennes données restent lues et réécrites à l'identique) ; sinon un nombre.
  * Le bouton de chaque cran saute dessus ; « Auto » retire le réglage (valeur du thème). Le réglage part au relâchement (évènement `change`).
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 export type SnapStop<V> = { at: number; label: string; short?: string; key: string; value: V };
@@ -58,6 +59,7 @@ export default function SnapSlider<V extends string | number>({
   }
   const near = (n: number) => stops.reduce<SnapStop<V> | undefined>((best, s) => (Math.abs(s.at - n) <= snap && (!best || Math.abs(s.at - n) < Math.abs(best.at - n)) ? s : best), undefined);
   // Clavier : une flèche avance d'un pas et ne colle pas aux crans voisins (sinon on ne quitterait jamais un cran) ; seul un cran atteint pile s'écrit par son nom.
+  const t = useTranslations("editMenusSnap");
   const [keys, setKeys] = useState(false);
   const nearK = (n: number) => (keys ? stops.find((s) => s.at === n) : near(n));
   const resolve = (n: number): V | undefined => {
@@ -76,7 +78,7 @@ export default function SnapSlider<V extends string | number>({
         <output className="snap-value" data-snap-value="" aria-live="polite">
           {current ?? autoLabel}
         </output>
-        <button type="button" role="radio" className="snap-auto" data-snap="auto" {...(attr ? { [attr]: `${prefix}${autoKey}` } : {})} aria-checked={value === undefined} title="Valeur du thème" onClick={() => onCommit(undefined)}>
+        <button type="button" role="radio" className="snap-auto" data-snap="auto" {...(attr ? { [attr]: `${prefix}${autoKey}` } : {})} aria-checked={value === undefined} title={t("themeValue")} onClick={() => onCommit(undefined)}>
           {autoLabel}
         </button>
       </div>

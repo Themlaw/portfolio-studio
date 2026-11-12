@@ -1,0 +1,8 @@
+{
+  "placeholder": "Chercher un projet existant, ou créer un nouveau projet",
+  "fresh": "Pas encore sur une page",
+  "onPage": "Déjà sur une page",
+  "newProject": "Nouveau projet",
+  "newHint": "(sans nom : tu le nommeras ensuite)",
+  "draft": "(créé sur cette page)"
+}

@@ -18,12 +18,14 @@
  * Logo : image (médiathèque ou envoi, lot 26 ; retirée : le logo texte ou celui du thème), taille (curseur) et comportement
  * (fixe, réduit au défilement, déborde sous le bandeau).
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
-import { pairsReadability, ratioTip } from "@/components/edit/readability";
+import { pairsReadability } from "@/components/edit/readability";
+import { useReadability } from "@/components/edit/useReadability";
 import type { AdminMediaRow } from "@/lib/admin";
-import { LOGO_ALIGN_LABELS, LOGO_ALIGNS, LOGO_ANCHOR_LABELS, LOGO_ANCHORS, LOGO_FIT_LABELS, LOGO_FITS, LOGO_MARGIN_LABELS, LOGO_MARGINS, LOGO_MOBILE_LABELS, LOGO_MOBILES, LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, LOGO_X_MAX, LOGO_X_MIN, type Logo, type LogoAlign, type PaletteColor, type SitePalette } from "@/lib/look";
+import { LOGO_ALIGN_LABELS, LOGO_ALIGNS, LOGO_ANCHOR_LABELS, LOGO_ANCHORS, LOGO_FIT_LABELS, LOGO_FITS, LOGO_MARGIN_LABELS, LOGO_MARGINS, LOGO_MOBILE_LABELS, LOGO_MOBILES, LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, LOGO_X_MAX, LOGO_X_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
@@ -33,15 +35,8 @@ import "@/app/admin/typo-controls.css";
 export type ThemeColors = { name: string; color: PaletteColors; palette: PaletteState | null };
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
 
-/** Légende des états d'une couleur (info-bulle, lot 55). */
-const STATE_TIPS: Record<string, string> = {
-  thème: "Cette couleur est celle du thème.",
-  personnalisée: "Tu as choisi cette couleur pour tout le site : elle remplace celle du thème.",
-  modifiée: "Tu as changé cette couleur, elle n'est pas encore enregistrée.",
-  enregistrée: "Cette couleur est celle du thème enregistré.",
-  choisie: "Tu as choisi cette couleur toi-même.",
-  automatique: "Cette couleur se calcule toute seule à partir des autres.",
-};
+/** États d'une couleur (libellé `state_<état>` et info-bulle `tip_<état>` du catalogue, lot 55). */
+type ColorState = "theme" | "custom" | "modified" | "saved" | "chosen" | "auto";
 
 /** Règle du calcul « auto » d'une nuance, en clair. */
 const ruleOf = (k: NuanceKey) => PALETTE_GROUPS.flatMap((g) => g.nuances).find((n) => n.key === k)?.rule ?? "";
@@ -80,6 +75,8 @@ export function ColorsPanel({
   onHighlight: (role: BaseKey | null) => void;
   info: HighlightInfo | null;
 }) {
+  const t = useTranslations("editorPanelsColors");
+  const read = useReadability();
   const [open, setOpen] = useState<BaseKey | null>(null);
   // Nuance dont le sélecteur est ouvert (une seule fenêtre ouverte à la fois, rôle ou nuance).
   const [openNuance, setOpenNuance] = useState<NuanceKey | null>(null);
@@ -130,7 +127,7 @@ export function ColorsPanel({
     const isOpenN = openNuance === k;
     const origin = nuanceOrigin(theme.color, palette, value, k);
     const failing = allPairs.filter((p) => !p.ok && p.tokens.includes(k));
-    const state = origin === "site" ? "choisie" : origin === "auto" ? "automatique" : isTheme ? "choisie" : "thème";
+    const state: ColorState = origin === "site" ? "chosen" : origin === "auto" ? "auto" : isTheme ? "chosen" : "theme";
     return (
       <li key={k} className="lc-nuance-item" data-nuance={k} data-open={isOpenN || undefined} data-origin={origin} data-invalid={failing.length > 0 || undefined}>
         <button
@@ -147,15 +144,15 @@ export function ColorsPanel({
           <span className="lc-text">
             <strong>{info.name}</strong>
             <small>{info.phrase}</small>
-            {origin === "auto" && <small data-testid="nuance-auto">Automatique (calculée : {ruleOf(k)})</small>}
+            {origin === "auto" && <small data-testid="nuance-auto">{t("autoCalc", { rule: ruleOf(k) })}</small>}
           </span>
-          <span className="lc-nstate" title={STATE_TIPS[state]}>
-            {state}
+          <span className="lc-nstate" title={t(`tip_${state}`)}>
+            {t(`state_${state}`)}
           </span>
         </button>
         {failing.length > 0 && (
-          <p className="lc-nwarn" role="status" title={ratioTip(Math.min(...failing.map((p) => p.ratio)))}>
-            Lisibilité insuffisante : {failing.map((p) => p.label).join(", ")}.
+          <p className="lc-nwarn" role="status" title={read.tip(Math.min(...failing.map((p) => p.ratio)))}>
+            {t("poorReadability", { list: failing.map((p) => p.label).join(", ") })}
           </p>
         )}
         {isOpenN && (
@@ -169,7 +166,7 @@ export function ColorsPanel({
                 onClose={() => setOpenNuance(null)}
                 live
                 solid={{
-                  resetLabel: !isTheme && themeFixesNuance(theme.color, palette, value, k) ? "Revenir à la couleur du thème" : "Revenir à l'automatique",
+                  resetLabel: !isTheme && themeFixesNuance(theme.color, palette, value, k) ? t("resetNuanceTheme") : t("resetAuto"),
                   onReset: () => {
                     setNuanceValue(k, undefined);
                     setEpoch((n) => n + 1);
@@ -201,29 +198,34 @@ export function ColorsPanel({
   return (
     <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel" data-mode={mode} data-guided={(isTheme && guided) || undefined}>
       <h3 id="lp-colors-title" className="lp-title" hidden={isTheme}>
-        Couleurs
+        {t("title")}
       </h3>
       <p className="lp-help">
         {isTheme
           ? guided
-            ? "Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite."
-            : `Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite. Les couleurs sont écrites dans le thème « ${theme.name} » à l'enregistrement.`
+            ? t("helpThemeGuided")
+            : t("helpTheme", { name: theme.name })
           : preparing
-            ? `Ces couleurs sont celles du thème « ${theme.name} », que tu prépares : il n'est pas encore en ligne. Survole une couleur pour voir où elle sert, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`
-            : `Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`}
+            ? t("helpPreparing", { name: theme.name })
+            : t("helpSite", { name: theme.name })}
       </p>
       {!isTheme && modifiedCount > 0 && (
         <p className="lc-custom" data-testid="custom-colors-title">
-          <strong>Couleurs personnalisées du site</strong> : {modifiedCount} {modifiedCount > 1 ? "couleurs remplacent" : "couleur remplace"} celles du thème, sur toutes les pages.
+          <strong>{t("customTitle")}</strong>{t("customLine", { count: modifiedCount })}
         </p>
       )}
       {ignored && (
         <div className="a-notice lc-ignored" role="status" data-testid="palette-ignored">
           <p>
-            <strong>Attention : ces couleurs rendent du texte difficile à lire</strong> avec le thème « {theme.name} »{preparing ? " (en préparation)" : ""}
-            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont appliquées quand même ; tu peux publier sans les changer.
+            {t.rich("warn", {
+              name: theme.name,
+              preparing: preparing ? "yes" : "no",
+              label: worstIssue.label.toLowerCase(),
+              strong: (c) => <strong>{c}</strong>,
+              worst: (c) => <span title={read.tip(worstIssue.ratio)}>{c}</span>,
+            })}
           </p>
-          <p>Si tu veux plus de confort de lecture, ajuste les couleurs signalées ci-dessous.</p>
+          <p>{t("warnHelp")}</p>
         </div>
       )}
       <ul className="lc-roles">
@@ -258,19 +260,19 @@ export function ColorsPanel({
                   <strong>{role.name}</strong>
                   <small>{role.phrase}</small>
                 </span>
-                <span className="lc-state" title={STATE_TIPS[modified ? "modifiée" : isTheme ? "enregistrée" : "thème"]}>
-                  {modified ? (isTheme ? "modifiée" : "personnalisée") : isTheme ? "enregistrée" : "thème"}
+                <span className="lc-state" title={t(`tip_${modified ? "modified" : isTheme ? "saved" : "theme"}`)}>
+                  {t(`state_${modified ? (isTheme ? "modified" : "custom") : isTheme ? "saved" : "theme"}`)}
                 </span>
               </button>
               {highlighted === role.key && (
                 <p className="lc-uses" data-floating={!isOpen || undefined} role="status" data-testid="hl-legend">
-                  Utilisé par : {legend && legend.uses.length ? legend.uses.join(", ") : role.uses}
-                  {legend && legend.count > 0 ? ` · ${legend.count} élément${legend.count > 1 ? "s" : ""} sur cette page` : ""}
+                  {t("usedBy", { uses: legend && legend.uses.length ? legend.uses.join(", ") : role.uses })}
+                  {legend && legend.count > 0 ? t("usedCount", { count: legend.count }) : ""}
                 </p>
               )}
               {!isOpen && failing.length > 0 && (
-                <p className="lc-warn" role="status" title={ratioTip(lowest)}>
-                  Lisibilité insuffisante : {failing.map((p) => p.label).join(", ")}.
+                <p className="lc-warn" role="status" title={read.tip(lowest)}>
+                  {t("poorReadability", { list: failing.map((p) => p.label).join(", ") })}
                 </p>
               )}
               {isOpen && (
@@ -284,7 +286,7 @@ export function ColorsPanel({
                       onClose={() => setOpen(null)}
                       live={isTheme}
                       solid={{
-                        resetLabel: isTheme ? "Revenir à la couleur enregistrée" : "Revenir à la couleur du thème",
+                        resetLabel: isTheme ? t("resetSaved") : t("resetTheme"),
                         onReset: () => {
                           set(role.key, undefined);
                           setEpoch((n) => n + 1);
@@ -294,13 +296,13 @@ export function ColorsPanel({
                   </div>
                   {pairs.length > 0 &&
                     (failing.length === 0 ? (
-                      <p className="lc-ok" role="status" data-testid="contrast-status" title={ratioTip(lowest)}>
-                        Lisibilité : {pairsReadability(pairs).label}.
+                      <p className="lc-ok" role="status" data-testid="contrast-status" title={read.tip(lowest)}>
+                        {t("readOk", { label: read.word(pairsReadability(pairs)) })}
                       </p>
                     ) : (
                       <div className="a-notice lc-alert" role="status" data-testid="contrast-status">
-                        <p title={ratioTip(lowest)}>
-                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte serait difficile à lire ; la couleur est appliquée quand même, la mise en ligne n&apos;est pas bloquée.
+                        <p title={read.tip(lowest)}>
+                          {t("readBad", { list: failing.map((p) => p.label.toLowerCase()).join(", ") })}
                         </p>
                         {fixed ? (
                           <button
@@ -312,19 +314,19 @@ export function ColorsPanel({
                               setEpoch((n) => n + 1);
                             }}
                           >
-                            Ajuster automatiquement
+                            {t("autoFix")}
                             <span className="a-chip" style={{ background: fixed }} aria-hidden="true" />
                             <span className="mono">{fixed}</span>
                           </button>
                         ) : (
-                          <p>Aucune teinte proche ne convient : change aussi la couleur du fond ou du texte concernée.</p>
+                          <p>{t("noTint")}</p>
                         )}
                       </div>
                     ))}
                 </div>
               )}
               {!(isTheme && guided) && nuancesUnder(role.key).length > 0 && (
-                <ul className="lc-nuance-sub" aria-label={`Réglages liés : ${role.name}`}>
+                <ul className="lc-nuance-sub" aria-label={t("linked", { name: role.name })}>
                   {nuancesUnder(role.key).map(renderNuance)}
                 </ul>
               )}
@@ -334,8 +336,8 @@ export function ColorsPanel({
       </ul>
       {!(isTheme && guided) && (
         <>
-          <h4 className="lc-group-title">Image agrandie</h4>
-          <p className="lp-help">Quand on clique sur une image : le fond derrière elle et ce qui s&apos;écrit dessus.</p>
+          <h4 className="lc-group-title">{t("zoomTitle")}</h4>
+          <p className="lp-help">{t("zoomHelp")}</p>
           <ul className="lc-nuance-sub lc-lightbox" data-testid="lightbox-colors">
             {nuancesUnder("lightbox").map(renderNuance)}
           </ul>
@@ -350,29 +352,13 @@ export function ColorsPanel({
             setEpoch((n) => n + 1);
           }}
         >
-          {isTheme ? "Revenir aux couleurs enregistrées" : "Revenir aux couleurs du thème"}
+          {isTheme ? t("backSaved") : t("backTheme")}
         </button>
       )}
     </section>
   );
 }
 
-const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
-  fixed: "Le logo garde la même taille.",
-  shrink: "Grand sur la page, il rétrécit quand on défile (visible dans « Aperçu exact »). La barre garde sa hauteur.",
-};
-
-const ALIGN_HELP: Record<LogoAlign, string> = {
-  center: "Le logo est au milieu de la hauteur de la barre, entier : il n'est jamais coupé.",
-  top: "Le logo est collé en haut de la barre (à la marge près), entier.",
-  bottom: "Le logo est collé en bas de la barre (à la marge près), entier.",
-  grow: "La barre du haut devient aussi haute que le logo (avec ses marges) et le logo y est au milieu. Le reste de la page descend d'autant.",
-};
-
-const FIT_HELP: Record<(typeof LOGO_FITS)[number], string> = {
-  contain: "Tout le logo est visible, avec ses proportions.",
-  cover: "Le logo prend toute la hauteur de la barre (sans marge). Un logo très large est rogné sur les côtés.",
-};
 
 export function LogoPanel({
   value,
@@ -390,6 +376,7 @@ export function LogoPanel({
   /** Ouvre le choix d'une image (médiathèque ou envoi) ; absent : la section image n'est pas montrée. */
   onChooseImage?: () => void;
 }) {
+  const t = useTranslations("editorPanelsLogo");
   const size = value.size ?? LOGO_SIZE_DEFAULT;
   const mode = value.mode === "shrink" ? "shrink" : "fixed";
   const align = value.align ?? "center";
@@ -402,14 +389,12 @@ export function LogoPanel({
   return (
     <section className="lp lp-logo" aria-labelledby="lp-logo-title" data-testid="logo-panel">
       <h3 id="lp-logo-title" className="lp-title">
-        Logo
+        {t("title")}
       </h3>
-      <p className="lp-help">
-        La signature de l&apos;en-tête, ou le nom du site quand le thème n&apos;en a pas. Tu peux aussi le régler sur la page : poignée sous le logo.
-      </p>
+      <p className="lp-help">{t("intro")}</p>
       {onChooseImage && (
         <div className="lp-field lc-logo-image" data-testid="logo-image">
-          <span className="lp-label">Image du logo</span>
+          <span className="lp-label">{t("image")}</span>
           {value.mediaId !== undefined ? (
             <div className="lc-logo-current">
               {image?.thumb ? (
@@ -418,18 +403,18 @@ export function LogoPanel({
               ) : (
                 <span className="lc-logo-thumb lc-logo-missing" aria-hidden="true" />
               )}
-              <span className="lc-logo-name">{image ? image.name : "Image introuvable (retirée de la médiathèque)"}</span>
+              <span className="lc-logo-name">{image ? image.name : t("missing")}</span>
             </div>
           ) : (
-            <small className="lp-hint">{signature ? "Le logo est celui du thème (une signature dessinée)." : "Le logo est le nom du site, écrit en texte."} Remplace-le par ton image.</small>
+            <small className="lp-hint">{signature ? t("hintTheme") : t("hintText")}</small>
           )}
           <div className="lc-logo-actions">
             <button type="button" className="a-btn a-btn-small" data-testid="logo-choose" onClick={onChooseImage}>
-              {value.mediaId !== undefined ? "Remplacer l'image…" : "Choisir une image…"}
+              {value.mediaId !== undefined ? t("replaceImage") : t("chooseImage")}
             </button>
             {value.mediaId !== undefined && (
               <button type="button" className="a-btn a-btn-small a-btn-quiet" data-testid="logo-revert" onClick={() => onChange({ ...value, mediaId: undefined })}>
-                {signature ? "Revenir au logo du thème" : "Revenir au logo texte"}
+                {signature ? t("revertTheme") : t("revertText")}
               </button>
             )}
           </div>
@@ -437,7 +422,7 @@ export function LogoPanel({
       )}
       <div className="lp-field">
         <span className="lp-label" id="lp-logo-size-label">
-          Taille du logo
+          {t("size")}
         </span>
         <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-size-label" data-testid="logo-size-presets">
           {LOGO_SIZE_PRESETS.map((p) => (
@@ -447,7 +432,7 @@ export function LogoPanel({
           ))}
         </div>
         <label className="lp-label" htmlFor="lp-logo-size">
-          Réglage précis
+          {t("precise")}
         </label>
         <div className="lc-size">
           <input
@@ -457,34 +442,34 @@ export function LogoPanel({
             max={LOGO_SIZE_MAX}
             step={1}
             value={size}
-            aria-valuetext={`${size} pixels`}
+            aria-valuetext={t("pixels", { size })}
             onChange={(e) => onChange({ ...value, size: Number(e.target.value) })}
           />
           <output htmlFor="lp-logo-size" data-testid="logo-size-out">
-            {value.size === undefined ? "thème" : `${size} px`}
+            {value.size === undefined ? t("themeWord") : t("px", { value: size })}
           </output>
         </div>
         {value.size !== undefined && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange({ ...value, size: undefined })}>
-            Revenir à la taille du thème
+            {t("backSize")}
           </button>
         )}
       </div>
       <fieldset className="lp-field lc-modes" data-testid="logo-align">
-        <legend className="lp-label">Place dans la barre du haut</legend>
+        <legend className="lp-label">{t("place")}</legend>
         {LOGO_ALIGNS.map((a) => (
           <label key={a} className="lc-mode">
             <input type="radio" name="logo-align" value={a} checked={align === a} data-testid={`logo-align-${a}`} onChange={() => onChange({ ...value, align: a === "center" ? undefined : a })} />
             <span>
               <strong>{LOGO_ALIGN_LABELS[a]}</strong>
-              <small>{ALIGN_HELP[a]}</small>
+              <small>{t(`alignHelp_${a}`)}</small>
             </span>
           </label>
         ))}
       </fieldset>
       <div className="lp-field" data-testid="logo-fit">
         <span className="lp-label" id="lp-logo-fit-label">
-          Ajustement dans la barre
+          {t("fit")}
         </span>
         <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-fit-label">
           {LOGO_FITS.map((f) => (
@@ -493,11 +478,11 @@ export function LogoPanel({
             </button>
           ))}
         </div>
-        <small className="lp-hint">{FIT_HELP[fit]}</small>
+        <small className="lp-hint">{t(`fitHelp_${fit}`)}</small>
       </div>
       <div className="lp-field" data-testid="logo-margin">
         <span className="lp-label" id="lp-logo-margin-label">
-          Marges autour du logo
+          {t("margins")}
         </span>
         <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-margin-label">
           {LOGO_MARGINS.map((m) => (
@@ -506,11 +491,11 @@ export function LogoPanel({
             </button>
           ))}
         </div>
-        <small className="lp-hint">Le logo ne dépasse jamais la hauteur de la barre moins ces marges ; pour un logo plus grand, choisis « La barre s&apos;agrandit ».</small>
+        <small className="lp-hint">{t("marginsHint")}</small>
       </div>
       <div className="lp-field" data-testid="logo-mobile">
         <span className="lp-label" id="lp-logo-mobile-label">
-          Sur téléphone
+          {t("mobile")}
         </span>
         <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-mobile-label">
           {LOGO_MOBILES.map((m) => (
@@ -519,11 +504,11 @@ export function LogoPanel({
             </button>
           ))}
         </div>
-        <small className="lp-hint">« Logo réduit » : taille ×0,75 sur téléphone. « Même logo » : la même taille qu&apos;au grand écran, dans la limite de la barre.</small>
+        <small className="lp-hint">{t("mobileHint")}</small>
       </div>
       <div className="lp-field" data-testid="logo-position">
         <span className="lp-label" id="lp-logo-pos-label">
-          Position du logo, de gauche à droite
+          {t("position")}
         </span>
         <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-pos-label">
           {LOGO_ANCHORS.map((a) => (
@@ -533,7 +518,7 @@ export function LogoPanel({
           ))}
         </div>
         <label className="lp-label" htmlFor="lp-logo-x">
-          Décalage fin
+          {t("fine")}
         </label>
         <div className="lc-size">
           <input
@@ -543,28 +528,28 @@ export function LogoPanel({
             max={LOGO_X_MAX}
             step={1}
             value={x}
-            aria-valuetext={`${x} pixels`}
+            aria-valuetext={t("pixels", { size: x })}
             onChange={(e) => onChange({ ...value, x: Number(e.target.value) })}
           />
           <output htmlFor="lp-logo-x" data-testid="logo-x-out">
-            {x === 0 ? "0 px" : `${x > 0 ? "+" : ""}${x} px`}
+            {x === 0 ? t("px", { value: 0 }) : t("px", { value: `${x > 0 ? "+" : ""}${x}` })}
           </output>
         </div>
-        <small className="lp-hint">Le logo s&apos;arrête avant le menu et avant le bord de l&apos;écran. Sur téléphone, le décalage est réduit. Tu peux aussi le glisser sur la page.</small>
+        <small className="lp-hint">{t("posHint")}</small>
         {(value.x !== undefined || value.anchor !== undefined) && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" data-testid="logo-pos-reset" onClick={() => onChange({ ...value, x: undefined, anchor: undefined })}>
-            Remettre le logo à gauche
+            {t("backLeft")}
           </button>
         )}
       </div>
       <fieldset className="lp-field lc-modes">
-        <legend className="lp-label">Comportement</legend>
+        <legend className="lp-label">{t("behaviour")}</legend>
         {LOGO_MODES.map((m) => (
           <label key={m} className="lc-mode">
             <input type="radio" name="logo-mode" value={m} checked={mode === m} onChange={() => onChange({ ...value, mode: m })} />
             <span>
               <strong>{LOGO_MODE_LABELS[m]}</strong>
-              <small>{MODE_HELP[m]}</small>
+              <small>{t(`modeHelp_${m}`)}</small>
             </span>
           </label>
         ))}

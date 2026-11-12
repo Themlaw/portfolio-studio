@@ -13,6 +13,7 @@
  *  - kind « hide » : drapeau inversé (`prop: false` = retiré, clé absente = affiché), pour ce qui existait déjà.
  */
 
+/** `add` / `remove` : clés de message de l'espace `blockOptional` (messages/admin-parts) ; FieldOps les traduit à l'affichage (lot 130b). */
 export type FieldOpDef = { prop: string; kind: "text" | "hide"; add: string; remove: string };
 
 /** Noms courts des champs facultatifs gérés ici (les quatre premiers : blocs Texte et Titre, lots 19a et 22). */
@@ -22,32 +23,32 @@ export type FieldOpName = (typeof FIELD_OP_NAMES)[number];
 /** Champs facultatifs par type de bloc (hors Texte et Titre, qui ont leur propre règle dans l'éditeur de page). */
 export const OPTIONAL_FIELDS: Record<string, Partial<Record<FieldOpName, FieldOpDef>>> = {
   grid: {
-    eyebrow: { prop: "eyebrow", kind: "text", add: "+ Ajouter une étiquette", remove: "Retirer l'étiquette" },
-    title: { prop: "title", kind: "text", add: "+ Ajouter un titre", remove: "Retirer le titre" },
+    eyebrow: { prop: "eyebrow", kind: "text", add: "addLabel", remove: "removeLabel" },
+    title: { prop: "title", kind: "text", add: "addTitle", remove: "removeTitle" },
   },
   contact: {
-    eyebrow: { prop: "eyebrow", kind: "text", add: "+ Ajouter une étiquette", remove: "Retirer l'étiquette" },
-    title: { prop: "title", kind: "text", add: "+ Ajouter un titre", remove: "Retirer le titre" },
-    intro: { prop: "intro", kind: "text", add: "+ Ajouter une présentation", remove: "Retirer la présentation" },
-    cta: { prop: "cta", kind: "text", add: "+ Ajouter un bouton e-mail", remove: "Retirer le bouton" },
+    eyebrow: { prop: "eyebrow", kind: "text", add: "addLabel", remove: "removeLabel" },
+    title: { prop: "title", kind: "text", add: "addTitle", remove: "removeTitle" },
+    intro: { prop: "intro", kind: "text", add: "addIntro", remove: "removeIntro" },
+    cta: { prop: "cta", kind: "text", add: "addEmailButton", remove: "removeButton" },
   },
   profile: {
-    eyebrow: { prop: "eyebrow", kind: "text", add: "+ Ajouter une étiquette", remove: "Retirer l'étiquette" },
-    caption: { prop: "portraitCaption", kind: "text", add: "+ Ajouter une légende", remove: "Retirer la légende" },
-    name: { prop: "showName", kind: "hide", add: "+ Ajouter ton nom", remove: "Retirer ton nom" },
-    "contact-eyebrow": { prop: "contactEyebrow", kind: "text", add: "+ Ajouter l'étiquette du contact", remove: "Retirer l'étiquette du contact" },
-    "contact-label": { prop: "contactLabel", kind: "text", add: "+ Ajouter un bouton e-mail", remove: "Retirer le bouton e-mail" },
-    "social-eyebrow": { prop: "socialEyebrow", kind: "text", add: "+ Ajouter l'étiquette des réseaux", remove: "Retirer l'étiquette des réseaux" },
+    eyebrow: { prop: "eyebrow", kind: "text", add: "addLabel", remove: "removeLabel" },
+    caption: { prop: "portraitCaption", kind: "text", add: "addCaption", remove: "removeCaption" },
+    name: { prop: "showName", kind: "hide", add: "addName", remove: "removeName" },
+    "contact-eyebrow": { prop: "contactEyebrow", kind: "text", add: "addContactLabel", remove: "removeContactLabel" },
+    "contact-label": { prop: "contactLabel", kind: "text", add: "addEmailButton", remove: "removeEmailButton" },
+    "social-eyebrow": { prop: "socialEyebrow", kind: "text", add: "addSocialLabel", remove: "removeSocialLabel" },
   },
   cv: {
-    eyebrow: { prop: "eyebrow", kind: "text", add: "+ Ajouter une étiquette", remove: "Retirer l'étiquette" },
-    title: { prop: "title", kind: "text", add: "+ Ajouter un titre", remove: "Retirer le titre" },
-    intro: { prop: "intro", kind: "text", add: "+ Ajouter une présentation", remove: "Retirer la présentation" },
+    eyebrow: { prop: "eyebrow", kind: "text", add: "addLabel", remove: "removeLabel" },
+    title: { prop: "title", kind: "text", add: "addTitle", remove: "removeTitle" },
+    intro: { prop: "intro", kind: "text", add: "addIntro", remove: "removeIntro" },
   },
   // Lot 128 : case d'une grille justifiée, le titre est la légende « titre » du média (sous lui, la géométrie des rangées ne bouge pas).
-  image: { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
-  "video-single": { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
-  "free-board": { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
+  image: { "cap-title": { prop: "captionTitle", kind: "text", add: "addShortTitle", remove: "removeTitle" } },
+  "video-single": { "cap-title": { prop: "captionTitle", kind: "text", add: "addShortTitle", remove: "removeTitle" } },
+  "free-board": { "cap-title": { prop: "captionTitle", kind: "text", add: "addShortTitle", remove: "removeTitle" } },
 };
 
 /** Définition d'un champ facultatif d'un type de bloc, ou undefined (pas de `dict[key]` : « constructor », « __proto__ »…). */

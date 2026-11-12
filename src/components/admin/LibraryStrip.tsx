@@ -9,6 +9,7 @@
  * conversion se place (son emplacement montre l'état) ; un média en échec, non.
  */
 import { useDraggable } from "@dnd-kit/core";
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import TagInput from "@/app/admin/_fields/TagInput";
@@ -33,10 +34,11 @@ export function filterMedia(media: AdminMediaRow[], tags: string[], query: strin
 }
 
 function Thumb({ media, onAddEnd, sort, flash }: { media: AdminMediaRow; onAddEnd: (m: AdminMediaRow) => void; sort: MediaSort; flash: boolean }) {
+  const t = useTranslations("media");
   const failed = media.status === "failed";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${LIB_PREFIX}${media.id}`, data: { media }, disabled: failed });
   const ratio = media.width && media.height ? media.width / media.height : 4 / 3;
-  const state = media.status === "processing" ? (media.kind === "video" ? "Conversion…" : "Traitement…") : failed ? "Échec" : null;
+  const state = media.status === "processing" ? (media.kind === "video" ? t("converting") : t("processing")) : failed ? t("failed") : null;
   return (
     <li className="a-libthumb" data-status={media.status} data-dragging={isDragging || undefined} data-flash={flash || undefined}>
       <div
@@ -46,7 +48,7 @@ function Thumb({ media, onAddEnd, sort, flash }: { media: AdminMediaRow; onAddEn
         // Glisser à la souris ou au doigt ; au clavier, le bouton « + » ajoute à la fin.
         tabIndex={-1}
         className="a-libthumb-drag"
-        title={failed ? `${media.name} : en échec, ne peut pas être placé` : `${media.name} : glisse dans la bande`}
+        title={failed ? t("thumbFailedTitle", { name: media.name }) : t("thumbDragTitle", { name: media.name })}
         style={{ width: Math.round(THUMB_H * Math.min(2.4, Math.max(0.5, ratio))), backgroundColor: media.color ?? undefined }}
         data-media={media.id}
       >
@@ -56,9 +58,9 @@ function Thumb({ media, onAddEnd, sort, flash }: { media: AdminMediaRow; onAddEn
         )}
         {media.kind === "video" && <span className="a-libthumb-kind" aria-hidden="true">▶</span>}
         {state && <span className="a-libthumb-state">{state}</span>}
-        {noDate(media, sort) && <span className="a-libthumb-state" data-testid="media-nodate">Date inconnue</span>}
+        {noDate(media, sort) && <span className="a-libthumb-state" data-testid="media-nodate">{t("dateUnknown")}</span>}
       </div>
-      <button type="button" className="a-libthumb-add" disabled={failed} onClick={() => onAddEnd(media)} aria-label={`Ajouter ${media.name} à la fin du projet`}>
+      <button type="button" className="a-libthumb-add" disabled={failed} onClick={() => onAddEnd(media)} aria-label={t("addToEnd", { name: media.name })}>
         +
       </button>
     </li>
@@ -66,6 +68,7 @@ function Thumb({ media, onAddEnd, sort, flash }: { media: AdminMediaRow; onAddEn
 }
 
 export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: AdminMediaRow[]; onAddEnd: (m: AdminMediaRow) => void; regionRef?: React.Ref<HTMLElement> }) {
+  const t = useTranslations("media");
   const { tags } = useUploadQueue();
   const [filter, setFilter] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -99,18 +102,18 @@ export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: Ad
     setScrollTo(null);
   }, [scrollTo, page.count]);
   // Seuls les tags présents dans la bibliothèque sont proposés au filtre.
-  const options = useMemo(() => tags.filter((t) => t.count > 0), [tags]);
+  const options = useMemo(() => tags.filter((tag) => tag.count > 0), [tags]);
   return (
     <section ref={regionRef} className="a-libstrip" aria-labelledby={headingId}>
       <div className="a-libstrip-head">
         <h3 id={headingId} className="a-subhead">
-          Bibliothèque
+          {t("library")}
         </h3>
         <span className="muted">
-          {list.length === media.length ? `${media.length} média${media.length > 1 ? "s" : ""}` : `${list.length} sur ${media.length}`}
+          {list.length === media.length ? t("itemCount", { count: media.length }) : t("shownOf", { shown: list.length, total: media.length })}
         </span>
         <div className="a-libstrip-tools">
-          <TagInput label="Filtrer par tags" hideLabel mode="filter" value={filter} onChange={setFilter} options={options} />
+          <TagInput label={t("filterByTags")} hideLabel mode="filter" value={filter} onChange={setFilter} options={options} />
           <MediaSortMenu
             value={sort}
             onChange={(s) => {
@@ -119,22 +122,22 @@ export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: Ad
             }}
           />
           <label className="a-search">
-            <span className="sr-only">Rechercher dans la bibliothèque</span>
-            <input className="a-input" type="search" placeholder="Rechercher…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <span className="sr-only">{t("searchLibrary")}</span>
+            <input className="a-input" type="search" placeholder={t("searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
           </label>
         </div>
       </div>
       {list.length === 0 ? (
-        <p className="muted a-libstrip-empty">{media.length ? "Aucun média ne correspond à ce filtre." : "Ta bibliothèque est vide : envoie des fichiers ci-dessus."}</p>
+        <p className="muted a-libstrip-empty">{media.length ? t("noMatch") : t("libraryEmpty")}</p>
       ) : (
-        <ul ref={rowRef} className="a-libstrip-row" aria-label="Médias de la bibliothèque" tabIndex={0} onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
+        <ul ref={rowRef} className="a-libstrip-row" aria-label={t("libraryItems")} tabIndex={0} onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
           {list.slice(0, page.count).map((m) => (
             <Thumb key={m.id} media={m} onAddEnd={onAddEnd} sort={sort} flash={flash === m.id} />
           ))}
           {page.more && <li ref={sentinelRef} className="a-libstrip-more" aria-hidden="true" data-testid="libstrip-more" />}
         </ul>
       )}
-      <p className="a-help">Fais glisser une vignette dans la bande, entre deux emplacements ou sur un emplacement vide ; « + » l&apos;ajoute à la fin.</p>
+      <p className="a-help">{t("stripHelp")}</p>
     </section>
   );
 }

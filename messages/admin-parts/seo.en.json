@@ -1,0 +1,14 @@
+{
+  "saved": "Saved · visible across the whole site",
+  "shareTitle": "Sharing and search engines",
+  "shareIntro": "What appears when someone pastes your site's link (Instagram, messaging apps…) or looks you up on Google.",
+  "description": "Site description",
+  "descriptionHelp": "One or two sentences, used when a page does not have its own.",
+  "shareImage": "Image shown when your site is shared",
+  "shareImageHelp": "Used when a page has no image of its own (otherwise, the first image on the page). A wide image, around 1200 × 630, works best.",
+  "previewLabel": "Preview of a shared link",
+  "previewTitle": "This is how your link will look",
+  "noImage": "No image: a shared link will appear without a thumbnail.",
+  "addDescription": "Add a description so it appears here.",
+  "iconTitle": "Tab icon"
+}

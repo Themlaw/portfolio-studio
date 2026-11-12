@@ -1,0 +1,16 @@
+{
+  "kind": {
+    "default": "Normal",
+    "pointer": "Click (hovering what can be clicked)"
+  },
+  "hotspot": "Hotspot: {x}, {y} px",
+  "groundBg": "the background",
+  "groundDeep": "the deep background",
+  "groundSurface": "the surface",
+  "title": "Mouse cursors",
+  "systemHelp": "The system cursors. To draw your own: group “9 · Cursor” of the Photoshop kit (normal, and when hovering what can be clicked).",
+  "useDrawn": "Use the drawn cursors on the site",
+  "useDrawnHelp": "Unticked: the system cursors; your drawings are kept. On the public site only (not in the administration); text fields keep their text cursor.",
+  "cursorEmpty": "Empty cursor.",
+  "cursorProblem": "Cursor almost invisible on {labels} ({percent}% of its pixels stand out at 3:1): add a light or dark outline."
+}

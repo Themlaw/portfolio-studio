@@ -1,0 +1,22 @@
+{
+  "custom": "Couleur personnalisée",
+  "choose": "Choisir la couleur",
+  "currentAria": "Couleur actuelle {hex}",
+  "currentTitle": "Actuelle {hex}",
+  "prevAria": "Revenir à la couleur précédente {prev}",
+  "prevTitle": "Précédente {prev} : cliquer pour revenir",
+  "currentPrev": "Actuelle / précédente",
+  "opacity": "Opacité",
+  "opacityAria": "Opacité : flèches gauche et droite",
+  "code": "Code couleur",
+  "codeTitle": "Colle un code couleur : hexadécimal (avec #), rgb ou hsl",
+  "sample": "Aa Exemple de texte",
+  "notMeasurable": "Lisibilité non mesurable ici.",
+  "onThemeBg": "{verdict} sur le fond du thème.",
+  "recentGroup": "Couleurs récentes",
+  "recent": "Récentes",
+  "recentOne": "Couleur récente {c}",
+  "backToTheme": "Revenir au thème",
+  "remove": "Retirer la couleur",
+  "close": "Fermer"
+}

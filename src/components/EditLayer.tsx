@@ -21,16 +21,18 @@
  * puis demande un rafraîchissement.
  */
 import { NATIVE_SCROLL } from "@/components/rail-step";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { TILE_SIZE_LABELS, TILE_SIZES } from "@/blocks/collection-pages";
+import { TILE_SIZES } from "@/blocks/collection-pages";
 import { FIELD_OP_NAMES } from "@/blocks/optional-fields";
 import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
 import BoardLayer from "./BoardLayer";
+import CanvasTexts from "./CanvasTexts";
 import LookLayer, { lookOf, sendOwnMediaLook } from "./edit/LookLayer";
 import type { ImageBg } from "@/lib/look";
 import SiteLookLayer from "./edit/SiteLookLayer";
@@ -84,8 +86,9 @@ function previewMove(seq: number, uid: string, parent: string | null, to: number
 
 /** Choix de la page de collection d'une nouvelle entrée (lot 22) : se ferme d'un clic ailleurs. */
 function TilePagePicker({ anchor, uid, items, onClose }: { anchor: Element; uid: string; items: { pageId: number; title: string }[]; onClose: () => void }) {
+  const t = useTranslations("canvasLayer");
   return (
-    <Popover anchor={anchor} className="pe-layouts pe-tile-pick" role="menu" label="Page de la nouvelle entrée" onClose={onClose}>
+    <Popover anchor={anchor} className="pe-layouts pe-tile-pick" role="menu" label={t("tilePagePick")} onClose={onClose}>
       {items.map((p) => (
         <button
           key={p.pageId}
@@ -105,9 +108,10 @@ function TilePagePicker({ anchor, uid, items, onClose }: { anchor: Element; uid:
 
 /** Taille des images des entrées de collection (lot 22) : se ferme d'un clic ailleurs. */
 function TileSizePicker({ uid, onClose }: { uid: string; onClose: () => void }) {
+  const t = useTranslations("canvasLayer");
   const [current, setCurrent] = useState(() => document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .tiles`)?.getAttribute("data-size") ?? "medium");
   return (
-    <Popover anchor='.pe-tools [data-anchor="tile-size"]' className="pe-layouts pe-sizes" role="radiogroup" label="Taille des images" onClose={onClose}>
+    <Popover anchor='.pe-tools [data-anchor="tile-size"]' className="pe-layouts pe-sizes" role="radiogroup" label={t("tileSize")} onClose={onClose}>
       {TILE_SIZES.map((s) => (
         <button
           key={s}
@@ -120,7 +124,7 @@ function TileSizePicker({ uid, onClose }: { uid: string; onClose: () => void }) 
             setCurrent(s);
           }}
         >
-          {TILE_SIZE_LABELS[s]}
+          {t(`tileSize_${s}`)}
         </button>
       ))}
     </Popover>
@@ -286,6 +290,8 @@ type Editing = {
 type MarkBar = { top: number; left: number; below: boolean; state: boolean | null };
 
 export default function EditLayer() {
+  const t = useTranslations("canvasLayer");
+  const uiLang = useLocale().slice(0, 2);
   const router = useRouter();
   const pathname = usePathname();
   // Navigation interne de la toile : les aperçus de la page quittée (uid `b0…` réutilisés) ne s'appliquent pas à la suivante.
@@ -1342,17 +1348,17 @@ export default function EditLayer() {
     .filter((z): z is { uid: string; rect: Rect } => Boolean(z.uid && z.rect));
 
   const blocksLayer = createPortal(
-    <div className="pe-layer" lang="fr">
+    <div className="pe-layer" lang={uiLang}>
       {/* Cibles clavier : Tab parcourt les blocs (composants compris), Entrée en choisit un. */}
       {boxes.map((b) => {
         const sibs = siblingsOf(b);
-        const where = b.parent ? ` dans « ${boxes.find((x) => x.uid === b.parent)?.label ?? "bloc"} »` : "";
+        const where = b.parent ? t("blockWhere", { label: boxes.find((x) => x.uid === b.parent)?.label ?? t("blockFallback") }) : "";
         return (
           <button
             key={`f-${b.uid}`}
             type="button"
             className="pe-focus"
-            aria-label={`Bloc ${sibs.indexOf(b) + 1} sur ${sibs.length}${where} : ${b.label}${b.uid === selected ? " (sélectionné)" : ""}`}
+            aria-label={t("blockFocus", { position: sibs.indexOf(b) + 1, total: sibs.length, where, label: b.label, selected: b.uid === selected ? t("selectedSuffix") : "" })}
             aria-pressed={b.uid === selected}
             style={{ top: b.top, left: b.left, width: b.width, height: Math.max(b.height, 8) }}
             onFocus={() => setHover(b.uid)}
@@ -1367,7 +1373,7 @@ export default function EditLayer() {
           key={`f-${g.uid}`}
           type="button"
           className="pe-focus"
-          aria-label={`${g.label}${g.uid === selected ? " (sélectionné)" : ""}`}
+          aria-label={`${g.label}${g.uid === selected ? t("selectedSuffix") : ""}`}
           aria-pressed={g.uid === selected}
           style={{ top: g.top, left: g.left, width: g.width, height: g.height }}
           data-uid={g.uid}
@@ -1385,7 +1391,7 @@ export default function EditLayer() {
           style={{ top: z.rect.top + 8, left: z.rect.left + 24, width: Math.max(120, z.rect.width - 48), height: Math.max(80, z.rect.height - 16) }}
           aria-hidden="true"
         >
-          Glisse un bloc ici
+          {t("dropHere")}
         </div>
       ))}
 
@@ -1415,10 +1421,10 @@ export default function EditLayer() {
           style={{ top: sel.top, left: sel.left, width: sel.width, height: sel.height }}
         >
           {/* Fil d'Ariane : remonter au conteneur parent (comme Elementor). */}
-          <nav className="pe-tag pe-crumbs" aria-label="Emplacement du bloc">
+          <nav className="pe-tag pe-crumbs" aria-label={t("crumbs")}>
             {chain(sel).map((c) => (
               <span key={c.uid}>
-                <button type="button" className="pe-crumb" onClick={() => select(c.uid, true, true)} title={`Sélectionner « ${c.label} »`}>
+                <button type="button" className="pe-crumb" onClick={() => select(c.uid, true, true)} title={t("selectCrumb", { label: c.label })}>
                   {c.label}
                 </button>
                 <span aria-hidden="true"> › </span>
@@ -1431,23 +1437,23 @@ export default function EditLayer() {
           <div
             className="pe-tools"
             role="toolbar"
-            aria-label={`Bloc ${sel.label}`}
+            aria-label={t("toolbarBlock", { label: sel.label })}
             // Reste visible quand le haut du bloc sort de l'écran.
             style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) }}
           >
-            <button type="button" className="pe-grip" aria-label="Glisser pour déplacer" title="Glisser pour déplacer (dans un bloc, ou hors de lui)" onPointerDown={(e) => onGripDown(e, sel)}>
+            <button type="button" className="pe-grip" aria-label={t("grip")} title={t("gripTitle")} onPointerDown={(e) => onGripDown(e, sel)}>
               <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
                 {[3, 8, 13].flatMap((y) => [2.5, 7.5].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" />))}
               </svg>
             </button>
             {sel.type === "featured-project" && (
               <button type="button" className="pe-tool-text" aria-expanded={projectPicker === sel.uid} onClick={() => setProjectPicker(sel.uid)}>
-                Changer de projet
+                {t("changeProject")}
               </button>
             )}
             {sel.type === "collection-tiles" && (
               <button type="button" className="pe-tool-text" data-anchor="tile-size" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
-                Taille des images
+                {t("tileSize")}
               </button>
             )}
             {sel.type === "collection-tiles" && (
@@ -1456,9 +1462,9 @@ export default function EditLayer() {
                 className="pe-tool-text"
                 data-testid="tiles-mode-button"
                 onClick={() => post({ kind: "tile-op", uid: sel.uid, op: document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(sel.uid)}"] .tiles`)?.dataset.tilesMode === "manual" ? "mode-auto" : "mode-manual" })}
-                title="Automatiques : une entrée par page de collection, dans l'ordre du menu. À la main : tu choisis les entrées, leur ordre, et tu peux en retirer."
+                title={t("tilesModeTitle")}
               >
-                {document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(sel.uid)}"] .tiles`)?.dataset.tilesMode === "manual" ? "Entrées : à la main · passer en automatique" : "Entrées : automatiques · les choisir à la main"}
+                {document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(sel.uid)}"] .tiles`)?.dataset.tilesMode === "manual" ? t("tilesModeManual") : t("tilesModeAuto")}
               </button>
             )}
             {sel.type === "grid" && (
@@ -1468,10 +1474,10 @@ export default function EditLayer() {
                 data-grid-settings-button=""
                 data-testid="grid-settings-button"
                 aria-haspopup="dialog"
-                title="Agencement, espace, format des cases, colonnes…"
+                title={t("gridSettingsTitle")}
                 onClick={() => window.dispatchEvent(new CustomEvent("pe:grid-settings", { detail: { uid: sel.uid } }))}
               >
-                Réglages
+                {t("gridSettings")}
               </button>
             )}
             {(sel.type === "image" || sel.type === "video-single") && <FrameButton what={sel.type === "image" ? "photo" : "vidéo"} uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setImgBgFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
@@ -1491,35 +1497,35 @@ export default function EditLayer() {
             {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="space" open={quickFor?.uid === sel.uid && quickFor.kind === "space"} onToggle={() => toggleQuick(sel.uid, "space")} />}
             {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="width" open={quickFor?.uid === sel.uid && quickFor.kind === "width"} onToggle={() => toggleQuick(sel.uid, "width")} />}
             {(!sel.parent || hasFondWrapper(sel.uid)) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setFrameFor(null); setImgBgFor(null); setQuickFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
+            <button type="button" aria-label={t("up")} title={t("up")} disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
-            <button type="button" aria-label="Descendre" title="Descendre" disabled={siblingsOf(sel).at(-1)?.uid === sel.uid} onClick={() => orderOp("down", sel)}>
+            <button type="button" aria-label={t("down")} title={t("down")} disabled={siblingsOf(sel).at(-1)?.uid === sel.uid} onClick={() => orderOp("down", sel)}>
               ↓
             </button>
             {sel.parent && (
-              <button type="button" aria-label="Sortir du bloc" title="Sortir du bloc (placé juste après lui)" onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
+              <button type="button" aria-label={t("out")} title={t("outTitle")} onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
                 ⇱
               </button>
             )}
             {enterable(sel) && (
               <button
                 type="button"
-                aria-label={`Entrer dans « ${enterable(sel)!.label} »`}
-                title={`Entrer dans « ${enterable(sel)!.label} »`}
+                aria-label={t("enter", { label: enterable(sel)!.label })}
+                title={t("enter", { label: enterable(sel)!.label })}
                 onClick={() => post({ kind: "op", op: "in", uid: sel.uid })}
               >
                 ⇲
               </button>
             )}
-            <button type="button" aria-label="Dupliquer" title="Dupliquer" onClick={() => post({ kind: "op", op: "duplicate", uid: sel.uid })}>
+            <button type="button" aria-label={t("duplicate")} title={t("duplicate")} onClick={() => post({ kind: "op", op: "duplicate", uid: sel.uid })}>
               ⧉
             </button>
             {/* Bloc verrouillé (lot 89, « Sortie ») : le bouton reste, désactivé, et dit pourquoi ; le clic est refusé par l'éditeur avec la même explication. */}
             {(() => {
               const locked = document.querySelector(`[data-edit-block="${CSS.escape(sel.uid)}"]`)?.getAttribute("data-edit-locked") ?? null;
               return (
-                <button type="button" className="pe-danger" aria-label="Supprimer" aria-disabled={locked ? true : undefined} data-locked={locked ? "" : undefined} title={locked ?? "Supprimer (Suppr)"} style={locked ? { opacity: 0.45, cursor: "not-allowed" } : undefined} onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
+                <button type="button" className="pe-danger" aria-label={t("delete")} aria-disabled={locked ? true : undefined} data-locked={locked ? "" : undefined} title={locked ?? t("deleteTitle")} style={locked ? { opacity: 0.45, cursor: "not-allowed" } : undefined} onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
                   ✕
                 </button>
               );
@@ -1577,14 +1583,14 @@ export default function EditLayer() {
 
       {topCount === 0 && (
         <div className="pe-empty" style={{ top: markerY(boxes, 0) }} data-over={drop !== null || undefined}>
-          Page vide : glisse un bloc ici depuis « Ajouter », ou clique sur l&apos;un d&apos;eux.
+          {t("emptyPage")}
         </div>
       )}
 
       {gap && !drag && !fondFor && !frameFor && !quickFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
-            <span aria-hidden="true">+</span> Ajouter un bloc
+            <span aria-hidden="true">+</span> {t("addBlock")}
           </button>
         </div>
       )}
@@ -1596,14 +1602,14 @@ export default function EditLayer() {
           style={{ top: dropContainer.top, left: dropContainer.left, width: dropContainer.width, height: dropContainer.height }}
           aria-hidden="true"
         >
-          <span>{drop?.refused ? `« ${dropContainer.label} » n'accepte pas ce bloc` : `Dans « ${dropContainer.label} »`}</span>
+          <span>{drop?.refused ? t("refused", { label: dropContainer.label }) : t("dropInto", { label: dropContainer.label })}</span>
         </div>
       )}
       {innerMarker?.kind === "h" && <div className="pe-marker-inner" style={{ top: innerMarker.top, left: innerMarker.left, width: innerMarker.width }} aria-hidden="true" />}
       {innerMarker?.kind === "v" && <div className="pe-marker-inner-v" style={{ top: innerMarker.top, left: innerMarker.left, height: innerMarker.height }} aria-hidden="true" />}
       {drag && drop && !drop.parent && topCount > 0 && (
         <div className="pe-marker" style={{ top: markerY(boxes, drop.index) }} aria-hidden="true">
-          <span>Déposer ici</span>
+          <span>{t("dropMarker")}</span>
         </div>
       )}
 
@@ -1627,12 +1633,12 @@ export default function EditLayer() {
       <SiteLookLayer headerSelected={selected === "site-header"} dragging={Boolean(drag)} />
 
       {markBar && (
-        <div className="pe-markbar" role="toolbar" aria-label="Surlignage de l'accroche" style={{ top: markBar.top, left: markBar.left }}>
+        <div className="pe-markbar" role="toolbar" aria-label={t("markbar")} style={{ top: markBar.top, left: markBar.left }}>
           <button
             type="button"
             aria-pressed={markBar.state === true}
             disabled={markBar.state === null}
-            title="Surligner la sélection (ou le mot sous le curseur) · Ctrl+Maj+H"
+            title={t("markTitle")}
             // Garde le focus et la sélection dans le texte : sinon le champ se refermerait.
             onPointerDown={(e) => e.preventDefault()}
             onMouseDown={(e) => e.preventDefault()}
@@ -1640,13 +1646,13 @@ export default function EditLayer() {
               const m = editing.current?.marked;
               if (!m) return;
               const on = markBar.state !== true;
-              if (toggleMark(m.editor)) setAnnouncement(on ? "Passage surligné" : "Surlignage retiré");
+              if (toggleMark(m.editor)) setAnnouncement(on ? t("marked") : t("unmarked"));
               refreshMarkBar();
             }}
           >
-            {markBar.state === true ? "Retirer le surlignage" : "Surligner"}
+            {markBar.state === true ? t("unmark") : t("mark")}
           </button>
-          <span className="pe-markbar-hint">Sélectionne un mot · Entrée ou Échap valide</span>
+          <span className="pe-markbar-hint">{t("markHint")}</span>
         </div>
       )}
 
@@ -1659,8 +1665,10 @@ export default function EditLayer() {
       <p className="pe-live" role="status" aria-live="polite">
         {drag && drop
           ? drop.refused
-            ? "Ce bloc n'accepte pas ce type de bloc."
-            : `${drop.parent ? `Dans « ${dropContainer?.label ?? "le bloc"} », p` : "P"}osition ${drop.index + 1}`
+            ? t("liveRefused")
+            : drop.parent
+              ? t("liveIn", { label: dropContainer?.label ?? t("liveFallback"), position: drop.index + 1 })
+              : t("livePos", { position: drop.index + 1 })
           : announcement}
       </p>
     </div>,
@@ -1669,6 +1677,7 @@ export default function EditLayer() {
   // Calque des blocs en premier : au clavier, Tab parcourt les blocs avant les outils.
   return (
     <>
+      <CanvasTexts />
       {blocksLayer}
       {boards}
       {site}

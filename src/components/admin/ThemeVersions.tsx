@@ -1,6 +1,7 @@
 "use client";
 
 /** Historique des versions de Mon thème (lot 60) : vignette réelle, date, résumé, [Prévisualiser] [Revenir à cette version] [Garder une copie à part]. */
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -17,6 +18,8 @@ type Mine = { id: string; name: string; version: number; publishedVersion: numbe
 
 export default function ThemeVersions({ mine, versions, themes = {} }: { mine: Mine; versions: VersionInfo[]; /** Maquette de chaque version (numéro → thème) : fond provisoire de la vignette. */ themes?: Record<number, Theme> }) {
   const router = useRouter();
+  const t = useTranslations("themeVersions");
+  const locale = useLocale();
   const [busy, startTransition] = useTransition();
   const [asking, setAsking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +27,11 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
   const differs = mine.publishedVersion != null && mine.publishedVersion !== mine.version;
   const state = mine.live
     ? differs
-      ? `En ligne : v${mine.publishedVersion} · brouillon : v${mine.version}`
-      : `En ligne : v${mine.publishedVersion}`
+      ? t("stateLiveDraft", { published: mine.publishedVersion ?? "", version: mine.version })
+      : t("stateLive", { published: mine.publishedVersion ?? "" })
     : mine.publishedVersion != null
-      ? `Pas en ligne · dernière publiée : v${mine.publishedVersion} · brouillon : v${mine.version}`
-      : `Pas encore en ligne · brouillon : v${mine.version}`;
+      ? t("stateOffline", { published: mine.publishedVersion, version: mine.version })
+      : t("stateNever", { version: mine.version });
 
   const revert = (n: number, publish: boolean) =>
     startTransition(async () => {
@@ -39,21 +42,21 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
         return;
       }
       setAsking(null);
-      toast(publish ? `Retour à la version ${n} : version ${result.data.version} créée et en ligne` : `Retour à la version ${n} : version ${result.data.version} créée (brouillon)`);
+      toast(t(publish ? "revertedLive" : "revertedDraft", { n, version: result.data.version }));
       router.refresh();
     });
   const keep = (n: number) =>
     startTransition(async () => {
       const result = await keepVersionCopyAction(mine.id, n);
       if (!result.ok) return toast(result.message, "error");
-      toast(`Copie gardée : « ${result.data.name} » (dans « Mes anciens thèmes »)`);
+      toast(t("copyKept", { name: result.data.name }));
       router.refresh();
     });
   const pin = (n: number, pinned: boolean) =>
     startTransition(async () => {
       const result = await pinVersionAction(mine.id, n, pinned);
       if (!result.ok) return toast(result.message, "error");
-      toast(pinned ? `Version ${n} marquée : elle ne sera jamais supprimée` : `Version ${n} démarquée`);
+      toast(t(pinned ? "pinned" : "unpinned", { n }));
       router.refresh();
     });
 
@@ -68,14 +71,14 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
             <LiveThumb themeRef={`${mine.id}@${v.n}`} stamp={v.createdAt} theme={themes[v.n]} />
             <div className="a-version-body">
               <div className="a-card-head">
-                <h3>Version {v.n}</h3>
+                <h3>{t("version", { n: v.n })}</h3>
                 <span className="a-version-badges">
-                  {v.published && (mine.live ? <span className="a-badge a-badge-live">● En ligne</span> : <span className="a-badge">Dernière publiée</span>)}
-                  {v.current && <span className="a-badge" data-testid="version-current">Version en cours</span>}
-                  {v.pinned && <span className="a-tag" title="Jamais supprimée par le nettoyage">★ Gardée</span>}
+                  {v.published && (mine.live ? <span className="a-badge a-badge-live">● {t("live")}</span> : <span className="a-badge">{t("lastPublished")}</span>)}
+                  {v.current && <span className="a-badge" data-testid="version-current">{t("current")}</span>}
+                  {v.pinned && <span className="a-tag" title={t("pinnedTitle")}>★ {t("pinnedTag")}</span>}
                 </span>
               </div>
-              <p className="a-mine-meta">{formatWhen(v.createdAt)}</p>
+              <p className="a-mine-meta">{formatWhen(v.createdAt, locale)}</p>
               <p className="a-version-summary" data-testid="version-summary">
                 {v.summary}
               </p>
@@ -89,14 +92,14 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
                     onClick={() => (mine.live ? (setError(null), setAsking(v.n)) : revert(v.n, false))}
                     data-testid="version-revert"
                   >
-                    Revenir à cette version
+                    {t("revert")}
                   </button>
                 )}
                 <button type="button" className="a-btn a-btn-small" disabled={busy} onClick={() => keep(v.n)} data-testid="version-copy">
-                  Garder une copie à part
+                  {t("keepCopy")}
                 </button>
                 <button type="button" className="a-btn a-btn-small a-btn-quiet" disabled={busy} onClick={() => pin(v.n, !v.pinned)} data-testid="version-pin" aria-pressed={v.pinned}>
-                  {v.pinned ? "Ne plus garder" : "★ Garder toujours"}
+                  {v.pinned ? t("unpin") : t("pin")}
                 </button>
               </div>
             </div>
@@ -106,8 +109,8 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
 
       <ConfirmDialog
         open={asking !== null}
-        title={`Revenir à la version ${asking ?? ""} ?`}
-        confirmLabel="Revenir (sans publier)"
+        title={t("askTitle", { n: asking ?? "" })}
+        confirmLabel={t("revertNoPublish")}
         busy={busy}
         onClose={() => {
           setAsking(null);
@@ -117,15 +120,15 @@ export default function ThemeVersions({ mine, versions, themes = {} }: { mine: M
         extra={
           asking !== null && (
             <button type="button" className="a-btn a-btn-primary" disabled={busy} onClick={() => revert(asking, true)} data-testid="revert-publish">
-              Revenir et publier
+              {t("revertPublish")}
             </button>
           )
         }
       >
         <p>
-          Mon thème est en ligne (version {mine.publishedVersion}). Revenir à la version {asking} crée une nouvelle version, identique : rien n&apos;est perdu.
+          {t("askBody", { published: mine.publishedVersion ?? "", n: asking ?? "" })}
         </p>
-        <p className="muted">« Revenir et publier » remet aussitôt cet aspect pour tous tes visiteurs ; « sans publier » le garde en brouillon.</p>
+        <p className="muted">{t("askHelp")}</p>
         {error && <p className="a-alert">{error}</p>}
       </ConfirmDialog>
       {error && asking === null && <p className="a-alert">{error}</p>}

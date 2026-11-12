@@ -24,7 +24,9 @@
  *   composants et en bas (menu des composants permis), barre de chaque composant (monter, descendre,
  *   supprimer, réglages), composant choisi d'un clic ; tout passe par des messages à l'éditeur.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { NATIVE_SCROLL } from "@/components/rail-step";
+import type { AdminT } from "@/i18n/admin-lang";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -37,11 +39,11 @@ import { readBackground, type Background } from "@/themes/fond";
 
 import { FrameSchema, ImageBgSchema, RADII, RADIUS_LABELS, type Frame, type ImageBg, type Radius } from "@/lib/look";
 import { slotOf } from "@/lib/edit/media-look";
-import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
 
 import ImageBgWindow from "./edit/ImageBgMenu";
 import Popover from "./edit/Popover";
-import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
+import { VIDEO_MODES } from "@/blocks/video-mode";
 import { holdForAa, inAaUi, savedRange } from "./edit/aa-focus";
 import VideoModeSeg from "./edit/VideoModeSeg";
 import VideoSoundSeg from "./edit/VideoSoundSeg";
@@ -189,6 +191,15 @@ function mediaRefOf(el: Element | null): { ref: MediaRef; el: HTMLElement } | nu
 }
 
 /** Cible de dépôt sous le point (fenêtre). */
+/**
+ * Traducteur de l'interface d'admin pour les fonctions hors composant et les gestionnaires d'événements (messages d'annonce, repères de dépôt) :
+ * BoardLayer y dépose celui de la langue courante à chaque rendu. Sans lui : la clé brute.
+ */
+let tr: AdminT = (key) => key;
+function setTr(t: AdminT) {
+  tr = t;
+}
+
 function dropTargetAt(x: number, y: number, items = false): { target: DropTargetInfo; marker: Marker } | null {
   // Sous le point : la page (le calque d'édition est ignoré, sauf le panneau d'une planche neuve).
   const el = document.elementsFromPoint(x, y).find((e) => !e.closest(".pe-layer") || e.closest("[data-new-board-uid]"));
@@ -207,7 +218,7 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
     if (box && zr.width > 0 && zr.height > 0) {
       const fx = Math.round(Math.min(100, Math.max(0, ((x - zr.left) / zr.width) * 100)) * 100) / 100;
       const fy = Math.round(Math.min(100, Math.max(0, ((y - zr.top) / zr.height) * 100)) * 100) / 100;
-      return { target: { kind: "free", uid: fref.uid, ...(fref.board ? { board: fref.board, ...(fref.props ? { props: fref.props } : {}) } : {}), x: fx, y: fy }, marker: { kind: "media", rect: box, label: "Pose l'image ici" } };
+      return { target: { kind: "free", uid: fref.uid, ...(fref.board ? { board: fref.board, ...(fref.props ? { props: fref.props } : {}) } : {}), x: fx, y: fy }, marker: { kind: "media", rect: box, label: tr("dropImageHere") } };
     }
   }
   // Case d'une grille (page ou planche, lot 31d) : le média remplace l'image de cette case ; sur une place libre, il se range à la
@@ -220,7 +231,7 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
     const at = Math.min(cellIndex(gcell), filled);
     const targetEl = cells.find((c) => cellIndex(c) === at) ?? gcell;
     const box = boxOf(targetEl);
-    if (box) return { target: { kind: "gcell", uid: gref.uid, ...(gref.board ? { board: gref.board, ...(gref.props ? { props: gref.props } : {}) } : {}), index: at }, marker: { kind: "media", rect: box, label: at < filled ? `Remplace l'image de la case ${at + 1}` : `Case ${at + 1}` } };
+    if (box) return { target: { kind: "gcell", uid: gref.uid, ...(gref.board ? { board: gref.board, ...(gref.props ? { props: gref.props } : {}) } : {}), index: at }, marker: { kind: "media", rect: box, label: at < filled ? tr("replaceCell", { n: at + 1 }) : tr("cellN", { n: at + 1 }) } };
   }
   // Place libre d'une grille : un composant y est créé avec le média.
   const cell = el.closest<HTMLElement>("[data-edit-cell-free]");
@@ -319,6 +330,10 @@ export default function BoardLayer({
   pickerFor: string | null;
   onPickerClose: () => void;
 }) {
+  const t = useTranslations("canvasBoard");
+  const tl = useTranslations("blockRegLabels");
+  const uiLang = useLocale().slice(0, 2);
+  setTr(t);
   const [tick, setTick] = useState(0);
   // Largeur de la barre de l'image survolée (mesurée : elle dépend de ses boutons), pour qu'elle ne passe jamais sous la barre du composant.
   const slotToolsRef = useRef<HTMLDivElement>(null);
@@ -405,7 +420,7 @@ export default function BoardLayer({
         const board = wrapper?.querySelector<HTMLElement>("[data-edit-board]");
         const id = Number(board?.dataset.editBoard);
         if (board && id) post({ kind: "bitem-add", board: id, item: msg.item, index: itemFrames(board).length });
-        else announce("Ce bloc n'a pas de projet où ajouter un bloc.");
+        else announce(tr("noProjectToAdd"));
         return;
       }
       if (msg.kind === "ghosts") {
@@ -479,7 +494,7 @@ export default function BoardLayer({
       if (fresh) node.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
       const pct = g.progress === null ? null : Math.round(g.progress * 100);
       const state =
-        g.phase === "failed" ? `Échec${g.message ? ` : ${g.message}` : ""}` : g.phase === "convert" ? `Conversion…${pct !== null ? ` ${pct} %` : ""}` : g.phase === "done" ? "Placée" : `Envoi ${pct ?? 0} %`;
+        g.phase === "failed" ? (g.message ? tr("failedWith", { message: g.message }) : tr("failed")) : g.phase === "convert" ? (pct !== null ? tr("convertPct", { pct }) : tr("convert")) : g.phase === "done" ? tr("placed") : tr("sending", { pct: pct ?? 0 });
       // Contenu construit par l'API DOM (jamais de HTML assemblé), refait seulement s'il change.
       const sig = JSON.stringify([g.preview, g.aspect, state, pct, g.phase, g.label]);
       if (node.dataset.sig !== sig) {
@@ -559,13 +574,13 @@ export default function BoardLayer({
     // Textes du projet en cours de modification sur une autre page : un seul brouillon à la fois.
     const heldBy = el.dataset.projectInline ? boardOf(el)?.dataset.editBoardTextHeld : undefined;
     if (heldBy) {
-      announce(`Les textes de ce projet sont en cours de modification sur la page « ${heldBy} » : publie-la ou abandonne-la d'abord.`);
+      announce(tr("textsHeld", { page: heldBy }));
       return;
     }
     // Légendes d'une planche dont les images sont tenues par une autre page : l'écriture serait refusée.
     const imagesHeldBy = el.dataset.slotInline ? boardOf(el)?.dataset.editBoardHeld : undefined;
     if (imagesHeldBy) {
-      announce(`Ce projet est en cours de modification sur la page « ${imagesHeldBy} » : publie-le ou abandonne-le d'abord.`);
+      announce(tr("projectHeld", { page: imagesHeldBy }));
       return;
     }
     const slotEl = el.closest<HTMLElement>("[data-edit-slot]");
@@ -710,7 +725,7 @@ export default function BoardLayer({
           // Même place (avant ou après lui-même) : rien à faire.
           if (d.index !== d.from && d.index !== d.from + 1) {
             post({ kind: "bitem-to", board: d.board, uid: d.uid, index: d.index });
-            announce("Bloc déplacé.");
+            announce(tr("moved"));
           }
           // Le clic qui suit un glisser ne sélectionne rien.
           const swallow = (ev: MouseEvent) => {
@@ -841,7 +856,7 @@ export default function BoardLayer({
         else if (op === "up" || op === "down" || op === "remove") {
           setItemSel((cur) => (cur?.uid === uid && op === "remove" ? null : cur));
           post({ kind: "bitem-op", board, uid, op });
-          announce(op === "remove" ? "Bloc supprimé. Annuler le rétablit." : op === "up" ? "Bloc monté." : "Bloc descendu.");
+          announce(op === "remove" ? tr("removed") : op === "up" ? tr("movedUp") : tr("movedDown"));
         }
         return;
       }
@@ -932,17 +947,17 @@ export default function BoardLayer({
         const dir = e.key === "ArrowLeft" ? -1 : 1;
         if (e.shiftKey) {
           const to = i + dir;
-          if (to < 0 || to >= els.length) return announce(dir < 0 ? "Déjà en première position." : "Déjà en dernière position.");
+          if (to < 0 || to >= els.length) return announce(dir < 0 ? tr("alreadyFirst") : tr("alreadyLast"));
           const own = parseRailKey(ref.key);
           pendingFocus.current = own ? railKey(own.uid, to) : ref.key;
           post({ kind: "slot-move", board: ref.board, key: ref.key, index: fullIndex(els, dir < 0 ? to : to + 1) });
-          announce(`Image déplacée en position ${to + 1} sur ${els.length}.`);
+          announce(tr("imageMoved", { position: to + 1, total: els.length }));
         } else {
           const next = els[i + dir];
           if (next) {
             next.focus();
             next.scrollIntoView({ block: "nearest", inline: "nearest" });
-            announce(`Image ${i + dir + 1} sur ${els.length}.`);
+            announce(tr("imageAt", { position: i + dir + 1, total: els.length }));
           }
         }
       } else if (e.key === "Delete" || e.key === "Backspace") {
@@ -990,7 +1005,7 @@ export default function BoardLayer({
       lastTarget = null;
       const files = [...(e.dataTransfer?.files ?? [])].slice(0, 30);
       if (target && files.length) post({ kind: "files", target, files });
-      else if (files.length) announce("Dépose les fichiers sur un projet, entre deux images ou sur une place vide.");
+      else if (files.length) announce(tr("dropHint"));
     };
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerdown", onDown, true);
@@ -1075,10 +1090,10 @@ export default function BoardLayer({
   ].filter((b): b is { uid: string; box: Rect; change: boolean } => Boolean(b.uid && b.box));
   const mediaEl = hoverMedia ? document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(hoverMedia.uid)}"] [data-edit-media="${hoverMedia.field}"], [data-edit-block="${CSS.escape(hoverMedia.uid)}"][data-edit-media="${hoverMedia.field}"]`) : null;
   const mediaBox = mediaEl ? boxOf(mediaEl) : null;
-  const mediaWord = hoverMedia?.kind === "video" ? "la vidéo" : hoverMedia?.kind === "background" ? "le fond" : hoverMedia?.kind === "pdf" ? "le PDF" : "l'image";
+  const mediaWord = hoverMedia?.kind === "video" ? t("theVideo") : hoverMedia?.kind === "background" ? t("theBackground") : hoverMedia?.kind === "pdf" ? t("thePdf") : t("theImage");
 
   return createPortal(
-    <div className="pe-layer pe-board-layer" lang="fr">
+    <div className="pe-layer pe-board-layer" lang={uiLang}>
       <input
         ref={addInput}
         className="pe-board-file"
@@ -1109,17 +1124,17 @@ export default function BoardLayer({
           data-over={(marker?.kind === "new" && Math.abs(marker.rect.top - box.top) < 2) || undefined}
           style={{ top: box.top + 24, left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32), minHeight: box.height - 48 }}
         >
-          <p className="pe-board-new-title">Nouveau projet</p>
+          <p className="pe-board-new-title">{t("newProject")}</p>
           <ProjectCombobox
             prefix="pe"
-            label="Projet du bloc"
+            label={t("blockProject")}
             projects={projects}
             onPick={(slug) => post({ kind: "board-pick", uid, slug })}
             onCreate={(name) => post({ kind: "board-create", uid, name })}
           />
-          <small className="pe-board-help">Choisis un projet existant, ou crée un « Nouveau projet » : son nom, son contexte et son année se règlent ensuite sur la page.</small>
+          <small className="pe-board-help">{t("newProjectHelp")}</small>
           <div className="pe-board-drop" aria-hidden="true">
-            Dépose tes images ici
+            {t("dropImages")}
           </div>
         </div>
       ))}
@@ -1131,10 +1146,10 @@ export default function BoardLayer({
           onClose={onPickerClose}
           style={{ top: box.top + (change ? 40 : 12), left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32) }}
         >
-          <p className="pe-board-new-title">{change ? "Changer de projet" : "Projet mis en avant"}</p>
+          <p className="pe-board-new-title">{change ? t("changeProject") : t("featuredProject")}</p>
           <ProjectCombobox
             prefix="pe"
-            label="Projet"
+            label={t("project")}
             autoFocus={change}
             projects={projects}
             onPick={(slug) => {
@@ -1147,11 +1162,11 @@ export default function BoardLayer({
             }}
           />
           <small className="pe-board-help">
-            Choisis le projet de ce bloc : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
+            {t("pickerHelp")}
           </small>
           {change && (
             <button type="button" className="pe-link-btn" onClick={onPickerClose}>
-              Fermer
+              {t("close")}
             </button>
           )}
         </PickerCard>
@@ -1160,8 +1175,9 @@ export default function BoardLayer({
       {mediaBox && hoverMedia && !marker && !dragActive && (
         <div
           className="pe-slot-tools pe-media-tools"
+          data-media-kind={hoverMedia.kind}
           role="toolbar"
-          aria-label={hoverMedia.kind === "background" ? "Fond de l'ouverture" : hoverMedia.kind === "video" ? "Vidéo" : hoverMedia.kind === "pdf" ? "CV (PDF)" : "Image"}
+          aria-label={hoverMedia.kind === "background" ? t("mediaBackground") : hoverMedia.kind === "video" ? t("mediaVideo") : hoverMedia.kind === "pdf" ? t("mediaPdf") : t("mediaImage")}
           // En bas à gauche du média : jamais sur l'étiquette ni le fil d'Ariane du bloc choisi (en haut).
           // Fond de l'ouverture : en bas à DROITE — le texte de défilement (modifiable) occupe le bas à gauche.
           style={
@@ -1179,16 +1195,16 @@ export default function BoardLayer({
           onPointerEnter={() => setHoverMedia(hoverMedia)}
         >
           <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
-            {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : hoverMedia.kind === "pdf" ? "Choisir un PDF" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : hoverMedia.kind === "pdf" ? "Remplacer le PDF" : "Remplacer"}
+            {hoverMedia.empty ? (hoverMedia.kind === "video" ? t("pickVideo") : hoverMedia.kind === "pdf" ? t("pickPdf") : t("pickImage")) : hoverMedia.kind === "background" ? t("changeBackground") : hoverMedia.kind === "pdf" ? t("replacePdf") : t("replace")}
           </button>
           {!hoverMedia.empty && hoverMedia.kind === "video" && mediaEl?.dataset.videoMode && (
-            <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="media-video-mode">
+            <span className="pe-seg" role="group" aria-label={t("videoPlayback")} data-testid="media-video-mode">
               <span className="pe-seg-label" aria-hidden="true">
-                Lecture
+                {t("playback")}
               </span>
               {VIDEO_MODES.map((m) => (
-                <button key={m} type="button" aria-pressed={mediaEl.dataset.videoMode === m} title={VIDEO_MODE_HINTS[m]} data-video-mode-set={m} onClick={() => post({ kind: "video-mode", uid: hoverMedia.uid, mode: m })}>
-                  {VIDEO_MODE_LABELS[m]}
+                <button key={m} type="button" aria-pressed={mediaEl.dataset.videoMode === m} title={tl(`videoMode.hint.${m}`)} data-video-mode-set={m} onClick={() => post({ kind: "video-mode", uid: hoverMedia.uid, mode: m })}>
+                  {tl(`videoMode.label.${m}`)}
                 </button>
               ))}
             </span>
@@ -1199,7 +1215,7 @@ export default function BoardLayer({
           )}
           {!hoverMedia.empty && (
             <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
-              {hoverMedia.kind === "background" ? "Fond du thème" : `Retirer ${mediaWord}`}
+              {hoverMedia.kind === "background" ? t("themeBackground") : t("removeMedia", { what: mediaWord })}
             </button>
           )}
         </div>
@@ -1210,21 +1226,21 @@ export default function BoardLayer({
           ref={slotToolsRef}
           className="pe-slot-tools"
           role="toolbar"
-          aria-label={active.empty ? "Place gardée" : "Image du projet"}
+          aria-label={active.empty ? t("keptPlace") : t("projectImage")}
           // Dans l'image, à gauche : jamais hors de l'écran, même sur une image étroite.
           style={{ top: slotToolsTop, left: slotToolsLeft, maxWidth: Math.max(160, activeBox.width - 16) }}
           onPointerEnter={() => setHover(active)}
         >
           <button type="button" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "replace" })}>
-            {active.empty ? "Choisir une image" : "Remplacer"}
+            {active.empty ? t("pickImage") : t("replace")}
           </button>
           {!active.empty && (
-            <button type="button" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "remove" })} title="La place reste, vide">
-              Supprimer
+            <button type="button" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "remove" })} title={t("placeStaysEmpty")}>
+              {t("delete")}
             </button>
           )}
           <button type="button" className="pe-danger" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "retire" })}>
-            Retirer la place
+            {t("retirePlace")}
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
           {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
@@ -1236,13 +1252,13 @@ export default function BoardLayer({
               aria-haspopup="dialog"
               aria-expanded={frameSlot?.key === active.key}
               data-testid="slot-frame-button"
-              title={activeEl.querySelector("video, .strip-duration") ? "Cadre autour de cette vidéo" : "Cadre autour de cette photo"}
+              title={activeEl.querySelector("video, .strip-duration") ? t("frameVideo") : t("framePhoto")}
               onClick={() => {
                 setBgSlot(null);
                 setFrameSlot((f) => (f?.key === active.key ? null : active));
               }}
             >
-              Cadre
+              {t("frame")}
             </button>
           )}
           {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
@@ -1251,7 +1267,7 @@ export default function BoardLayer({
               aria-haspopup="dialog"
               aria-expanded={bgSlot?.key === active.key}
               data-testid="slot-imgbg-button"
-              title="Fond derrière cette image (utile pour un PNG détouré)"
+              title={t("imageBgTitle")}
               onClick={() => {
                 const wasOpen = bgSlot?.key === active.key;
                 // Une seule fenêtre à la fois : pe:popups-close ferme les autres (et celle-ci), puis on ouvre la sienne.
@@ -1259,7 +1275,7 @@ export default function BoardLayer({
                 setBgSlot(wasOpen ? null : active);
               }}
             >
-              Fond image
+              {t("imageBg")}
             </button>
           )}
         </div>
@@ -1278,14 +1294,14 @@ export default function BoardLayer({
         const pct = g.progress === null ? null : Math.round(g.progress * 100);
         return (
           <div key={g.id} className="pe-fill-ghost" data-phase={g.phase} role="status" style={{ top: box.top, left: box.left, width: box.width, height: box.height }}>
-            <span>{g.phase === "failed" ? `Échec${g.message ? ` : ${g.message}` : ""}` : g.phase === "convert" ? "Conversion…" : `Envoi ${pct ?? 0} %`}</span>
+            <span>{g.phase === "failed" ? (g.message ? t("failedWith", { message: g.message }) : t("failed")) : g.phase === "convert" ? t("convert") : t("sending", { pct: pct ?? 0 })}</span>
             {g.phase === "failed" && (
               <span className="pe-ghost-actions">
                 <button type="button" onClick={() => post({ kind: "ghost-op", id: g.id, op: "retry" })}>
-                  Réessayer
+                  {t("retry")}
                 </button>
                 <button type="button" onClick={() => post({ kind: "ghost-op", id: g.id, op: "remove" })}>
-                  Retirer
+                  {t("remove")}
                 </button>
               </span>
             )}
@@ -1295,7 +1311,7 @@ export default function BoardLayer({
 
       {marker?.kind === "item" && (
         <div className="pe-marker pe-marker-board" style={{ top: marker.rect.top, left: marker.rect.left, width: marker.rect.width }} aria-hidden="true">
-          <span>Déposer ici</span>
+          <span>{t("dropMarker")}</span>
         </div>
       )}
       {marker && marker.kind !== "item" && (
@@ -1314,7 +1330,7 @@ export default function BoardLayer({
           contentEditable
           suppressContentEditableWarning
           role="textbox"
-          aria-label="Modifier le texte"
+          aria-label={t("editText")}
           style={
             text.el.hasAttribute("data-cap")
               ? // Titre / Légende / Date : le champ a la hauteur de SA ligne (les lignes se touchent, il ne doit recouvrir ni celle du dessus ni celle du dessous).
@@ -1387,7 +1403,7 @@ export default function BoardLayer({
           onClose={() => setAddMenu(null)}
           onPick={(type, source) => {
             post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index, ...(source ? { source } : {}) });
-            announce(`${BOARD_ITEM_LABELS[type]} ajouté.`);
+            announce(tr("itemAdded", { label: tl(`boardItem.label.${type}`) }));
             setAddMenu(null);
           }}
         />
@@ -1402,6 +1418,8 @@ export default function BoardLayer({
  * Entrée, Échap). La bande d'images se grise quand la planche en a déjà une, tout se grise quand elle est pleine.
  */
 function BoardAddMenu({ anchor, hasStrip, count, onPick, onClose }: { board: number; index: number; anchor: string; hasStrip: boolean; count: number; onPick: (type: BoardItemType, source?: "project") => void; onClose: () => void }) {
+  const t = useTranslations("canvasBoard");
+  const tl = useTranslations("blockRegLabels");
   const full = count >= MAX_BOARD_ITEMS;
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -1412,18 +1430,18 @@ function BoardAddMenu({ anchor, hasStrip, count, onPick, onClose }: { board: num
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
   };
   return (
-    <Popover anchor={anchor} className="pe-layouts pe-bitem-menu" role="menu" label="Ajouter un bloc au projet" onClose={onClose} onKeyDown={onKeyDown} focusFirst>
+    <Popover anchor={anchor} className="pe-layouts pe-bitem-menu" role="menu" label={t("addToProject")} onClose={onClose} onKeyDown={onKeyDown} focusFirst>
       {BOARD_ITEM_TYPES.map((type) => (
         <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
-          <strong>{BOARD_ITEM_LABELS[type]}</strong>
-          <small>{full ? `${MAX_BOARD_ITEMS} blocs au plus.` : type === "strip" ? "Des images et des vidéos choisies dans ta médiathèque." : BOARD_ITEM_HINTS[type]}</small>
+          <strong>{tl(`boardItem.label.${type}`)}</strong>
+          <small>{full ? t("maxBlocks", { max: MAX_BOARD_ITEMS }) : type === "strip" ? t("stripHint") : tl(`boardItem.hint.${type}`)}</small>
         </button>
       ))}
       {/* La bande d'origine (les images du projet) : proposée si elle a été retirée. */}
       {!hasStrip && (
         <button type="button" role="menuitem" disabled={full} onClick={() => onPick("strip", "project")} data-bitem-type="strip" data-bitem-source="project">
-          <strong>{BOARD_ITEM_LABELS.strip}</strong>
-          <small>Reprend les images du projet, avec leurs légendes.</small>
+          <strong>{tl("boardItem.label.strip")}</strong>
+          <small>{t("projectImagesHint")}</small>
         </button>
       )}
     </Popover>
@@ -1473,8 +1491,8 @@ function ghostContent(g: Ghost, state: string, pct: number | null): DocumentFrag
   if (g.phase === "failed") {
     const actions = el("span", "pe-ghost-actions");
     for (const [op, label] of [
-      ["retry", "Réessayer"],
-      ["remove", "Retirer"],
+      ["retry", tr("retry")],
+      ["remove", tr("remove")],
     ] as const) {
       const button = el("button", undefined, label);
       button.type = "button";
@@ -1494,6 +1512,7 @@ function ghostContent(g: Ghost, state: string, pct: number | null): DocumentFrag
  * l'arrondi du bloc, du site ou du thème.
  */
 function SlotRadius({ el }: { el: Element | null }) {
+  const t = useTranslations("canvasBoard");
   const slug = el?.getAttribute("data-slot-slug") ?? "";
   const uid = el?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
@@ -1502,10 +1521,10 @@ function SlotRadius({ el }: { el: Element | null }) {
     sendSlotLook(uid, slug, { radius: v === "auto" ? null : (v as Radius) });
   };
   return (
-    <label className="pe-slot-radius" title="Arrondi de cette image">
-      <span>Arrondi</span>
-      <select aria-label="Arrondi de cette image" value={current ?? "auto"} onChange={(e) => change(e.target.value)} data-testid="slot-radius">
-        <option value="auto">Auto</option>
+    <label className="pe-slot-radius" title={t("radiusTitle")}>
+      <span>{t("radius")}</span>
+      <select aria-label={t("radiusTitle")} value={current ?? "auto"} onChange={(e) => change(e.target.value)} data-testid="slot-radius">
+        <option value="auto">{t("auto")}</option>
         {RADII.map((r) => (
           <option key={r} value={r}>
             {RADIUS_LABELS[r]}
@@ -1558,6 +1577,7 @@ function SlotVideoSound({ el }: { el: Element }) {
  * « Entier » (défaut) : l'image ne dépasse pas la largeur visible du carrousel ; « À faire défiler » : sa largeur naturelle, comme avant.
  */
 function SlotPano({ el }: { el: Element }) {
+  const t = useTranslations("canvasBoard");
   const [, bump] = useState(0);
   const slug = el.getAttribute("data-slot-slug") ?? "";
   const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
@@ -1568,15 +1588,15 @@ function SlotPano({ el }: { el: Element }) {
     bump((n) => n + 1);
   };
   return (
-    <span className="pe-seg" role="group" aria-label="Panorama" data-testid="slot-pano">
+    <span className="pe-seg" role="group" aria-label={t("pano")} data-testid="slot-pano">
       <span className="pe-seg-label" aria-hidden="true">
-        Panorama
+        {t("pano")}
       </span>
-      <button type="button" aria-pressed={now !== "scroll"} title="L'image se voit en entier, sans dépasser le carrousel" data-slot-pano-set="fit" onClick={() => change("fit")}>
-        Entier
+      <button type="button" aria-pressed={now !== "scroll"} title={t("panoFitTitle")} data-slot-pano-set="fit" onClick={() => change("fit")}>
+        {t("panoFit")}
       </button>
-      <button type="button" aria-pressed={now === "scroll"} title="L'image garde sa taille et se découvre en faisant défiler" data-slot-pano-set="scroll" onClick={() => change("scroll")}>
-        À faire défiler
+      <button type="button" aria-pressed={now === "scroll"} title={t("panoScrollTitle")} data-slot-pano-set="scroll" onClick={() => change("scroll")}>
+        {t("panoScroll")}
       </button>
     </span>
   );

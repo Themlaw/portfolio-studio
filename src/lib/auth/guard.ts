@@ -16,6 +16,7 @@ import { forbidden, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getDb, schema } from "@/lib/db";
+import { adminLangFor, primeAdminLang } from "@/i18n/admin-msg";
 import { noteAuditUser } from "@/lib/journal/context";
 
 import { checkUserAccess } from "./identity";
@@ -80,6 +81,8 @@ export async function adminGateAllows(requestHeaders: Headers): Promise<boolean>
 export async function requireAdmin(): Promise<AdminSession> {
   const session = await getAdminSession();
   if (!session) redirect(LOGIN_PATH);
+  // Lot 130c : messages serveur dans la langue d'interface du compte.
+  primeAdminLang(await adminLangFor(session.user.id));
   return session;
 }
 
@@ -87,6 +90,7 @@ export async function requireAdmin(): Promise<AdminSession> {
 export async function assertAdmin(): Promise<AdminSession> {
   const session = await getAdminSession();
   if (!session) forbidden();
+  primeAdminLang(await adminLangFor(session.user.id));
   // Journal d'édition (lot 97) : l'écriture auditée en cours sait qui agit (identifiant interne, jamais l'e-mail).
   noteAuditUser(session.user.id);
   return session;

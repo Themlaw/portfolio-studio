@@ -1,0 +1,14 @@
+{
+  "saved": "Enregistré · visible sur tout le site",
+  "shareTitle": "Partage et moteurs de recherche",
+  "shareIntro": "Ce qui s'affiche quand quelqu'un colle le lien de ton site (Instagram, messageries…) ou te cherche sur Google.",
+  "description": "Description du site",
+  "descriptionHelp": "Une ou deux phrases, utilisées quand une page n'a pas la sienne.",
+  "shareImage": "Image affichée quand on partage ton site",
+  "shareImageHelp": "Utilisée quand une page n'a pas d'image à elle (sinon, la première image de la page). Une image large, d'environ 1200 × 630, rend le mieux.",
+  "previewLabel": "Aperçu d'un lien partagé",
+  "previewTitle": "Voici comment ton lien apparaîtra",
+  "noImage": "Pas d'image : un lien partagé s'affichera sans vignette.",
+  "addDescription": "Ajoute une description pour qu'elle apparaisse ici.",
+  "iconTitle": "Icône de l'onglet"
+}

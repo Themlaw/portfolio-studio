@@ -1,0 +1,11 @@
+{
+  "title": "Diagnostic",
+  "intro": "Ce que le site voit de ta connexion. L'IP retenue doit être la tienne (et non celle d'un proxy) : c'est elle qui sert à limiter les tentatives de connexion. Si ce n'est pas le cas, ajuste AUTH_TRUSTED_PROXY_HOPS (nombre de proxys de confiance devant le site).",
+  "clientIp": "IP client retenue",
+  "publicUrl": "URL publique (PUBLIC_BASE_URL)",
+  "redirectedDomains": "Domaines redirigés vers l'adresse principale (REDIRECT_FROM)",
+  "none": "aucun",
+  "domainToFix": "Domaine : à corriger",
+  "lastBackup": "Dernière sauvegarde",
+  "absent": "absent"
+}

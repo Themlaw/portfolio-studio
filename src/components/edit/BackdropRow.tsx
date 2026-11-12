@@ -12,17 +12,18 @@
  * jeton (suit la palette) ou `#rrggbb[aa]`. Une pastille « ! » signale un texte de couleur choisie peu lisible
  * sur ce fond (jamais bloquant) ; sans couleur de texte choisie, le texte est rendu lisible automatiquement.
  */
+import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
-import { BACKDROP_LABELS, BACKDROPS, PALETTE, type PaletteColor, type TextStyle } from "@/lib/look";
-import { AIR_LABELS, AIRS } from "@/themes/backdrop-air";
+import { BACKDROPS, PALETTE, type PaletteColor, type TextStyle } from "@/lib/look";
+import { AIRS } from "@/themes/backdrop-air";
 import { backdropContrast, TEXT_PALETTE_KEYS } from "@/themes/text-backdrop";
 import { cardBackground, isSurfaceToken, type CardPalette } from "@/themes/surface";
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
-import { ratioTip, readabilityText } from "./readability";
+import { useReadability } from "./useReadability";
 import { useDismiss } from "./useDismiss";
 
 export type BackdropRowProps = {
@@ -38,6 +39,8 @@ export type BackdropRowProps = {
 };
 
 export default function BackdropRow({ value, set, palette, swatch, blocked, inheritedColor }: BackdropRowProps) {
+  const t = useTranslations("editBackdrop");
+  const read = useReadability();
   const [open, setOpen] = useState(false);
   const pop = useRef<HTMLDivElement>(null);
   const colored = value.backdrop !== undefined && value.backdrop !== "none";
@@ -64,7 +67,7 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
   const low = verdict !== null && !verdict.ok;
   // Pastille : la couleur choisie ; « Auto » montre celle que le thème met (fond pour l'ombre et le bandeau, couleur principale pour le surlignage).
   const chip = value.backdropColor ? cardBackground(value.backdropColor, palette) : value.backdrop === "highlight" ? palette.primary : palette.bg;
-  const name = value.backdropColor ? "couleur choisie" : "Auto";
+  const name = value.backdropColor ? t("chosenColor") : t("auto");
 
   // Aération (lot 68) : seulement pour les fonds qui ont une marge (Bandeau, Surlignage). Absent = celle du thème (Normal par défaut).
   const airy = (value.backdrop === "band" || value.backdrop === "highlight") && !blocked;
@@ -72,12 +75,12 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
     <>
     <div className="tc-row tc-bd" title={blocked}>
       <span className="tc-bd-label">
-        Fond du texte :
+        {t("rowLabel")}
       </span>
-      <span className="tc-seg" role="radiogroup" aria-label="Fond du texte">
+      <span className="tc-seg" role="radiogroup" aria-label={t("rowAria")}>
         {BACKDROPS.map((b) => (
           <button key={b} type="button" role="radio" aria-checked={value.backdrop === b} disabled={Boolean(blocked)} data-backdrop={b} onClick={() => pick(b)}>
-            {BACKDROP_LABELS[b]}
+            {t(`backdrop_${b}`)}
           </button>
         ))}
       </span>
@@ -90,32 +93,32 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
             data-auto={value.backdropColor ? undefined : ""}
             aria-haspopup="dialog"
             aria-expanded={open}
-            aria-label={`Couleur du fond : ${name}`}
-            title={`Couleur du fond : ${name}`}
+            aria-label={t("dotLabel", { name })}
+            title={t("dotLabel", { name })}
             style={{ background: chip }}
             onClick={() => setOpen((o) => !o)}
           >
             {!value.backdropColor && <span aria-hidden="true">A</span>}
           </button>
           {low && (
-            <span className="tc-bd-alert" data-testid="bd-alert" role="img" title={`Texte peu lisible sur ce fond. ${ratioTip(verdict.ratio)}`} aria-label={`Texte peu lisible sur ce fond (${readabilityText(verdict.ratio).toLowerCase()})`}>
+            <span className="tc-bd-alert" data-testid="bd-alert" role="img" title={t("lowTip", { tip: read.tip(verdict.ratio) })} aria-label={t("lowAria", { verdict: read.text(verdict.ratio).toLowerCase() })}>
               !
             </span>
           )}
           {open && (
-            <div ref={pop} className="bd-pop tc" role="dialog" aria-label="Couleur du fond du texte">
+            <div ref={pop} className="bd-pop tc" role="dialog" aria-label={t("popAria")}>
               <button type="button" className="bd-auto" aria-pressed={!value.backdropColor} onClick={() => set({ backdropColor: undefined })}>
-                Auto
+                {t("auto")}
               </button>
-              <CardColorChoices palette={palette} value={value.backdropColor && isSurfaceToken(value.backdropColor) ? value.backdropColor : customColor ?? ""} onPick={(t) => set({ backdropColor: t })} label="Couleur du fond" />
+              <CardColorChoices palette={palette} value={value.backdropColor && isSurfaceToken(value.backdropColor) ? value.backdropColor : customColor ?? ""} onPick={(tok) => set({ backdropColor: tok })} label={t("colorLabel")} />
               <div className="tc-row">
                 <span className="tc-swatches">
                   <ColorPicker value={customColor} onChange={fromPicker} swatch={swatch} />
                 </span>
-                <span className="bd-hint">Autre couleur…</span>
+                <span className="bd-hint">{t("otherColor")}</span>
               </div>
               <p className="bd-hint" role="note">
-                {textColor ? "Couleur de texte choisie : conservée, même peu lisible." : "Le texte devient lisible tout seul sur une couleur de fond."}
+                {textColor ? t("keptColor") : t("autoReadable")}
               </p>
             </div>
           )}
@@ -124,11 +127,11 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
     </div>
     {airy && (
       <div className="tc-row tc-air">
-        <span className="tc-bd-label">Aération du fond :</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Aération du fond">
+        <span className="tc-bd-label">{t("airLabel")}</span>
+        <span className="tc-seg" role="radiogroup" aria-label={t("airAria")}>
           {AIRS.map((a) => (
             <button key={a} type="button" role="radio" aria-checked={(value.air ?? "normal") === a} data-air={a} onClick={() => set({ air: a === "normal" && value.air === undefined ? undefined : a })}>
-              {AIR_LABELS[a]}
+              {t(`air_${a}`)}
             </button>
           ))}
         </span>
