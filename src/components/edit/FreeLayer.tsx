@@ -625,7 +625,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
               </button>
             )}
             {isAnim && (
-              <span className="pe-seg" role="group" aria-label="Cadence de l'animation" data-testid="free-anim-fps">
+              <span className="pe-seg" role="group" aria-label={t("animCadence")} data-testid="free-anim-fps">
                 <span className="pe-seg-label" aria-hidden="true">
                   Images/s
                 </span>
@@ -637,8 +637,8 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
               </span>
             )}
             {isAnim && (
-              <button type="button" aria-pressed={loopNow} data-testid="free-anim-loop" title="Jouer en boucle (sinon un seul tour)" onClick={() => sendFreeLook(ref, sel.id, { loop: !loopNow })}>
-                Boucle
+              <button type="button" aria-pressed={loopNow} data-testid="free-anim-loop" title={t("animLoopTitle")} onClick={() => sendFreeLook(ref, sel.id, { loop: !loopNow })}>
+                {t("animLoop")}
               </button>
             )}
             {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-lecture-mode" attr="data-free-lecture-set" />}

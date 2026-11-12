@@ -107,7 +107,7 @@ export default async function EtapesBlock({ props, ctx }: { props: z.infer<typeo
         />
       ) : (
         <span className="pe-media-empty" lang="fr">
-          <span>Choisis les images de ce bloc dans le panneau de droite.</span>
+          <span>{t("chooseImages")}</span>
         </span>
       )}
     </div>
