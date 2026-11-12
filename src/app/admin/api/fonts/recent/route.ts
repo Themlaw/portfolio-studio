@@ -24,13 +24,13 @@ export async function GET() {
 export async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  if (!isSameOrigin(request)) return json(403, { message: t("Origine refusée.") });
+  if (!isSameOrigin(request)) return json(403, { message: t("originRefusedDot") });
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return json(400, { message: t("Requête invalide.") });
+    return json(400, { message: t("invalidRequest") });
   }
   const fonts = pushRecentFont((body as { font?: unknown } | null)?.font);
-  return fonts ? json(200, { fonts }) : json(400, { message: t("Police inconnue.") });
+  return fonts ? json(200, { fonts }) : json(400, { message: t("unknownFont") });
 }

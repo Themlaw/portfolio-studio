@@ -20,7 +20,7 @@ export const purgeTrashItemAction = audited("purgeTrashItemAction", async functi
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Target.safeParse(input);
-  if (!parsed.success) return fail(t("Requête invalide."));
+  if (!parsed.success) return fail(t("invalidRequest"));
   const result = await purgeOne(parsed.data.kind, parsed.data.id);
   if (!result.ok) return fail(result.message);
   // Rien de public n'a changé (l'élément n'y était plus) ; les compteurs et usages se relisent.

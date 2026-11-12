@@ -2260,7 +2260,7 @@ export default function VisualEditor({
       setTab("reglages");
       if (mobile) setSheet(true);
     }
-    toast(tv("itemAdded", { label: tl(`boardItem.label.${type}`) }), "success", { label: tv("undo"), run: () => undoRef.current() });
+    toast(tv("itemAdded", { label: tl(`boardItem.label.${type.replace(/[^A-Za-z0-9_]/g, "_")}`) }), "success", { label: tv("undo"), run: () => undoRef.current() });
   };
   const itemOp = async (board: number, uid: string, op: "up" | "down" | "remove") => {
     await itemFlushRef.current();

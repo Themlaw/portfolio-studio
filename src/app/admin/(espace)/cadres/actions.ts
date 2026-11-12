@@ -20,7 +20,7 @@ export const renameFrameAction = audited("renameFrameAction", async function ren
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Cadre inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownFrame")));
   const r = renameFrame(parsed.data, name);
   if (r.ok) revalidateFrames();
   return r;
@@ -30,7 +30,7 @@ export const setFrameThicknessAction = audited("setFrameThicknessAction", async 
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Cadre inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownFrame")));
   const r = setFrameThickness(parsed.data, value);
   if (r.ok) revalidateFrames();
   return r;
@@ -41,7 +41,7 @@ export async function frameUsesAction(id: unknown): Promise<ActionResult<{ image
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Cadre inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownFrame")));
   return { ok: true, data: { images: frameUseCounts().get(parsed.data) ?? 0 } };
 }
 
@@ -50,7 +50,7 @@ export const deleteFrameAction = audited("deleteFrameAction", async function del
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Cadre inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownFrame")));
   const r = deleteFrame(parsed.data);
   if (!r.ok) return r;
   revalidateFrames();

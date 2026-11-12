@@ -26,7 +26,7 @@ const json = (status: number, body: unknown) =>
 export const POST = auditedRoute("theme-import", async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("originRefusedDot") });
   let tmpPath: string | null = null;
   try {
     const file = await receiveOneFile(request, uploadTmpDir(), { maxBytes: IMPORT_LIMITS.maxZipBytes });
@@ -39,7 +39,7 @@ export const POST = auditedRoute("theme-import", async function POST(request: Re
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
     if (error instanceof ThemeImportError) return json(422, { ok: false, message: `${t("importRefused")} ${error.message}` });
     console.error("[themes] import en échec", error);
-    return json(500, { ok: false, message: t("L'import a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.") });
+    return json(500, { ok: false, message: t("importFailedCheckDisk") });
   } finally {
     if (tmpPath) await rm(tmpPath, { force: true });
   }

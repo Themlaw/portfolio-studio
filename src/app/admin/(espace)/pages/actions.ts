@@ -53,7 +53,7 @@ export const savePageInfoAction = audited("savePageInfoAction", async function s
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   const result = savePageInfo(pid, input, rev, { keepOldAddress: keepOldAddress !== false });
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
@@ -70,7 +70,7 @@ export const saveDraftAction = audited("saveDraftAction", async function saveDra
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   return saveDraft(pid, draft, rev);
 });
 
@@ -79,7 +79,7 @@ export const publishDraftAction = audited("publishDraftAction", async function p
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   // `live` : l'éditeur a obtenu la confirmation « Mettre cette page en ligne ? » (lot 51) ; un seul geste met contenu et page en ligne.
   const result = publishDraft(pid, rev, { live: live === true });
   if (!result.ok) return result;
@@ -101,7 +101,7 @@ export const discardDraftAction = audited("discardDraftAction", async function d
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   const result = discardDraft(pid, rev);
   if (!result.ok) return result;
   // Les emplacements « added » supprimés n'étaient pas publics : revalidation
@@ -119,7 +119,7 @@ export const boardAction = audited("boardAction", async function boardAction(id:
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   return boardOp(pid, projectId, op, rev);
 });
 
@@ -132,7 +132,7 @@ export const restoreBoardAction = audited("restoreBoardAction", async function r
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   return restoreBoard(pid, snap, rev, from);
 });
 
@@ -145,9 +145,9 @@ export const siteDraftAction = audited("siteDraftAction", async function siteDra
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   // `pageRev` : obligatoire pour l'éditeur (la toile s'en sert pour savoir quand son rendu a rattrapé l'écriture).
-  if (pageRev === undefined) return fail(t("Requête invalide (version de la page manquante) : recharge l'éditeur."));
+  if (pageRev === undefined) return fail(t("invalidRequestPageVersionMissing"));
   return saveSiteDraft(pid, snap, rev, pageRev);
 });
 
@@ -163,7 +163,7 @@ export const createDraftProjectAction = audited("createDraftProjectAction", asyn
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   return createDraftProject(pid, title);
 });
 
@@ -171,7 +171,7 @@ export const setPublishedAction = audited("setPublishedAction", async function s
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid || typeof published !== "boolean") return fail(t("Requête invalide."));
+  if (!pid || typeof published !== "boolean") return fail(t("invalidRequest"));
   const result = setPublished(pid, published);
   if (result.ok) {
     syncDraftFlags(pid, { published });
@@ -187,7 +187,7 @@ export const setInMenuAction = audited("setInMenuAction", async function setInMe
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid || typeof inMenu !== "boolean") return fail(t("Requête invalide."));
+  if (!pid || typeof inMenu !== "boolean") return fail(t("invalidRequest"));
   const result = setInMenu(pid, inMenu);
   if (result.ok) {
     syncDraftFlags(pid, { inMenu });
@@ -201,7 +201,7 @@ export const addToMenuFromEditorAction = audited("addToMenuFromEditorAction", as
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t("Requête invalide."));
+  if (!pid) return fail(t("invalidRequest"));
   const result = addToMenuFromEditor(pid);
   if (result.ok) revalidateNav();
   return result;
@@ -222,7 +222,7 @@ export const deletePageAction = audited("deletePageAction", async function delet
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   const result = deletePage(pid);
   if (result.ok) revalidatePage(pid, { structure: true });
   return result;
@@ -233,7 +233,7 @@ export const restorePageAction = audited("restorePageAction", async function res
   await assertAdmin();
   const t = adminT("actions");
   const pid = pageId(id);
-  if (!pid) return fail(t(t("Page inconnue.")));
+  if (!pid) return fail(t(t("unknownPage")));
   const result = restorePage(pid);
   if (result.ok) {
     revalidatePage(pid, { structure: true });

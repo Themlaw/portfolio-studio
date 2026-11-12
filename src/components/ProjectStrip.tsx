@@ -349,7 +349,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
 function BoardItemBar({ board, part, index, count, videoNow, soundNow, videoKey }: { board: number; part: BoardPart; index: number; count: number; videoNow: string | undefined; soundNow: "on" | "off"; videoKey: string | null }) {
   const t = useTranslations("canvasStrip");
   const tl = useTranslations("blockRegLabels");
-  const label = tl(`boardItem.label.${part.type}`);
+  const label = tl(`boardItem.label.${part.type.replace(/[^A-Za-z0-9_]/g, "_")}`);
   const lang = useLocale().slice(0, 2);
   const isStrip = part.type === "strip";
   const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (

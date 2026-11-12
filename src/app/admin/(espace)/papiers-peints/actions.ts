@@ -31,7 +31,7 @@ export const renameWallpaperAction = audited("renameWallpaperAction", async func
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Motif inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownPattern")));
   const result = renameWallpaper(parsed.data, name);
   if (result.ok) revalidateWallpapers();
   return result;
@@ -42,7 +42,7 @@ export const saveWallpaperPaintAction = audited("saveWallpaperPaintAction", asyn
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Motif inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownPattern")));
   const result = saveWallpaperPaint(parsed.data, paint);
   if (result.ok) revalidateWallpapers();
   return result;
@@ -53,7 +53,7 @@ export async function wallpaperUsesAction(id: unknown): Promise<ActionResult<Wal
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Motif inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownPattern")));
   return { ok: true, data: getWallpaperUses(parsed.data) };
 }
 
@@ -62,7 +62,7 @@ export const trashWallpaperAction = audited("trashWallpaperAction", async functi
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Motif inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownPattern")));
   const result = trashWallpaper(parsed.data);
   if (result.ok) revalidateWallpapers();
   return result;
@@ -72,7 +72,7 @@ export const restoreWallpaperAction = audited("restoreWallpaperAction", async fu
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(id);
-  if (!parsed.success) return fail(t(t("Motif inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownPattern")));
   const result = restoreWallpaper(parsed.data);
   if (result.ok) revalidateWallpapers();
   return result;

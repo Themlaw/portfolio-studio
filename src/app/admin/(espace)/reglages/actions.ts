@@ -49,12 +49,12 @@ export async function previewFaviconAction(input: unknown): Promise<ActionResult
   await assertAdmin();
   const t = adminT("actions");
   const parsed = FaviconInputSchema.safeParse(input);
-  if (!parsed.success) return fail(t("Réglage invalide."));
+  if (!parsed.success) return fail(t("invalidSetting"));
   const { mode, mediaId, mono, crop } = parsed.data;
   const seo = readStoredSeo();
   let favicon = seo.favicon;
   if (mode === "image") {
-    if (mediaId === null) return fail(t("Choisis d'abord une image de la médiathèque."));
+    if (mediaId === null) return fail(t("chooseImageFirst"));
     const built = await buildFavicons(mediaId, crop);
     if (!built.ok) return fail(built.message);
     favicon = { mediaId, dir: built.dir };

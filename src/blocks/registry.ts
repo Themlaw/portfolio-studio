@@ -558,18 +558,18 @@ export function blockCatalog(special = false, t?: AdminT): BlockCatalogEntry[] {
     const base = {
       key: b.type,
       type: b.type,
-      label: tx(`types.${b.type}.label`, b.label),
-      description: tx(`types.${b.type}.description`, b.description),
+      label: tx(`types.${b.type.replace(/[^A-Za-z0-9_]/g, "_")}.label`, b.label),
+      description: tx(`types.${b.type.replace(/[^A-Za-z0-9_]/g, "_")}.description`, b.description),
       defaults: b.defaults,
-      summary: rawOf(`types.${b.type}.summary`, b.summary),
+      summary: rawOf(`types.${b.type.replace(/[^A-Za-z0-9_]/g, "_")}.summary`, b.summary),
       inline: b.inline,
       ...(b.container ? { container: b.container } : {}),
       ...(b.mediaFields ? { mediaFields: b.mediaFields } : {}),
-      ...(b.single ? { single: tx(`types.${b.type}.single`, b.single.reason) } : {}),
+      ...(b.single ? { single: tx(`types.${b.type.replace(/[^A-Za-z0-9_]/g, "_")}.single`, b.single.reason) } : {}),
       ...(b.locked ? { locked: tx(`types.${b.type}.locked`, b.locked) } : {}),
       ...(hiddenHere ? { hidden: true } : { group: b.group, order: b.order }),
     };
-    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: tx(`presets.${p.key}.label`, p.label), short: tx(`presets.${p.key}.short`, p.short), description: tx(`presets.${p.key}.description`, p.description), defaults: p.defaults, order: p.order, preset: true }))];
+    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: tx(`presets.${p.key.replace(/[^A-Za-z0-9_]/g, "_")}.label`, p.label), short: tx(`presets.${p.key.replace(/[^A-Za-z0-9_]/g, "_")}.short`, p.short), description: tx(`presets.${p.key.replace(/[^A-Za-z0-9_]/g, "_")}.description`, p.description), defaults: p.defaults, order: p.order, preset: true }))];
   });
 }
 
@@ -585,5 +585,5 @@ export function blockEditors(): Record<string, ReactNode> {
 export function blockTypeLabel(type: string, t?: AdminT): string {
   const def = Object.hasOwn(BLOCKS, type) ? BLOCKS[type] : undefined;
   if (!def) return type;
-  return t ? t(`types.${type}.label`) : def.label;
+  return t ? t(`types.${type.replace(/[^A-Za-z0-9_]/g, "_")}.label`) : def.label;
 }

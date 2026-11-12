@@ -2,9 +2,9 @@
   "title": "Photoshop kit",
   "formats": {
     "svg": "SVG",
-    "svg-mask": "SVG (shape tinted by the theme)",
+    "svg_mask": "SVG (shape tinted by the theme)",
     "avif": "AVIF + WebP",
-    "avif-mask": "AVIF (shape tinted by the theme)",
+    "avif_mask": "AVIF (shape tinted by the theme)",
     "png": "PNG 32 and 64 px (HiDPI screens)"
   },
   "headlineError": "{label}: needs fixing",

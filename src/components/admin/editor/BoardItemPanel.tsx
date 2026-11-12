@@ -316,7 +316,7 @@ export default function BoardItemPanel({
   return (
     <div className="ve-settings" data-testid="board-item-panel" data-type={type}>
       <header className="ve-settings-head">
-        <h2>{tl(`boardItem.label.${type}`)}</h2>
+        <h2>{tl(`boardItem.label.${type.replace(/[^A-Za-z0-9_]/g, "_")}`)}</h2>
         {head}
       </header>
       <p className="ve-hint">{t("belongs")}</p>

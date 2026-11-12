@@ -1403,7 +1403,7 @@ export default function BoardLayer({
           onClose={() => setAddMenu(null)}
           onPick={(type, source) => {
             post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index, ...(source ? { source } : {}) });
-            announce(tr("itemAdded", { label: tl(`boardItem.label.${type}`) }));
+            announce(tr("itemAdded", { label: tl(`boardItem.label.${type.replace(/[^A-Za-z0-9_]/g, "_")}`) }));
             setAddMenu(null);
           }}
         />
@@ -1433,7 +1433,7 @@ function BoardAddMenu({ anchor, hasStrip, count, onPick, onClose }: { board: num
     <Popover anchor={anchor} className="pe-layouts pe-bitem-menu" role="menu" label={t("addToProject")} onClose={onClose} onKeyDown={onKeyDown} focusFirst>
       {BOARD_ITEM_TYPES.map((type) => (
         <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
-          <strong>{tl(`boardItem.label.${type}`)}</strong>
+          <strong>{tl(`boardItem.label.${type.replace(/[^A-Za-z0-9_]/g, "_")}`)}</strong>
           <small>{full ? t("maxBlocks", { max: MAX_BOARD_ITEMS }) : type === "strip" ? t("stripHint") : tl(`boardItem.hint.${type}`)}</small>
         </button>
       ))}

@@ -14,7 +14,7 @@ const DECOR_SLOT = /^decor--([1-8])$/;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const notFound = () => { const t = adminT("actions"); return new Response(t("Aperçu introuvable"), { status: 404, headers: { "Cache-Control": "no-store" } }); };
+const notFound = () => { const t = adminT("actions"); return new Response(t("previewNotFound"), { status: 404, headers: { "Cache-Control": "no-store" } }); };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string; importId: string; slot: string; which: string }> }) {
   await assertAdmin();

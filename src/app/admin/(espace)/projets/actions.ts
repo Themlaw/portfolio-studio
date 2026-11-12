@@ -44,7 +44,7 @@ export const saveProjectAction = audited("saveProjectAction", async function sav
   await assertAdmin();
   const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail(t(t("Projet inconnu.")));
+  if (!pid) return fail(t(t("unknownProject")));
   const result = saveProject(pid, input);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -65,7 +65,7 @@ export const deleteProjectAction = audited("deleteProjectAction", async function
   await assertAdmin();
   const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail(t(t("Projet inconnu.")));
+  if (!pid) return fail(t(t("unknownProject")));
   const result = deleteProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -76,7 +76,7 @@ export const restoreProjectAction = audited("restoreProjectAction", async functi
   await assertAdmin();
   const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail(t(t("Projet inconnu.")));
+  if (!pid) return fail(t(t("unknownProject")));
   const result = restoreProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -86,7 +86,7 @@ export const addSlotsAction = audited("addSlotsAction", async function addSlotsA
   await assertAdmin();
   const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail(t(t("Projet inconnu.")));
+  if (!pid) return fail(t(t("unknownProject")));
   const result = addSlots(pid, mediaIds, at);
   if (result.ok) revalidateProject(pid);
   return result;
@@ -96,7 +96,7 @@ export const saveSlotAction = audited("saveSlotAction", async function saveSlotA
   await assertAdmin();
   const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail(t(t("Emplacement inconnu.")));
+  if (!sid) return fail(t(t("unknownSlot")));
   const result = saveSlot(sid, input);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
@@ -106,7 +106,7 @@ export const setSlotMediaAction = audited("setSlotMediaAction", async function s
   await assertAdmin();
   const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail(t(t("Emplacement inconnu.")));
+  if (!sid) return fail(t(t("unknownSlot")));
   const result = setSlotMedia(sid, mediaId);
   if (result.ok) {
     revalidateProject(result.data.projectId);
@@ -119,7 +119,7 @@ export const deleteSlotAction = audited("deleteSlotAction", async function delet
   await assertAdmin();
   const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail(t(t("Emplacement inconnu.")));
+  if (!sid) return fail(t(t("unknownSlot")));
   const result = deleteSlot(sid);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
@@ -129,7 +129,7 @@ export const reorderSlotsAction = audited("reorderSlotsAction", async function r
   await assertAdmin();
   const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail(t(t("Projet inconnu.")));
+  if (!pid) return fail(t(t("unknownProject")));
   const result = reorderSlots(pid, ids);
   if (result.ok) revalidateProject(pid);
   return result;

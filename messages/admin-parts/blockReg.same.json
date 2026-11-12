@@ -1,14 +1,14 @@
 {
   "keys": [
-    "types.collection-intro.summary",
+    "types.collection_intro.summary",
     "types.contact.label",
     "types.cv.summary",
     "types.exit.summary",
     "types.hero.summary",
     "types.image.label",
     "types.image.summary",
-    "types.page-link.summary",
-    "types.section-title.summary",
+    "types.page_link.summary",
+    "types.section_title.summary",
     "types.video.summary"
   ]
 }

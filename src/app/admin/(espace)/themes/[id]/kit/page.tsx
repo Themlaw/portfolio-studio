@@ -127,7 +127,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                         {s.change === "unchanged"
                           ? t("unchangedDot")
                           : s.chosen
-                            ? `${t(`formats.${s.chosen}`)} · ${formatBytes(s.bytes ?? 0, t, locale)}${s.fidelity ? ` · ${t("outline", { px: s.fidelity.deviation.toFixed(2) })}` : ""}${s.hotspot ? ` · ${t("hotspot", { x: s.hotspot.x, y: s.hotspot.y })}` : ""}`
+                            ? `${t(`formats.${s.chosen.replace(/-/g, "_")}`)} · ${formatBytes(s.bytes ?? 0, t, locale)}${s.fidelity ? ` · ${t("outline", { px: s.fidelity.deviation.toFixed(2) })}` : ""}${s.hotspot ? ` · ${t("hotspot", { x: s.hotspot.x, y: s.hotspot.y })}` : ""}`
                             : s.change === "missing"
                               ? `${t("currentKept")}${spec ? ` ${t("expectedLayer", { layer: spec.layer })}` : ""}`
                               : ""}

@@ -2,14 +2,14 @@
   "gridLayout": {
     "auto": "Automatique",
     "1": "1 grand",
-    "1+2": "1 grand + 2 petits dessous",
+    "1_2": "1 grand + 2 petits dessous",
     "2": "2 côte à côte",
     "3": "3 côte à côte",
     "2x2": "4 petits (2 × 2)",
     "4": "4 en ligne",
-    "2+1": "2 petits + 1 grand",
-    "portrait-left": "Portrait à gauche + 2 à droite",
-    "portrait-right": "Portrait à droite + 2 à gauche",
+    "2_1": "2 petits + 1 grand",
+    "portrait_left": "Portrait à gauche + 2 à droite",
+    "portrait_right": "Portrait à droite + 2 à gauche",
     "custom": "Sur mesure"
   },
   "autoHint": "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.",
@@ -20,17 +20,17 @@
       "strip": "Images qui défilent",
       "grid": "Grille",
       "image": "Image",
-      "video-single": "Vidéo",
-      "free-board": "Planche libre",
-      "rich-text": "Texte"
+      "video_single": "Vidéo",
+      "free_board": "Planche libre",
+      "rich_text": "Texte"
     },
     "hint": {
       "strip": "Les images du projet en bande, qui défile sur le côté.",
       "grid": "Des images ou des vidéos rangées en colonnes.",
       "image": "Une image seule, jusqu'à la pleine largeur.",
-      "video-single": "Une vidéo de ta médiathèque.",
-      "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
-      "rich-text": "Un paragraphe, avec un titre si tu veux."
+      "video_single": "Une vidéo de ta médiathèque.",
+      "free_board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
+      "rich_text": "Un paragraphe, avec un titre si tu veux."
     }
   },
   "boxPreset": {
@@ -64,10 +64,10 @@
     }
   },
   "freeFormat": {
-    "16:9": "16:9",
-    "3:2": "3:2",
-    "4:3": "4:3",
-    "1:1": "Carré",
+    "16_9": "16:9",
+    "3_2": "3:2",
+    "4_3": "4:3",
+    "1_1": "Carré",
     "free": "Hauteur libre"
   },
   "freePhone": {

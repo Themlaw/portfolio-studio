@@ -64,7 +64,7 @@ function Figure({ slide, onZoom }: { slide: TutoSlide; onZoom: () => void }) {
   const t = useTranslations("kitTutorial");
   const tt = useTranslations("themeTuto");
   const alt = tt(`${slide.id}.alt`);
-  const labelOf = (n: TutoNote) => tt(`${slide.id}.note_${n.box}`);
+  const labelOf = (n: TutoNote) => tt(`${slide.id}.note_${n.box.replace(/-/g, "_")}`);
   const shot = SHOTS[slide.image];
   const id = useId();
   if (!shot) return null;

@@ -21,7 +21,7 @@ export const saveMediaAltAction = audited("saveMediaAltAction", async function s
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t(t("Image inconnue.")));
+  if (!parsed.success) return fail(t(t("unknownImage")));
   const result = saveMediaAlt(parsed.data, alt);
   if (result.ok) revalidateMedia();
   return result;
@@ -34,7 +34,7 @@ export const deleteMediaAction = audited("deleteMediaAction", async function del
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t(t("Image inconnue.")));
+  if (!parsed.success) return fail(t(t("unknownImage")));
   const result = await deleteMedia(parsed.data);
   if (result.ok) {
     revalidateMedia();
@@ -48,7 +48,7 @@ export const restoreMediaAction = audited("restoreMediaAction", async function r
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t(t("Image inconnue.")));
+  if (!parsed.success) return fail(t(t("unknownImage")));
   const result = restoreMedia(parsed.data);
   if (result.ok) {
     revalidateMedia();
@@ -62,7 +62,7 @@ export async function mediaStatusAction(ids: unknown): Promise<ActionResult<Admi
   await assertAdmin();
   const t = adminT("actions");
   const parsed = z.array(Id).max(100).safeParse(ids);
-  if (!parsed.success) return fail(t("Requête invalide."));
+  if (!parsed.success) return fail(t("invalidRequest"));
   const wanted = new Set(parsed.data);
   return { ok: true, data: listMediaForAdmin().filter((m) => wanted.has(m.id)) };
 }
@@ -79,7 +79,7 @@ export async function mediaUsesAction(mediaId: unknown): Promise<ActionResult<Me
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t(t("Image inconnue.")));
+  if (!parsed.success) return fail(t(t("unknownImage")));
   return { ok: true, data: getMediaUses(parsed.data) };
 }
 
@@ -88,7 +88,7 @@ export const retryMediaAction = audited("retryMediaAction", async function retry
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t("Média inconnu."));
+  if (!parsed.success) return fail(t("unknownMedia"));
   const result = await retryMedia(parsed.data);
   if (result.ok) {
     wakeWorker();
@@ -120,7 +120,7 @@ export const setMediaTagsAction = audited("setMediaTagsAction", async function s
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(mediaId);
-  if (!parsed.success) return fail(t("Média inconnu."));
+  if (!parsed.success) return fail(t("unknownMedia"));
   const result = setMediaTags(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
@@ -131,7 +131,7 @@ export const addMediaTagsAction = audited("addMediaTagsAction", async function a
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Ids.safeParse(mediaIds);
-  if (!parsed.success) return fail(t("Requête invalide."));
+  if (!parsed.success) return fail(t("invalidRequest"));
   const result = addTagsToMedia(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
@@ -142,7 +142,7 @@ export const removeMediaTagsAction = audited("removeMediaTagsAction", async func
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Ids.safeParse(mediaIds);
-  if (!parsed.success) return fail(t("Requête invalide."));
+  if (!parsed.success) return fail(t("invalidRequest"));
   const result = removeTagsFromMedia(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
@@ -152,7 +152,7 @@ export const renameTagAction = audited("renameTagAction", async function renameT
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(tagId);
-  if (!parsed.success) return fail(t(t("Tag inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownTag")));
   const result = renameTag(parsed.data, label);
   if (result.ok) revalidateMedia();
   return result;
@@ -163,7 +163,7 @@ export const mergeTagsAction = audited("mergeTagsAction", async function mergeTa
   await assertAdmin();
   const t = adminT("actions");
   const parsed = z.tuple([Id, Id]).safeParse([fromId, intoId]);
-  if (!parsed.success) return fail(t(t("Tag inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownTag")));
   const result = mergeTags(parsed.data[0], parsed.data[1]);
   if (result.ok) revalidateMedia();
   return result;
@@ -182,7 +182,7 @@ export const deleteTagAction = audited("deleteTagAction", async function deleteT
   await assertAdmin();
   const t = adminT("actions");
   const parsed = Id.safeParse(tagId);
-  if (!parsed.success) return fail(t(t("Tag inconnu.")));
+  if (!parsed.success) return fail(t(t("unknownTag")));
   const result = deleteTag(parsed.data);
   if (result.ok) revalidateMedia();
   return result;

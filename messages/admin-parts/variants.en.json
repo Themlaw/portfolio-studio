@@ -11,9 +11,9 @@
     "title": "Home opening",
     "help": "The shape of the big banner on the home page.",
     "options": {
-      "parallax-layers": "Layered depth",
+      "parallax_layers": "Layered depth",
       "spotlight": "Spotlight",
-      "type-only": "Typographic"
+      "type_only": "Typographic"
     }
   },
   "strip": {
@@ -28,7 +28,7 @@
     "title": "Captions",
     "help": "The style of the text under the images.",
     "options": {
-      "mono-split": "Technical",
+      "mono_split": "Technical",
       "handwritten": "Handwritten"
     }
   },
@@ -36,8 +36,8 @@
     "title": "Viewer",
     "help": "How an enlarged image is shown.",
     "options": {
-      "passe-partout": "Mat",
-      "full-bleed": "Full screen"
+      "passe_partout": "Mat",
+      "full_bleed": "Full screen"
     }
   },
   "button": {
@@ -53,7 +53,7 @@
     "help": "A plain background, or a discreet dotted paper.",
     "options": {
       "none": "Plain background",
-      "paper-dots": "Dotted paper"
+      "paper_dots": "Dotted paper"
     }
   }
 }

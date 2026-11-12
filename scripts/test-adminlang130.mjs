@@ -200,9 +200,35 @@ if (fr && en) {
       if (key.includes("${")) {
         const prefix = key.split("${")[0].replace(/\.$/, "");
         if (!prefix) continue;
-        key = prefix;
+        // Vérifie qu'au moins une clé du catalogue commence par ce préfixe fixe.
+        const allKeys = [];
+        const collect = (obj, pre = "") => {
+          for (const k of Object.keys(obj)) {
+            const pth = pre ? `${pre}.${k}` : k;
+            allKeys.push(pth);
+            if (obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k])) collect(obj[k], pth);
+          }
+        };
+        collect(frRaw[ns]);
+        let okPrefix = allKeys.some((k) => k === prefix || k.startsWith(prefix) || k.startsWith(`${prefix}.`));
+        if (!okPrefix) {
+          // try all namespaces
+          for (const nsn of Object.keys(frRaw)) {
+            const ks = [];
+            const coll = (o, pre="") => { for (const k of Object.keys(o)) { const pth = pre?`${pre}.${k}`:k; ks.push(pth); if (o[k]&&typeof o[k]==="object"&&!Array.isArray(o[k])) coll(o[k],pth); } };
+            coll(frRaw[nsn]);
+            if (ks.some((k)=>k===prefix||k.startsWith(prefix)||k.startsWith(`${prefix}.`))) { okPrefix=true; break; }
+          }
+        }
+        if (!okPrefix) {
+          const line = src.slice(0, m.index).split("\n").length;
+          unresolved.push(`${f}:${line} ${ns}::${prefix}`);
+        }
+        continue;
       }
-      if (!resolveMsg(frRaw[ns], key)) {
+      let resolved = resolveMsg(frRaw[ns], key);
+      if (!resolved) for (const nsn of Object.keys(frRaw)) if (resolveMsg(frRaw[nsn], key)) { resolved = true; break; }
+      if (!resolved) {
         const line = src.slice(0, m.index).split("\n").length;
         unresolved.push(`${f}:${line} ${ns}::${key}`);
       }

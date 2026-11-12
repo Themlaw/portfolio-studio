@@ -11,12 +11,12 @@ async function readTags(request: Request): Promise<unknown> {
   const t = adminT("actions");
   const text = await request.text();
   if (!text) return undefined;
-  if (text.length > 16 * 1024) throw new UploadError(413, t("Requête trop longue."));
+  if (text.length > 16 * 1024) throw new UploadError(413, t("requestTooLong"));
   try {
     const body = JSON.parse(text) as { tags?: unknown } | null;
     return body && typeof body === "object" ? body.tags : undefined;
   } catch {
-    throw new UploadError(400, t("Requête invalide."));
+    throw new UploadError(400, t("invalidRequest"));
   }
 }
 

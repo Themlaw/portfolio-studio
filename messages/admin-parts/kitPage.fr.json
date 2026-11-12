@@ -2,9 +2,9 @@
   "title": "Kit Photoshop",
   "formats": {
     "svg": "SVG",
-    "svg-mask": "SVG (forme teintée par le thème)",
+    "svg_mask": "SVG (forme teintée par le thème)",
     "avif": "AVIF + WebP",
-    "avif-mask": "AVIF (forme teintée par le thème)",
+    "avif_mask": "AVIF (forme teintée par le thème)",
     "png": "PNG 32 et 64 px (écrans HiDPI)"
   },
   "headlineError": "{label} : à corriger",
