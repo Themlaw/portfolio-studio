@@ -12,6 +12,7 @@ import { isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

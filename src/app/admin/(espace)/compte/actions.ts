@@ -11,6 +11,7 @@ import { cookies, headers } from "next/headers";
 import { z } from "zod";
 
 import { ADMIN_LANG_COOKIE, ADMIN_LANG_COOKIE_MAX_AGE, makeAdminTranslator, loadAdminMessages, parseAdminLang, type AdminLang } from "@/i18n/admin-lang";
+import { adminT } from "@/i18n/admin-msg";
 import { writeUserAdminLang } from "@/lib/admin-lang";
 import { getAuth } from "@/lib/auth";
 import { clientIpFromForwarded, ipBucket, UNKNOWN_IP } from "@/lib/auth/client-ip";
@@ -22,23 +23,25 @@ import { accountWaitSeconds, ipAttempt, noteThrottledAttempt, recordFailure, rec
 import { done, fail, zodFieldErrors, type ActionResult } from "@/lib/edit/result";
 import { audited } from "@/lib/journal/audit";
 
-const ChangePassword = z
-  .object({
-    currentPassword: z.string().min(1, "Tape ton mot de passe actuel.").max(MAX_PASSWORD_LENGTH, `${MAX_PASSWORD_LENGTH} caractères au plus.`),
-    newPassword: z.string().min(MIN_PASSWORD_LENGTH, `Au moins ${MIN_PASSWORD_LENGTH} caractères.`).max(MAX_PASSWORD_LENGTH, `${MAX_PASSWORD_LENGTH} caractères au plus.`),
-    confirm: z.string().max(MAX_PASSWORD_LENGTH, `${MAX_PASSWORD_LENGTH} caractères au plus.`),
-  })
-  .refine((v) => v.newPassword === v.confirm, { path: ["confirm"], message: "Les deux mots de passe ne sont pas identiques." })
-  .refine((v) => v.newPassword !== v.currentPassword, { path: ["newPassword"], message: "Choisis un mot de passe différent de l'actuel." });
-
 const apiCode = (error: unknown) => (error as { body?: { code?: unknown } } | null)?.body?.code;
 
 export const changePasswordAction = audited("changePasswordAction", async function changePasswordAction(input: unknown): Promise<ActionResult<null>> {
   const session = await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
+  const t = adminT("actions");
   const config = readAuthConfig();
-  if (!config.passwordEnabled) return fail("La connexion par mot de passe est désactivée sur ce site : le mot de passe se gère dans Authentik.");
+  if (!config.passwordEnabled) return fail(t("passwordDisabled"));
+  const ChangePassword = z
+    .object({
+      currentPassword: z.string().min(1, t("passwordCurrentRequired")).max(MAX_PASSWORD_LENGTH, t("passwordMaxChars", { max: MAX_PASSWORD_LENGTH })),
+      newPassword: z.string().min(MIN_PASSWORD_LENGTH, t("passwordMinChars", { min: MIN_PASSWORD_LENGTH })).max(MAX_PASSWORD_LENGTH, t("passwordMaxChars", { max: MAX_PASSWORD_LENGTH })),
+      confirm: z.string().max(MAX_PASSWORD_LENGTH, t("passwordMaxChars", { max: MAX_PASSWORD_LENGTH })),
+    })
+    .refine((v) => v.newPassword === v.confirm, { path: ["confirm"], message: t("passwordsMismatch") })
+    .refine((v) => v.newPassword !== v.currentPassword, { path: ["newPassword"], message: t("passwordDifferent") });
   const parsed = ChangePassword.safeParse(input);
-  if (!parsed.success) return fail("Vérifie les champs.", zodFieldErrors(parsed.error.issues));
+  if (!parsed.success) return fail(t("checkFields"), zodFieldErrors(parsed.error.issues));
   const h = await headers();
   const ip = clientIpFromForwarded(h.get("x-forwarded-for"), config.trustedProxyHops) ?? UNKNOWN_IP;
   // Mêmes freins, mêmes compteurs et mêmes clés que la route /api/auth/change-password (complément #61) : IP réduite à son /64,
@@ -47,11 +50,11 @@ export const changePasswordAction = audited("changePasswordAction", async functi
   const who = session.user.email.trim().toLowerCase();
   const bucket = ipBucket(ip);
   const ipWait = ipAttempt(bucket);
-  if (ipWait > 0) return fail(`Trop d'essais depuis cette adresse : réessaie dans ${ipWait} s.`);
+  if (ipWait > 0) return fail(t("tooManyFromIp", { wait: ipWait }));
   const wait = Math.max(waitSeconds(who, bucket), accountWaitSeconds(who, bucket));
   if (wait > 0) {
     noteThrottledAttempt(who);
-    return fail(`Trop d'échecs pour ce compte : réessaie dans ${wait} s.`);
+    return fail(t("tooManyForAccount", { wait }));
   }
   try {
     await getAuth().api.changePassword({ body: { currentPassword: parsed.data.currentPassword, newPassword: parsed.data.newPassword, revokeOtherSessions: true }, headers: h });
@@ -60,13 +63,13 @@ export const changePasswordAction = audited("changePasswordAction", async functi
     if (code === "INVALID_PASSWORD") {
       recordFailure(who, bucket);
       console.warn(`[auth] changement de mot de passe refusé (mot de passe actuel incorrect), IP ${ip}`);
-      return fail("Mot de passe actuel incorrect.", { currentPassword: "Mot de passe actuel incorrect." });
+      return fail(t("currentPasswordWrong"), { currentPassword: t("currentPasswordWrong") });
     }
     if (code === "PASSWORD_TOO_SHORT" || code === "PASSWORD_TOO_LONG") {
-      const range = `Entre ${MIN_PASSWORD_LENGTH} et ${MAX_PASSWORD_LENGTH} caractères.`;
+      const range = t("betweenChars", { min: MIN_PASSWORD_LENGTH, max: MAX_PASSWORD_LENGTH });
       return fail(range, { newPassword: range });
     }
-    if (code === "CREDENTIAL_ACCOUNT_NOT_FOUND") return fail("Ce compte n'a pas de mot de passe (connexion par Authentik).");
+    if (code === "CREDENTIAL_ACCOUNT_NOT_FOUND") return fail(t("noPasswordAccount"));
     throw error;
   }
   recordSuccess(who, bucket);
@@ -76,6 +79,8 @@ export const changePasswordAction = audited("changePasswordAction", async functi
 
 export const revokeOtherSessionsAction = audited("revokeOtherSessionsAction", async function revokeOtherSessionsAction(): Promise<ActionResult<{ revoked: number }>> {
   const session = await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const revoked = revokeOtherUserSessions(session.user.id, session.session.id);
   console.log(`[auth] ${revoked} autre(s) session(s) déconnectée(s) depuis l'admin`);
   return done({ revoked });
@@ -87,10 +92,12 @@ export const revokeOtherSessionsAction = audited("revokeOtherSessionsAction", as
  */
 export const setAdminLangAction = audited("setAdminLangAction", async function setAdminLangAction(lang: unknown): Promise<ActionResult<{ lang: AdminLang }>> {
   const session = await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = parseAdminLang(lang);
   if (!parsed) {
-    const t = makeAdminTranslator("fr", await loadAdminMessages("fr"), "account");
-    return fail(t("langInvalid"));
+    const tt = makeAdminTranslator("fr", await loadAdminMessages("fr"), "account");
+    return fail(tt("langInvalid"));
   }
   writeUserAdminLang(session.user.id, parsed);
   const h = await headers();

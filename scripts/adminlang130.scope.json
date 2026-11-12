@@ -27,11 +27,7 @@
     "src/components/AdminIntl.tsx",
     "src/components/EditOnly.tsx"
   ],
-  "exclude": [
-    "src/app/admin/api/",
-    "*/actions.ts",
-    "src/app/admin/apercu/"
-  ],
+  "exclude": [],
   "allow": {
     "src/components/edit/readability.ts": {
       "Lisibilité :": "module pur testé par node (test-chrome24) : repli français de readabilityText ; l'affichage passe par useReadability (editMenusReadability)",

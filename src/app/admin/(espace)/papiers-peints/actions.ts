@@ -14,12 +14,15 @@ import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateWallpapers } from "@/lib/revalidate";
 import { listWallpapersForAdmin, type AdminWallpaper } from "@/lib/wallpapers";
 import { audited } from "@/lib/journal/audit";
+import { adminT } from "@/i18n/admin-msg";
 
 const Id = z.number().int().positive();
 
 /** Ajoute à la bibliothèque le fichier qui vient d'être envoyé (média créé par /admin/api/upload). */
 export const createWallpaperAction = audited("createWallpaperAction", async function createWallpaperAction(mediaId: unknown): Promise<ActionResult<{ id: number; name: string; reused: boolean }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const result = createWallpaper(mediaId);
   if (result.ok) revalidateWallpapers();
   return result;
@@ -27,6 +30,8 @@ export const createWallpaperAction = audited("createWallpaperAction", async func
 
 export const renameWallpaperAction = audited("renameWallpaperAction", async function renameWallpaperAction(id: unknown, name: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Motif inconnu.");
   const result = renameWallpaper(parsed.data, name);
@@ -37,6 +42,8 @@ export const renameWallpaperAction = audited("renameWallpaperAction", async func
 /** Taille d'une tuile (px) et opacité par défaut du motif. */
 export const saveWallpaperPaintAction = audited("saveWallpaperPaintAction", async function saveWallpaperPaintAction(id: unknown, paint: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Motif inconnu.");
   const result = saveWallpaperPaint(parsed.data, paint);
@@ -47,6 +54,8 @@ export const saveWallpaperPaintAction = audited("saveWallpaperPaintAction", asyn
 /** Où le motif sert (avertissement avant de le supprimer). */
 export async function wallpaperUsesAction(id: unknown): Promise<ActionResult<WallpaperUseRow[]>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Motif inconnu.");
   return { ok: true, data: getWallpaperUses(parsed.data) };
@@ -55,6 +64,8 @@ export async function wallpaperUsesAction(id: unknown): Promise<ActionResult<Wal
 /** Supprimer = mettre à la corbeille (restaurable 30 jours) ; un motif utilisé quitte le rendu sans rien casser. */
 export const trashWallpaperAction = audited("trashWallpaperAction", async function trashWallpaperAction(id: unknown): Promise<ActionResult<{ name: string }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Motif inconnu.");
   const result = trashWallpaper(parsed.data);
@@ -64,6 +75,8 @@ export const trashWallpaperAction = audited("trashWallpaperAction", async functi
 
 export const restoreWallpaperAction = audited("restoreWallpaperAction", async function restoreWallpaperAction(id: unknown): Promise<ActionResult<{ name: string }>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Motif inconnu.");
   const result = restoreWallpaper(parsed.data);
@@ -74,6 +87,8 @@ export const restoreWallpaperAction = audited("restoreWallpaperAction", async fu
 /** Papier peint par défaut des cartes du site (null = aucun). */
 export const saveCardWallpaperAction = audited("saveCardWallpaperAction", async function saveCardWallpaperAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   const result = saveCardWallpaper(input);
   if (result.ok) revalidateWallpapers();
   return result;
@@ -82,5 +97,7 @@ export const saveCardWallpaperAction = audited("saveCardWallpaperAction", async 
 /** État de la bibliothèque (suivi du traitement d'un fichier qui vient d'être envoyé). */
 export async function listWallpapersAction(): Promise<ActionResult<AdminWallpaper[]>> {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   return { ok: true, data: listWallpapersForAdmin() };
 }

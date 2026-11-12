@@ -11,12 +11,15 @@ import { assertAdmin } from "@/lib/auth/guard";
 import { adminScreen, isSameOrigin, PREVIEW_FALLBACK, PREVIEW_FROM_COOKIE } from "@/lib/preview";
 import { DRAFT_VIEW_COOKIE } from "@/lib/draft-view";
 import { PREVIEW_COOKIE } from "@/lib/theme";
+import { adminT } from "@/i18n/admin-msg";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return new Response("Origine refusée", { status: 403 });
+  const t = adminT("actions");
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return new Response(t("Origine refusée"), { status: 403 });
 
   const form = await request.formData().catch(() => null);
   const jar = await cookies();

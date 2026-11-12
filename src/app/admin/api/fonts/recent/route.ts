@@ -7,6 +7,7 @@
 import { assertAdmin } from "@/lib/auth/guard";
 import { pushRecentFont, readRecentFonts } from "@/lib/fonts/recent";
 import { isSameOrigin } from "@/lib/preview";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,17 +17,21 @@ const json = (status: number, body: unknown) =>
 
 export async function GET() {
   await assertAdmin();
+  const t = adminT("actions");
+  const t = adminT("actions");
   return json(200, { fonts: readRecentFonts() });
 }
 
 export async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return json(403, { message: "Origine refusée." });
+  const t = adminT("actions");
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return json(403, { message: t("Origine refusée.") });
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return json(400, { message: "Requête invalide." });
+    return json(400, { message: t("Requête invalide.") });
   }
   const fonts = pushRecentFont((body as { font?: unknown } | null)?.font);
   return fonts ? json(200, { fonts }) : json(400, { message: "Police inconnue." });

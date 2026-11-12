@@ -18,6 +18,7 @@ import { directReservedBytes, diskProblem, quotaProblem, reserveDirectUpload } f
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
 import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
 import { auditedRoute } from "@/lib/journal/audit";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,9 @@ const json = (status: number, body: unknown) =>
 
 export const POST = auditedRoute("upload", async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
+  const t = adminT("actions");
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   rememberPort(new URL(request.url).port);
   // Quota déjà atteint : refus avant de lire le fichier.
   const full = quotaProblem();
@@ -64,7 +67,7 @@ export const POST = auditedRoute("upload", async function POST(request: Request)
   } catch (error) {
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
     console.error("[upload] échec", error);
-    return json(500, { ok: false, message: "L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur." });
+    return json(500, { ok: false, message: t("L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.") });
   } finally {
     reservation.release();
   }

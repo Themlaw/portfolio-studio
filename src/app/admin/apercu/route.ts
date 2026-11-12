@@ -15,12 +15,15 @@ import { getDb, schema } from "@/lib/db";
 import { touchThemeUsage } from "@/lib/edit/theme-usage";
 import { adminScreen, isSameOrigin, PREVIEW_FROM_COOKIE } from "@/lib/preview";
 import { getTheme, PREVIEW_COOKIE } from "@/lib/theme";
+import { adminT } from "@/i18n/admin-msg";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return new Response("Origine refusée", { status: 403 });
+  const t = adminT("actions");
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return new Response(t("Origine refusée"), { status: 403 });
 
   const form = await request.formData().catch(() => null);
   const id = String(form?.get("id") ?? "");
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
     if (!page) return new Response("Page inconnue", { status: 400 });
     location = page.slug[locale] ? `/${locale}/${encodeURIComponent(page.slug[locale])}` : `/${locale}`;
   } else if (!(await getTheme(id))) {
-    return new Response("Thème inconnu", { status: 400 });
+    return new Response(t("Thème inconnu"), { status: 400 });
   }
 
   (await draftMode()).enable();
