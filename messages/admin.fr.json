@@ -435,7 +435,11 @@
     "afterWord": "Après",
     "viewWord": "Vue",
     "imageWord": "Image",
-    "stepWord": "Étape"
+    "stepWord": "Étape",
+    "animationPace": "Cadence de l'animation",
+    "animationPaceHelp": "6, 8, 12 ou 24 images par seconde. Sans réglage : 8.",
+    "playInLoop": "Jouer en boucle",
+    "framesPerSecond": "{count} images par seconde"
   },
   "blockFormat": {
     "format": "Format",
@@ -3989,7 +3993,15 @@
     "cannotPlace": "Ce bloc ne peut pas aller là.",
     "blocksPasted": "{count, plural, one {# bloc collé · Défaire (Ctrl+Z) pour le retirer} other {# blocs collés · Défaire (Ctrl+Z) pour les retirer}}",
     "noStyleToPaste": "Aucun style à coller : copie d'abord le style d'un bloc.",
-    "stylePasted": "Style collé · Défaire (Ctrl+Z) pour l'annuler"
+    "stylePasted": "Style collé · Défaire (Ctrl+Z) pour l'annuler",
+    "copyBlock": "Copier le bloc",
+    "copyBlockTitle": "Copier le bloc (Ctrl+C) : à coller ici ou sur une autre page",
+    "pasteBlock": "Coller le bloc",
+    "pasteBlockTitle": "Coller le bloc copié après celui-ci (Ctrl+V)",
+    "copyStyle": "Copier le style",
+    "copyStyleTitle": "Copier le style (mise en page, carte, fond, apparition) sans le contenu",
+    "pasteStyle": "Coller le style",
+    "pasteStyleTitle": "Coller le style copié sur ce bloc, sans toucher à son contenu"
   },
   "wallpapers": {
     "useCards": "Cartes du site · papier par défaut",

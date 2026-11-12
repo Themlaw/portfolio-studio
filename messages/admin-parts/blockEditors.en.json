@@ -243,5 +243,9 @@
   "afterWord": "After",
   "viewWord": "View",
   "imageWord": "Image",
-  "stepWord": "Step"
+  "stepWord": "Step",
+  "animationPace": "Animation frame rate",
+  "animationPaceHelp": "6, 8, 12 or 24 frames per second. Default: 8.",
+  "playInLoop": "Play in a loop",
+  "framesPerSecond": "{count} frames per second"
 }

@@ -243,5 +243,9 @@
   "afterWord": "Après",
   "viewWord": "Vue",
   "imageWord": "Image",
-  "stepWord": "Étape"
+  "stepWord": "Étape",
+  "animationPace": "Cadence de l'animation",
+  "animationPaceHelp": "6, 8, 12 ou 24 images par seconde. Sans réglage : 8.",
+  "playInLoop": "Jouer en boucle",
+  "framesPerSecond": "{count} images par seconde"
 }

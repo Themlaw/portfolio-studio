@@ -230,5 +230,13 @@
   "cannotPlace": "This block cannot go there.",
   "blocksPasted": "{count, plural, one {# block pasted · Undo (Ctrl+Z) to remove it} other {# blocks pasted · Undo (Ctrl+Z) to remove them}}",
   "noStyleToPaste": "No style to paste: copy a block's style first.",
-  "stylePasted": "Style pasted · Undo (Ctrl+Z) to revert it"
+  "stylePasted": "Style pasted · Undo (Ctrl+Z) to revert it",
+  "copyBlock": "Copy the block",
+  "copyBlockTitle": "Copy the block (Ctrl+C): paste it here or on another page",
+  "pasteBlock": "Paste the block",
+  "pasteBlockTitle": "Paste the copied block after this one (Ctrl+V)",
+  "copyStyle": "Copy the style",
+  "copyStyleTitle": "Copy the style (layout, card, background, reveal) without the content",
+  "pasteStyle": "Paste the style",
+  "pasteStyleTitle": "Paste the copied style onto this block, without touching its content"
 }
