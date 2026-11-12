@@ -32,6 +32,7 @@ import {
   ContactEditor,
   ContactFormEditor,
   CvEditor,
+  EtapesEditor,
   ExitEditor,
   FeaturedProjectEditor,
   FeaturedProjectsEditor,
@@ -50,6 +51,8 @@ import {
 } from "./editors";
 import FeaturedProjectBlock, { featuredProjectSchema } from "./FeaturedProjectBlock";
 import FeaturedProjectsBlock, { featuredProjectsSchema } from "./FeaturedProjectsBlock";
+import EtapesBlock, { etapesSchema } from "./EtapesBlock";
+import { stepsProblem } from "./etapes";
 import FreeBoardBlock, { freeBoardSchema } from "./FreeBoardBlock";
 import GridBlock, { gridSchema } from "./GridBlock";
 import { GRID_PATTERN } from "./grid-layouts";
@@ -266,6 +269,21 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       inline: ["captionTitle", "caption", "captionDate"],
       mediaFields: [{ field: "mediaId", kind: "image" }],
       publishCheck: (props) => (props.mediaId ? null : "Choisis une image (dépose-la, ou prends-la dans la médiathèque)."),
+    }),
+    // Étapes (lot 131) : avant / après à curseur, making-of en étapes, turnaround.
+    define({
+      type: "steps",
+      group: "media",
+      order: 40,
+      schema: etapesSchema,
+      Component: EtapesBlock,
+      Editor: EtapesEditor,
+      label: "Étapes",
+      description: "Un avant / après à curseur, un making-of en étapes (croquis, valeurs, couleur, final) ou un turnaround à faire tourner.",
+      defaults: { mode: "compare", items: [] },
+      summary: "Étapes {mode} · {items} images",
+      inline: ["eyebrow", "title", "intro", "items.*.label", "items.*.caption"],
+      publishCheck: (props) => stepsProblem(props),
     }),
     define({
       type: "free-board",

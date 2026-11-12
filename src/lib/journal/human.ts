@@ -15,6 +15,7 @@ const BLOCKS: Record<string, string> = {
   grid: "Grille",
   image: "Image",
   "free-board": "Planche libre",
+  steps: "Étapes",
   cv: "CV",
   "section-title": "Titre",
   hero: "Ouverture",

@@ -4,6 +4,8 @@
 @import "../themes/variants.css";
 /* Lot médias : lecteur vidéo, bloc CV, curseur des images cliquables. */
 @import "./medias.css";
+/* Étapes (lot 131) : comparer, étapes, tourner. */
+@import "./etapes.css";
 
 /* ==========================================================================
    TOKENS DE THÈME — BRANCHEMENT SUR LE THÈME ACTIF

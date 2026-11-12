@@ -297,6 +297,7 @@ E2E=(
   "icones121|node scripts/e2e-icones121.mjs|chromium|"
   "langue126|node scripts/e2e-langue126.mjs|chromium|"
   "titres128|node scripts/e2e-titres128.mjs|chromium|"
+  "etapes131|node scripts/e2e-etapes131.mjs|chromium|"
 )
 
 # Suites de SÉCURITÉ (secu-v100) : des attaques contre des serveurs LOCAUX qui lancent leurs PROPRES serveurs standalone (pas de e2e.sh).
