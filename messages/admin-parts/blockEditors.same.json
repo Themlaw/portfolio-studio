@@ -8,6 +8,7 @@
     "rotation",
     "pageId",
     "messageN",
-    "imageN"
+    "imageN",
+    "imageWord"
   ]
 }

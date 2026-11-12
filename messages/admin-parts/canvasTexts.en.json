@@ -31,5 +31,6 @@
   "contexte": "Context",
   "annee": "Year",
   "nom_du_projet": "Project name",
-  "presentation_du_projet": "Project introduction"
+  "presentation_du_projet": "Project introduction",
+  "titre_de_l_etape": "Step title"
 }

@@ -107,6 +107,11 @@
       "label": "Vidéos (ancien)",
       "description": "Ancienne vitrine, remplacée par des « Vidéo » dans une « Grille ».",
       "summary": "Demoreel · {cardsTitle}"
+    },
+    "steps": {
+      "label": "Étapes",
+      "description": "Un avant / après à curseur, un making-of en étapes (croquis, valeurs, couleur, final) ou un turnaround à faire tourner.",
+      "summary": "Étapes {mode} · {items} images"
     }
   },
   "presets": {

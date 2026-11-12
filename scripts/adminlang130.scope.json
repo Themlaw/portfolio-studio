@@ -170,6 +170,28 @@
       "Fond de page": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
       "Cartes et encadrés": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
       "Boutons et liens": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)"
+    },
+    "src/blocks/etapes.ts": {
+      "Avant / après": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Étapes (making-of)": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Deux images recadrées pareil, séparées par un curseur : le visiteur le glisse (ou le règle au clavier).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Une suite d'images avec une légende par étape (croquis, valeurs, couleur, final).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Plusieurs vues d'un même sujet : on les fait défiler en glissant ou avec les flèches. Rien ne tourne tout seul.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Onglets : une étape à la fois": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Frise : toutes les étapes côte à côte": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Défilement : les unes sous les autres": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Une étape n'a pas encore d'image : choisis-la, ou retire l'étape.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Choisis les deux images à comparer (avant et après).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Ajoute au moins deux vues à faire tourner.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Ajoute au moins deux étapes.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)"
+    },
+    "src/blocks/EtapesBlock.tsx": {
+      "Étiquette": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Présentation": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/blocks/EtapesView.tsx": {
+      "Titre de l'étape": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Légende": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
     }
   }
 }

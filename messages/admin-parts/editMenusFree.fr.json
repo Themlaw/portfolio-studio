@@ -34,5 +34,8 @@
   "rotation": "Rotation",
   "rotationLabel": "Rotation en degrés",
   "snapContent": "contenu",
-  "columns": "{count, plural, one {{signed} colonne} other {{signed} colonnes}}"
+  "columns": "{count, plural, one {{signed} colonne} other {{signed} colonnes}}",
+  "animCadence": "Cadence de l'animation",
+  "animLoopTitle": "Jouer en boucle (sinon un seul tour)",
+  "animLoop": "Boucle"
 }

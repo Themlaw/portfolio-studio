@@ -229,5 +229,19 @@
   "choiceN": "Choix {n}",
   "noId": "n° {id}",
   "mediaNoId": "Média n° {id}",
-  "imageN": "Image {n}"
+  "imageN": "Image {n}",
+  "readingMode": "Lecture",
+  "stepsViewLabel": "Présentation",
+  "commonImageFormat": "Format commun des images",
+  "commonImageFormatHelp": "Toutes les images sont recadrées pareil, au centre. Libre : le format de la première.",
+  "cursorStart": "Position de départ du curseur (0 à 100)",
+  "bothImagesBeforeAfter": "Les deux images (avant, puis après)",
+  "viewsInTurnOrder": "Les vues, dans l'ordre du tour",
+  "stepsInOrder": "Les étapes, dans l'ordre",
+  "itemsCountOfMax": "{count} sur {max} au plus.",
+  "beforeWord": "Avant",
+  "afterWord": "Après",
+  "viewWord": "Vue",
+  "imageWord": "Image",
+  "stepWord": "Étape"
 }

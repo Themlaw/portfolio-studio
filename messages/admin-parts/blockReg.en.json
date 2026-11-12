@@ -107,6 +107,11 @@
       "label": "Videos (legacy)",
       "description": "Legacy showcase, replaced by “Video” blocks in a “Grid”.",
       "summary": "Demoreel · {cardsTitle}"
+    },
+    "steps": {
+      "label": "Steps",
+      "description": "A before/after slider, a step-by-step making-of (sketches, values, color, final) or a turnaround to spin through.",
+      "summary": "Steps {mode} · {items} images"
     }
   },
   "presets": {

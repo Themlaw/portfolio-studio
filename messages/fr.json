@@ -81,7 +81,8 @@
     "next": "Vue suivante",
     "views": "Vues",
     "steps": "Étapes",
-    "view": "Vue"
+    "view": "Vue",
+    "chooseImages": "Choisis les images de ce bloc dans le panneau de droite."
   },
   "footer": {
     "eyebrow": "Contact",

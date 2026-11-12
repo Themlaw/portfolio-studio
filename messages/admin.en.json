@@ -87,6 +87,25 @@
     "kitPartDownloaded": "Photoshop kit part downloaded ({part})",
     "importRefused": "Import refused:"
   },
+  "animation": {
+    "originRefused": "Origin refused.",
+    "tooHeavy": "This upload is too large: {mb} MB at most for an animation.",
+    "sendFailedDisk": "Upload failed. Try again; if it keeps happening, check the server's disk space.",
+    "sendFailed": "Upload failed. Try again.",
+    "connectionFailed": "Upload failed (connection?). Try again.",
+    "summary": "Create a frame-by-frame animation",
+    "description": "Send your numbered drawings (PNG, WebP or JPEG, 2 to 48 images, in name order), a zip of those images, or a sprite sheet with its column and row counts. The site assembles a single strip; the frame rate (6, 8, 12 or 24 frames per second) is set wherever you place it.",
+    "imagesLabel": "Animation images",
+    "sheetLabel": "Sprite sheet",
+    "cols": "Columns",
+    "rows": "Rows",
+    "assembling": "Assembling…",
+    "create": "Create the animation",
+    "reused": "This animation already existed",
+    "created": "Animation created",
+    "images": "images",
+    "appearsInMedia": "it appears in the media library"
+  },
   "backups": {
     "title": "Backups",
     "intro": "The site automatically keeps copies of your work. Here you can see the copies made, make one whenever you like, and download one to your computer.",
@@ -387,7 +406,21 @@
     "choiceN": "Choice {n}",
     "noId": "No. {id}",
     "mediaNoId": "Media no. {id}",
-    "imageN": "Image {n}"
+    "imageN": "Image {n}",
+    "readingMode": "Reading",
+    "stepsViewLabel": "View",
+    "commonImageFormat": "Common image format",
+    "commonImageFormatHelp": "All images are cropped the same way, centered. Free: the first image's format.",
+    "cursorStart": "Cursor starting position (0 to 100)",
+    "bothImagesBeforeAfter": "The two images (before, then after)",
+    "viewsInTurnOrder": "Views, in turn order",
+    "stepsInOrder": "Steps, in order",
+    "itemsCountOfMax": "{count} of {max} at most.",
+    "beforeWord": "Before",
+    "afterWord": "After",
+    "viewWord": "View",
+    "imageWord": "Image",
+    "stepWord": "Step"
   },
   "blockFormat": {
     "format": "Format",
@@ -586,6 +619,11 @@
         "label": "Videos (legacy)",
         "description": "Legacy showcase, replaced by “Video” blocks in a “Grid”.",
         "summary": "Demoreel · {cardsTitle}"
+      },
+      "steps": {
+        "label": "Steps",
+        "description": "A before/after slider, a step-by-step making-of (sketches, values, color, final) or a turnaround to spin through.",
+        "summary": "Steps {mode} · {items} images"
       }
     },
     "presets": {
@@ -1045,7 +1083,8 @@
     "contexte": "Context",
     "annee": "Year",
     "nom_du_projet": "Project name",
-    "presentation_du_projet": "Project introduction"
+    "presentation_du_projet": "Project introduction",
+    "titre_de_l_etape": "Step title"
   },
   "canvasTiles": {
     "entry": "Entry",
@@ -1481,7 +1520,10 @@
     "rotation": "Rotation",
     "rotationLabel": "Rotation in degrees",
     "snapContent": "content",
-    "columns": "{count, plural, one {{signed} column} other {{signed} columns}}"
+    "columns": "{count, plural, one {{signed} column} other {{signed} columns}}",
+    "animCadence": "Animation frame rate",
+    "animLoopTitle": "Play in a loop (otherwise a single pass)",
+    "animLoop": "Loop"
   },
   "editMenusGrid": {
     "gapNone": "None",
@@ -3879,7 +3921,28 @@
     "discardTitle": "Discard the changes?",
     "discardNote": "The draft is erased and the page goes back to its online version. This action can't be undone.",
     "canvasBlocks": "{count, plural, one {# block} other {# blocks}} on the canvas",
-    "inMenuNow": "The page is now in the menu"
+    "inMenuNow": "The page is now in the menu",
+    "revealFade": "Fade",
+    "revealSlide": "Slide",
+    "revealScale": "Scale",
+    "revealSection": "Scroll reveal",
+    "revealNone": "None",
+    "revealCascadeDelay": "Staggered delay: {delay}",
+    "revealCascade": "Staggered delay",
+    "revealImages": "Image reveal",
+    "revealCascadeImages": "Images staggered: {kind}",
+    "revealImagesFixed": "Images fixed",
+    "revealFirstBlock": "The first block on the page appears right away: reveal does not play there.",
+    "revealNormalBlock": "The block appears when scrolled into view. Visible in Preview; disabled if the visitor reduces motion.",
+    "copyImpossible": "Copy impossible: the browser clipboard is unavailable or full.",
+    "blockCopied": "Block copied: paste it here or on another page.",
+    "styleCopied": "Style copied: paste it onto another block.",
+    "nothingToPaste": "Nothing to paste: copy a block first.",
+    "targetGone": "The target block no longer exists: choose another spot.",
+    "cannotPlace": "This block cannot go there.",
+    "blocksPasted": "{count, plural, one {# block pasted · Undo (Ctrl+Z) to remove it} other {# blocks pasted · Undo (Ctrl+Z) to remove them}}",
+    "noStyleToPaste": "No style to paste: copy a block's style first.",
+    "stylePasted": "Style pasted · Undo (Ctrl+Z) to revert it"
   },
   "wallpapers": {
     "useCards": "Site cards · default paper",

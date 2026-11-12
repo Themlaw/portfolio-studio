@@ -34,5 +34,8 @@
   "rotation": "Rotation",
   "rotationLabel": "Rotation in degrees",
   "snapContent": "content",
-  "columns": "{count, plural, one {{signed} column} other {{signed} columns}}"
+  "columns": "{count, plural, one {{signed} column} other {{signed} columns}}",
+  "animCadence": "Animation frame rate",
+  "animLoopTitle": "Play in a loop (otherwise a single pass)",
+  "animLoop": "Loop"
 }

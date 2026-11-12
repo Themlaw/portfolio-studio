@@ -229,5 +229,19 @@
   "choiceN": "Choice {n}",
   "noId": "No. {id}",
   "mediaNoId": "Media no. {id}",
-  "imageN": "Image {n}"
+  "imageN": "Image {n}",
+  "readingMode": "Reading",
+  "stepsViewLabel": "View",
+  "commonImageFormat": "Common image format",
+  "commonImageFormatHelp": "All images are cropped the same way, centered. Free: the first image's format.",
+  "cursorStart": "Cursor starting position (0 to 100)",
+  "bothImagesBeforeAfter": "The two images (before, then after)",
+  "viewsInTurnOrder": "Views, in turn order",
+  "stepsInOrder": "Steps, in order",
+  "itemsCountOfMax": "{count} of {max} at most.",
+  "beforeWord": "Before",
+  "afterWord": "After",
+  "viewWord": "View",
+  "imageWord": "Image",
+  "stepWord": "Step"
 }

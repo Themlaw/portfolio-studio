@@ -87,6 +87,25 @@
     "kitPartDownloaded": "Partie du kit Photoshop téléchargée ({part})",
     "importRefused": "Import refusé :"
   },
+  "animation": {
+    "originRefused": "Origine refusée.",
+    "tooHeavy": "Cet envoi est trop lourd : {mb} Mo au plus pour une animation.",
+    "sendFailedDisk": "L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.",
+    "sendFailed": "L'envoi a échoué. Réessaie.",
+    "connectionFailed": "L'envoi a échoué (connexion ?). Réessaie.",
+    "summary": "Créer une animation image par image",
+    "description": "Envoie tes dessins numérotés (PNG, WebP ou JPEG, de 2 à 48 images, dans l'ordre de leurs noms), un zip de ces images, ou une feuille de sprites avec son nombre de colonnes et de rangées. Le site assemble une seule bande ; la cadence (6, 8, 12 ou 24 images par seconde) se règle à chaque endroit où tu la poses.",
+    "imagesLabel": "Images de l'animation",
+    "sheetLabel": "Feuille de sprites",
+    "cols": "Colonnes",
+    "rows": "Rangées",
+    "assembling": "Assemblage…",
+    "create": "Créer l'animation",
+    "reused": "Cette animation existait déjà",
+    "created": "Animation créée",
+    "images": "images",
+    "appearsInMedia": "elle apparaît dans les médias"
+  },
   "backups": {
     "title": "Sauvegardes",
     "intro": "Le site garde tout seul des copies de ton travail. Ici, tu vois les copies faites, tu en fais une quand tu veux, et tu en télécharges une sur ton ordinateur.",
@@ -387,7 +406,21 @@
     "choiceN": "Choix {n}",
     "noId": "n° {id}",
     "mediaNoId": "Média n° {id}",
-    "imageN": "Image {n}"
+    "imageN": "Image {n}",
+    "readingMode": "Lecture",
+    "stepsViewLabel": "Présentation",
+    "commonImageFormat": "Format commun des images",
+    "commonImageFormatHelp": "Toutes les images sont recadrées pareil, au centre. Libre : le format de la première.",
+    "cursorStart": "Position de départ du curseur (0 à 100)",
+    "bothImagesBeforeAfter": "Les deux images (avant, puis après)",
+    "viewsInTurnOrder": "Les vues, dans l'ordre du tour",
+    "stepsInOrder": "Les étapes, dans l'ordre",
+    "itemsCountOfMax": "{count} sur {max} au plus.",
+    "beforeWord": "Avant",
+    "afterWord": "Après",
+    "viewWord": "Vue",
+    "imageWord": "Image",
+    "stepWord": "Étape"
   },
   "blockFormat": {
     "format": "Format",
@@ -586,6 +619,11 @@
         "label": "Vidéos (ancien)",
         "description": "Ancienne vitrine, remplacée par des « Vidéo » dans une « Grille ».",
         "summary": "Demoreel · {cardsTitle}"
+      },
+      "steps": {
+        "label": "Étapes",
+        "description": "Un avant / après à curseur, un making-of en étapes (croquis, valeurs, couleur, final) ou un turnaround à faire tourner.",
+        "summary": "Étapes {mode} · {items} images"
       }
     },
     "presets": {
@@ -1045,7 +1083,8 @@
     "contexte": "Contexte",
     "annee": "Année",
     "nom_du_projet": "Nom du projet",
-    "presentation_du_projet": "Présentation du projet"
+    "presentation_du_projet": "Présentation du projet",
+    "titre_de_l_etape": "Titre de l'étape"
   },
   "canvasTiles": {
     "entry": "Entrée",
@@ -1481,7 +1520,10 @@
     "rotation": "Rotation",
     "rotationLabel": "Rotation en degrés",
     "snapContent": "contenu",
-    "columns": "{count, plural, one {{signed} colonne} other {{signed} colonnes}}"
+    "columns": "{count, plural, one {{signed} colonne} other {{signed} colonnes}}",
+    "animCadence": "Cadence de l'animation",
+    "animLoopTitle": "Jouer en boucle (sinon un seul tour)",
+    "animLoop": "Boucle"
   },
   "editMenusGrid": {
     "gapNone": "Aucun",
@@ -3879,7 +3921,28 @@
     "discardTitle": "Abandonner les modifications ?",
     "discardNote": "Le brouillon est effacé et la page revient à sa version en ligne. Cette action ne s'annule pas.",
     "canvasBlocks": "{count, plural, one {# bloc} other {# blocs}} sur la toile",
-    "inMenuNow": "La page est dans le menu"
+    "inMenuNow": "La page est dans le menu",
+    "revealFade": "Fondu",
+    "revealSlide": "Glissé",
+    "revealScale": "Échelle",
+    "revealSection": "Apparition au défilement",
+    "revealNone": "Aucune",
+    "revealCascadeDelay": "Décalage en cascade : {delay}",
+    "revealCascade": "Décalage en cascade",
+    "revealImages": "Apparition des images",
+    "revealCascadeImages": "Images en cascade : {kind}",
+    "revealImagesFixed": "Images fixes",
+    "revealFirstBlock": "Le premier bloc de la page s'affiche tout de suite : l'apparition n'y joue pas.",
+    "revealNormalBlock": "Le bloc apparaît quand on arrive dessus. Visible dans l'Aperçu ; coupé si le visiteur réduit les animations.",
+    "copyImpossible": "Copie impossible : le presse-papiers du navigateur est indisponible ou plein.",
+    "blockCopied": "Bloc copié : colle-le ici ou sur une autre page.",
+    "styleCopied": "Style copié : colle-le sur un autre bloc.",
+    "nothingToPaste": "Rien à coller : copie d'abord un bloc.",
+    "targetGone": "Le bloc visé n'existe plus : choisis un autre endroit.",
+    "cannotPlace": "Ce bloc ne peut pas aller là.",
+    "blocksPasted": "{count, plural, one {# bloc collé · Défaire (Ctrl+Z) pour le retirer} other {# blocs collés · Défaire (Ctrl+Z) pour les retirer}}",
+    "noStyleToPaste": "Aucun style à coller : copie d'abord le style d'un bloc.",
+    "stylePasted": "Style collé · Défaire (Ctrl+Z) pour l'annuler"
   },
   "wallpapers": {
     "useCards": "Cartes du site · papier par défaut",
