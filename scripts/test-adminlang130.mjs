@@ -142,6 +142,11 @@ if (fr && en) {
   ok("E3 le layout public n'embarque jamais le catalogue d'admin", !/admin\.(fr|en)\.json|admin-server|getAdminMessages/.test(layout));
   const intl = read("src/components/AdminIntl.tsx");
   ok("E4 AdminIntl : fournisseur imbriqué + magasin de module", /NextIntlClientProvider/.test(intl) && /useSyncExternalStore/.test(intl));
+  const boundarySrc = intl.slice(intl.indexOf("export function AdminIntlBoundary"));
+  ok(
+    "E5 AdminIntlBoundary : même élément racine avec ou sans catalogue (pas de remontage des enfants)",
+    !/return\s+<>/.test(boundarySrc) && !/return\s+children\s*;/.test(boundarySrc) && /<NextIntlClientProvider/.test(boundarySrc),
+  );
 }
 
 /* ---- F. messages serveur synchrones (130c) : langue posée par la garde, français hors requête ---- */
