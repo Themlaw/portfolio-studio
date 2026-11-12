@@ -142,9 +142,9 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
         </span>
         <div className="pe-gs-layouts" role="radiogroup" aria-labelledby="pe-gs-layout" data-testid="gridbar-layout">
           {GRID_LAYOUTS.map((l) => (
-            <button key={l} type="button" role="radio" aria-checked={layout === l} aria-label={tl(`gridLayout.${l.replace(/\+/g, "_")}`)} title={tl(`gridLayout.${l.replace(/\+/g, "_")}`)} data-layout={l} className="pe-gm-layout pe-gs-layout" onClick={() => set({ layout: l })}>
+            <button key={l} type="button" role="radio" aria-checked={layout === l} aria-label={tl(`gridLayout.${l}`)} title={tl(`gridLayout.${l}`)} data-layout={l} className="pe-gm-layout pe-gs-layout" onClick={() => set({ layout: l })}>
               <GridLayoutIcon layout={l} />
-              <span>{tl(`gridLayout.${l.replace(/\+/g, "_")}`)}</span>
+              <span>{tl(`gridLayout.${l}`)}</span>
             </button>
           ))}
         </div>

@@ -687,9 +687,9 @@
       "3": "3 side by side",
       "4": "4 in a row",
       "auto": "Automatic",
-      "1_2": "1 large + 2 small below",
+      "1+2": "1 large + 2 small below",
       "2x2": "4 small (2 × 2)",
-      "2_1": "2 small + 1 large",
+      "2+1": "2 small + 1 large",
       "portrait-left": "Portrait on the left + 2 on the right",
       "portrait-right": "Portrait on the right + 2 on the left",
       "custom": "Custom"

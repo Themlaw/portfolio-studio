@@ -59,7 +59,7 @@ const PRESETS: Record<Exclude<GridLayout, "custom" | "auto">, Preset> = {
 export const GRID_PATTERN: Record<GridLayout, number> = { auto: 2, "1": 1, "1+2": 3, "2": 2, "3": 3, "2x2": 4, "4": 4, "2+1": 3, "portrait-left": 3, "portrait-right": 3, custom: 1 };
 
 /** Libellés simples (menu des agencements, info-bulles), en français ; dans l'interface : `t("gridLayout." + layout)` (espace blockRegLabels). */
-export const GRID_LAYOUT_LABELS: Record<string, string> = FR_LABELS.gridLayout;
+export const GRID_LAYOUT_LABELS: Record<GridLayout, string> = FR_LABELS.gridLayout;
 
 /** Ce qui, dans les réglages d'une grille, décrit la disposition des cases. */
 export type GridShape = {

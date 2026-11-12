@@ -2,12 +2,12 @@
   "gridLayout": {
     "auto": "Automatique",
     "1": "1 grand",
-    "1_2": "1 grand + 2 petits dessous",
+    "1+2": "1 grand + 2 petits dessous",
     "2": "2 côte à côte",
     "3": "3 côte à côte",
     "2x2": "4 petits (2 × 2)",
     "4": "4 en ligne",
-    "2_1": "2 petits + 1 grand",
+    "2+1": "2 petits + 1 grand",
     "portrait-left": "Portrait à gauche + 2 à droite",
     "portrait-right": "Portrait à droite + 2 à gauche",
     "custom": "Sur mesure"
