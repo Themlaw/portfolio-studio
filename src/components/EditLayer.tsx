@@ -1675,12 +1675,13 @@ export default function EditLayer() {
     host,
   );
   // Calque des blocs en premier : au clavier, Tab parcourt les blocs avant les outils.
+  // CanvasTexts après {site} pour garder {boards}/{site} aux mêmes rangs que hors édition.
   return (
     <>
-      <CanvasTexts />
       {blocksLayer}
       {boards}
       {site}
+      <CanvasTexts />
     </>
   );
 }
