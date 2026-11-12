@@ -51,7 +51,7 @@ export const applyModelAction = audited("applyModelAction", async function apply
   const t = adminT("actions");
   const id = themeId(modelId);
   if (!id) return fail(t("Modèle inconnu."));
-  if (mode !== undefined && mode !== "replace" && mode !== "second") return fail("Choix inconnu.");
+  if (mode !== undefined && mode !== "replace" && mode !== "second") return fail(t(t("Choix inconnu.")));
   const result = applyModel(id, mode);
   if (result.ok) revalidateTheme();
   return result;
@@ -66,7 +66,7 @@ export const revertVersionAction = audited("revertVersionAction", async function
   const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
-  if (!tid || !v.success) return fail("Version inconnue.");
+  if (!tid || !v.success) return fail(t(t("Version inconnue.")));
   const result = revertToVersion(tid, v.data);
   if (!result.ok) return result;
   if (publish === true) {
@@ -83,7 +83,7 @@ export const keepVersionCopyAction = audited("keepVersionCopyAction", async func
   const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
-  if (!tid || !v.success) return fail("Version inconnue.");
+  if (!tid || !v.success) return fail(t(t("Version inconnue.")));
   const result = keepVersionCopy(tid, v.data);
   if (result.ok) revalidateTheme();
   return result;
@@ -95,7 +95,7 @@ export const pinVersionAction = audited("pinVersionAction", async function pinVe
   const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
-  if (!tid || !v.success || typeof pinned !== "boolean") return fail("Version inconnue.");
+  if (!tid || !v.success || typeof pinned !== "boolean") return fail(t(t("Version inconnue.")));
   return pinVersion(tid, v.data, pinned);
 });
 
@@ -198,7 +198,7 @@ export const applyKitImportAction = audited("applyKitImportAction", async functi
   await assertAdmin();
   const t = adminT("actions");
   const tid = themeId(themeIdInput);
-  if (!tid || !isImportId(importId)) return fail("Import inconnu.");
+  if (!tid || !isImportId(importId)) return fail(t(t("Import inconnu.")));
   const o = (options && typeof options === "object" ? options : {}) as { mirror?: unknown; colors?: unknown; base?: unknown };
   const base = o.base === undefined ? undefined : themeId(o.base);
   if (o.base !== undefined && !base) return fail(t("Thème de départ inconnu."));

@@ -15,6 +15,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id, importId } = await params;
   // Un import d'un autre thème : introuvable ici (comme un identifiant inconnu).
   const state = isImportId(importId) && /^[a-z0-9-]{1,80}$/.test(id) ? await getKitImport(importId, id) : null;
-  if (!state) return json(404, { ok: false, message: "Import introuvable." });
+  if (!state) return json(404, { ok: false, message: t("Import introuvable.") });
   return json(200, { ok: true, status: state.status, error: state.error });
 }

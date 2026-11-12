@@ -8,6 +8,7 @@ import { adminT } from "@/i18n/admin-msg";
 
 /** Corps facultatif { tags } (tags courants du client), 16 Ko au plus. */
 async function readTags(request: Request): Promise<unknown> {
+  const t = adminT("actions");
   const text = await request.text();
   if (!text) return undefined;
   if (text.length > 16 * 1024) throw new UploadError(413, t("Requête trop longue."));

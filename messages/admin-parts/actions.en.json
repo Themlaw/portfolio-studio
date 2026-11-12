@@ -47,5 +47,20 @@
   "atMostHours": "At most {n} hours.",
   "tooManyTries": "Too many attempts: try again in {wait} s.",
   "kitPartDownloaded": "Photoshop kit part downloaded ({part})",
-  "importRefused": "Import refused:"
+  "importRefused": "Import refused:",
+  "Image inconnue.": "Unknown image.",
+  "Tag inconnu.": "Unknown tag.",
+  "Cadre inconnu.": "Unknown frame.",
+  "Choix inconnu.": "Unknown choice.",
+  "Confirmation manquante.": "Confirmation missing.",
+  "Emplacement inconnu.": "Unknown slot.",
+  "Import inconnu.": "Unknown import.",
+  "Message inconnu.": "Unknown message.",
+  "Motif inconnu.": "Unknown pattern.",
+  "Page inconnue.": "Unknown page.",
+  "Projet inconnu.": "Unknown project.",
+  "Version inconnue.": "Unknown version.",
+  "Police inconnue.": "Unknown font.",
+  "Import introuvable.": "Import not found.",
+  "Page inconnue": "Unknown page"
 }

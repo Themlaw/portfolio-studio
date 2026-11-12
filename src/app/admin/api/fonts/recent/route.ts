@@ -32,5 +32,5 @@ export async function POST(request: Request) {
     return json(400, { message: t("Requête invalide.") });
   }
   const fonts = pushRecentFont((body as { font?: unknown } | null)?.font);
-  return fonts ? json(200, { fonts }) : json(400, { message: "Police inconnue." });
+  return fonts ? json(200, { fonts }) : json(400, { message: t("Police inconnue.") });
 }

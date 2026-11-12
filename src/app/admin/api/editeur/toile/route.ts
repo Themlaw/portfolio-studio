@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const id = Number(url.searchParams.get("page"));
   const locale = url.searchParams.get("langue") === "en" ? "en" : "fr";
   const page = Number.isInteger(id) && id > 0 ? getDb().select({ slug: schema.pages.slug }).from(schema.pages).where(eq(schema.pages.id, id)).get() : undefined;
-  if (!page) return new Response("Page inconnue", { status: 404 });
+  if (!page) return new Response(t("Page inconnue"), { status: 404 });
 
   (await draftMode()).enable();
   (await cookies()).set(DRAFT_VIEW_COOKIE, "1", {

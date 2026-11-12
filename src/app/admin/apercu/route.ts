@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   let location = `/${locale}`;
   if (pageId) {
     const page = getDb().select({ slug: schema.pages.slug }).from(schema.pages).where(eq(schema.pages.id, pageId)).get();
-    if (!page) return new Response("Page inconnue", { status: 400 });
+    if (!page) return new Response(t("Page inconnue"), { status: 400 });
     location = page.slug[locale] ? `/${locale}/${encodeURIComponent(page.slug[locale])}` : `/${locale}`;
   } else if (!(await getTheme(id))) {
     return new Response(t("Thème inconnu"), { status: 400 });
