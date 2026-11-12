@@ -8,8 +8,8 @@
     "2x2": "4 petits (2 × 2)",
     "4": "4 en ligne",
     "2_1": "2 petits + 1 grand",
-    "portrait_left": "Portrait à gauche + 2 à droite",
-    "portrait_right": "Portrait à droite + 2 à gauche",
+    "portrait-left": "Portrait à gauche + 2 à droite",
+    "portrait-right": "Portrait à droite + 2 à gauche",
     "custom": "Sur mesure"
   },
   "autoHint": "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.",
@@ -20,17 +20,17 @@
       "strip": "Images qui défilent",
       "grid": "Grille",
       "image": "Image",
-      "video_single": "Vidéo",
-      "free_board": "Planche libre",
-      "rich_text": "Texte"
+      "video-single": "Vidéo",
+      "free-board": "Planche libre",
+      "rich-text": "Texte"
     },
     "hint": {
       "strip": "Les images du projet en bande, qui défile sur le côté.",
       "grid": "Des images ou des vidéos rangées en colonnes.",
       "image": "Une image seule, jusqu'à la pleine largeur.",
-      "video_single": "Une vidéo de ta médiathèque.",
-      "free_board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
-      "rich_text": "Un paragraphe, avec un titre si tu veux."
+      "video-single": "Une vidéo de ta médiathèque.",
+      "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
+      "rich-text": "Un paragraphe, avec un titre si tu veux."
     }
   },
   "boxPreset": {

@@ -150,7 +150,7 @@ export function CollectionTilesEditor() {
         label={t("imageSize")}
         help={t("anEntryNeverExceeds")}
         value={tileSize(value.size)}
-        options={TILE_SIZES.map((s) => ({ value: s, label: tl(`tileSize.${s.replace(/[^A-Za-z0-9_]/g, "_")}`) }))}
+        options={TILE_SIZES.map((s) => ({ value: s, label: tl(`tileSize.${s}`) }))}
         onChange={(v) => set("size", v ?? "medium")}
         error={errorAt(errors, "size")}
       />
@@ -1087,7 +1087,7 @@ export function FreeBoardEditor() {
         label={t("areaFormat")}
         help={t("theAreaSHeight")}
         value={format}
-        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? t("freeCropped") : tl(`freeFormat.${f.replace(/[^A-Za-z0-9_]/g, "_")}`) }))}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? t("freeCropped") : tl(`freeFormat.${f.replace(/[+:]/g, "_")}`) }))}
         onChange={(v) => {
           if (cropped && v === "free") return;
           apply({ op: "set", format: (v as FreeFormat) ?? "3:2" });

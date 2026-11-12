@@ -1,16 +1,16 @@
 {
   "types": {
-    "project_board": {
+    "project-board": {
       "label": "Projet",
       "description": "Un projet et ses images en bande : crée-le sur la page, ou reprends un projet existant.",
       "summary": "Projet · {project}"
     },
-    "featured_project": {
+    "featured-project": {
       "label": "Projet mis en avant (ancien)",
       "description": "Ancien bloc, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Projet…).",
       "summary": "{project} · {children} blocs"
     },
-    "video_single": {
+    "video-single": {
       "label": "Vidéo",
       "description": "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
       "summary": "Vidéo · {title}"
@@ -25,7 +25,7 @@
       "description": "Une image seule, avec une légende facultative.",
       "summary": "Image · {caption}"
     },
-    "free_board": {
+    "free-board": {
       "label": "Planche libre",
       "description": "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
       "summary": "Planche libre · {items} images"
@@ -35,7 +35,7 @@
       "description": "Ton CV : ses pages en images, lisibles et agrandissables, et un bouton pour télécharger le PDF.",
       "summary": "CV · {title}"
     },
-    "section_title": {
+    "section-title": {
       "label": "Titre",
       "description": "Un titre, avec une étiquette, une présentation et des compteurs facultatifs ; peut être le titre principal de la page ; peut reprendre le nom et la présentation d'un projet.",
       "summary": "{title}"
@@ -46,17 +46,17 @@
       "summary": "{eyebrow}",
       "single": "Il y a déjà une Ouverture sur cette page : une page n'en porte qu'une."
     },
-    "collection_tiles": {
+    "collection-tiles": {
       "label": "Entrées des collections",
       "description": "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
       "summary": "{title} · {items} entrées"
     },
-    "collection_intro": {
+    "collection-intro": {
       "label": "En-tête de collection (ancien)",
       "description": "Ancien bloc, remplacé par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
       "summary": "{title} · {collection}"
     },
-    "rich_text": {
+    "rich-text": {
       "label": "Texte",
       "description": "Un paragraphe de texte ; un titre peut s'ajouter au survol sur la page.",
       "summary": "{title} · {paragraphs} paragraphes"
@@ -66,12 +66,12 @@
       "description": "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
       "summary": "{title} · {fields} champs"
     },
-    "contact_form": {
+    "contact-form": {
       "label": "Formulaire de contact (ancien)",
       "description": "Ancien bloc, remplacé par « Contact » avec l'option formulaire.",
       "summary": "{title} · {fields} champs"
     },
-    "page_link": {
+    "page-link": {
       "label": "Lien vers une page",
       "description": "Un lien « Texte → » vers une page du site, entre deux blocs.",
       "summary": "{label}"
@@ -83,7 +83,7 @@
       "locked": "Ce bloc ne peut pas être supprimé : c'est lui qui ramène le visiteur sur le site. Tu peux le déplacer et le mettre en forme.",
       "single": "Il y a déjà un bloc Sortie sur cette page : une page n'en porte qu'un."
     },
-    "random_work": {
+    "random-work": {
       "label": "Une œuvre au hasard",
       "description": "Une œuvre publiée tirée au hasard à chaque visite, avec son image, son titre et un lien vers sa page.",
       "summary": "Une œuvre au hasard"
@@ -93,12 +93,12 @@
       "description": "Ton portrait, ta présentation, ton contact et tes réseaux.",
       "summary": "{eyebrow} · {paragraphs} paragraphes"
     },
-    "featured_projects": {
+    "featured-projects": {
       "label": "Projets mis en avant (ancien)",
       "description": "Ancien bloc, remplacé par « Projet mis en avant ».",
       "summary": "{title} · {limit} projets"
     },
-    "collection_projects": {
+    "collection-projects": {
       "label": "Projets d'une collection (ancien)",
       "description": "Ancien bloc, remplacé par des blocs « Projet » posés un à un.",
       "summary": "Projets · {collection}"
@@ -110,17 +110,17 @@
     }
   },
   "presets": {
-    "grid_videos": {
+    "grid-videos": {
       "label": "Grille de vidéos",
       "short": "Avec des vidéos",
       "description": "Une grande vidéo et deux petites dessous (l'agencement se change ensuite)."
     },
-    "grid_images": {
+    "grid-images": {
       "label": "Grille d'images",
       "short": "Avec 3 images",
       "description": "Trois images côte à côte (l'agencement se change ensuite)."
     },
-    "contact_with_form": {
+    "contact-with-form": {
       "label": "Contact avec formulaire",
       "short": "Avec un formulaire",
       "description": "Un formulaire pour t'écrire : champs au choix, message de confirmation."

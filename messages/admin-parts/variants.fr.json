@@ -11,9 +11,9 @@
     "title": "Ouverture de l'accueil",
     "help": "La forme du grand bandeau d'accueil.",
     "options": {
-      "parallax_layers": "Calques en relief",
+      "parallax-layers": "Calques en relief",
       "spotlight": "Projecteur",
-      "type_only": "Typographique"
+      "type-only": "Typographique"
     }
   },
   "strip": {
@@ -28,7 +28,7 @@
     "title": "Légendes",
     "help": "Le style du texte sous les images.",
     "options": {
-      "mono_split": "Technique",
+      "mono-split": "Technique",
       "handwritten": "Manuscrite"
     }
   },
@@ -36,8 +36,8 @@
     "title": "Visionneuse",
     "help": "L'affichage d'une image agrandie.",
     "options": {
-      "passe_partout": "Passe-partout",
-      "full_bleed": "Plein écran"
+      "passe-partout": "Passe-partout",
+      "full-bleed": "Plein écran"
     }
   },
   "button": {
@@ -53,7 +53,7 @@
     "help": "Un fond uni, ou un papier pointillé discret.",
     "options": {
       "none": "Fond uni",
-      "paper_dots": "Papier pointillé"
+      "paper-dots": "Papier pointillé"
     }
   }
 }

@@ -494,17 +494,17 @@
   },
   "blockReg": {
     "types": {
-      "project_board": {
+      "project-board": {
         "label": "Projet",
         "description": "Un projet et ses images en bande : crée-le sur la page, ou reprends un projet existant.",
         "summary": "Projet · {project}"
       },
-      "featured_project": {
+      "featured-project": {
         "label": "Projet mis en avant (ancien)",
         "description": "Ancien bloc, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Projet…).",
         "summary": "{project} · {children} blocs"
       },
-      "video_single": {
+      "video-single": {
         "label": "Vidéo",
         "description": "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
         "summary": "Vidéo · {title}"
@@ -519,7 +519,7 @@
         "description": "Une image seule, avec une légende facultative.",
         "summary": "Image · {caption}"
       },
-      "free_board": {
+      "free-board": {
         "label": "Planche libre",
         "description": "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
         "summary": "Planche libre · {items} images"
@@ -529,7 +529,7 @@
         "description": "Ton CV : ses pages en images, lisibles et agrandissables, et un bouton pour télécharger le PDF.",
         "summary": "CV · {title}"
       },
-      "section_title": {
+      "section-title": {
         "label": "Titre",
         "description": "Un titre, avec une étiquette, une présentation et des compteurs facultatifs ; peut être le titre principal de la page ; peut reprendre le nom et la présentation d'un projet.",
         "summary": "{title}"
@@ -540,17 +540,17 @@
         "summary": "{eyebrow}",
         "single": "Il y a déjà une Ouverture sur cette page : une page n'en porte qu'une."
       },
-      "collection_tiles": {
+      "collection-tiles": {
         "label": "Entrées des collections",
         "description": "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
         "summary": "{title} · {items} entrées"
       },
-      "collection_intro": {
+      "collection-intro": {
         "label": "En-tête de collection (ancien)",
         "description": "Ancien bloc, remplacé par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
         "summary": "{title} · {collection}"
       },
-      "rich_text": {
+      "rich-text": {
         "label": "Texte",
         "description": "Un paragraphe de texte ; un titre peut s'ajouter au survol sur la page.",
         "summary": "{title} · {paragraphs} paragraphes"
@@ -560,12 +560,12 @@
         "description": "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
         "summary": "{title} · {fields} champs"
       },
-      "contact_form": {
+      "contact-form": {
         "label": "Formulaire de contact (ancien)",
         "description": "Ancien bloc, remplacé par « Contact » avec l'option formulaire.",
         "summary": "{title} · {fields} champs"
       },
-      "page_link": {
+      "page-link": {
         "label": "Lien vers une page",
         "description": "Un lien « Texte → » vers une page du site, entre deux blocs.",
         "summary": "{label}"
@@ -577,7 +577,7 @@
         "locked": "Ce bloc ne peut pas être supprimé : c'est lui qui ramène le visiteur sur le site. Tu peux le déplacer et le mettre en forme.",
         "single": "Il y a déjà un bloc Sortie sur cette page : une page n'en porte qu'un."
       },
-      "random_work": {
+      "random-work": {
         "label": "Une œuvre au hasard",
         "description": "Une œuvre publiée tirée au hasard à chaque visite, avec son image, son titre et un lien vers sa page.",
         "summary": "Une œuvre au hasard"
@@ -587,12 +587,12 @@
         "description": "Ton portrait, ta présentation, ton contact et tes réseaux.",
         "summary": "{eyebrow} · {paragraphs} paragraphes"
       },
-      "featured_projects": {
+      "featured-projects": {
         "label": "Projets mis en avant (ancien)",
         "description": "Ancien bloc, remplacé par « Projet mis en avant ».",
         "summary": "{title} · {limit} projets"
       },
-      "collection_projects": {
+      "collection-projects": {
         "label": "Projets d'une collection (ancien)",
         "description": "Ancien bloc, remplacé par des blocs « Projet » posés un à un.",
         "summary": "Projets · {collection}"
@@ -604,17 +604,17 @@
       }
     },
     "presets": {
-      "grid_videos": {
+      "grid-videos": {
         "label": "Grille de vidéos",
         "short": "Avec des vidéos",
         "description": "Une grande vidéo et deux petites dessous (l'agencement se change ensuite)."
       },
-      "grid_images": {
+      "grid-images": {
         "label": "Grille d'images",
         "short": "Avec 3 images",
         "description": "Trois images côte à côte (l'agencement se change ensuite)."
       },
-      "contact_with_form": {
+      "contact-with-form": {
         "label": "Contact avec formulaire",
         "short": "Avec un formulaire",
         "description": "Un formulaire pour t'écrire : champs au choix, message de confirmation."
@@ -648,8 +648,8 @@
       "1_2": "1 grand + 2 petits dessous",
       "2x2": "4 petits (2 × 2)",
       "2_1": "2 petits + 1 grand",
-      "portrait_left": "Portrait à gauche + 2 à droite",
-      "portrait_right": "Portrait à droite + 2 à gauche",
+      "portrait-left": "Portrait à gauche + 2 à droite",
+      "portrait-right": "Portrait à droite + 2 à gauche",
       "custom": "Sur mesure"
     },
     "autoHint": "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.",
@@ -660,17 +660,17 @@
         "strip": "Images qui défilent",
         "grid": "Grille",
         "image": "Image",
-        "video_single": "Vidéo",
-        "free_board": "Planche libre",
-        "rich_text": "Texte"
+        "video-single": "Vidéo",
+        "free-board": "Planche libre",
+        "rich-text": "Texte"
       },
       "hint": {
         "strip": "Les images du projet en bande, qui défile sur le côté.",
         "grid": "Des images ou des vidéos rangées en colonnes.",
         "image": "Une image seule, jusqu'à la pleine largeur.",
-        "video_single": "Une vidéo de ta médiathèque.",
-        "free_board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
-        "rich_text": "Un paragraphe, avec un titre si tu veux."
+        "video-single": "Une vidéo de ta médiathèque.",
+        "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
+        "rich-text": "Un paragraphe, avec un titre si tu veux."
       }
     },
     "boxPreset": {
@@ -2450,9 +2450,9 @@
     "title": "Kit Photoshop",
     "formats": {
       "svg": "SVG",
-      "svg_mask": "SVG (forme teintée par le thème)",
+      "svg-mask": "SVG (forme teintée par le thème)",
       "avif": "AVIF + WebP",
-      "avif_mask": "AVIF (forme teintée par le thème)",
+      "avif-mask": "AVIF (forme teintée par le thème)",
       "png": "PNG 32 et 64 px (écrans HiDPI)"
     },
     "headlineError": "{label} : à corriger",
@@ -3258,7 +3258,7 @@
       "b1": "1 · Décor d'accueil : un grand cadre, des calques libres. 2 · Logo et papier : ce qui se répète ou s'étire. 3 · Icônes et curseurs : les petits objets (le cadre et le scotch aussi).",
       "b2": "En haut de chaque fichier, une bande de consignes avec un exemple. Les cartes et le groupe _guides sont verrouillés : n'y touche pas.",
       "b3": "Tu n'as pas à tout redessiner, ni à tout renvoyer : un fichier absent reste inchangé.",
-      "note_entete_decor": "Consignes du fichier",
+      "note_entete-decor": "Consignes du fichier",
       "note_decor": "1 · Décor",
       "note_logo": "2 · Logo et papier",
       "note_icones": "3 · Icônes et curseurs"
@@ -3669,9 +3669,9 @@
       "title": "Ouverture de l'accueil",
       "help": "La forme du grand bandeau d'accueil.",
       "options": {
-        "parallax_layers": "Calques en relief",
+        "parallax-layers": "Calques en relief",
         "spotlight": "Projecteur",
-        "type_only": "Typographique"
+        "type-only": "Typographique"
       }
     },
     "strip": {
@@ -3686,7 +3686,7 @@
       "title": "Légendes",
       "help": "Le style du texte sous les images.",
       "options": {
-        "mono_split": "Technique",
+        "mono-split": "Technique",
         "handwritten": "Manuscrite"
       }
     },
@@ -3694,8 +3694,8 @@
       "title": "Visionneuse",
       "help": "L'affichage d'une image agrandie.",
       "options": {
-        "passe_partout": "Passe-partout",
-        "full_bleed": "Plein écran"
+        "passe-partout": "Passe-partout",
+        "full-bleed": "Plein écran"
       }
     },
     "button": {
@@ -3711,7 +3711,7 @@
       "help": "Un fond uni, ou un papier pointillé discret.",
       "options": {
         "none": "Fond uni",
-        "paper_dots": "Papier pointillé"
+        "paper-dots": "Papier pointillé"
       }
     }
   },

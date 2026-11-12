@@ -8,8 +8,8 @@
     "2x2": "4 small (2 × 2)",
     "4": "4 in a row",
     "2_1": "2 small + 1 large",
-    "portrait_left": "Portrait on the left + 2 on the right",
-    "portrait_right": "Portrait on the right + 2 on the left",
+    "portrait-left": "Portrait on the left + 2 on the right",
+    "portrait-right": "Portrait on the right + 2 on the left",
     "custom": "Custom"
   },
   "autoHint": "Automatic: images in the same row have the same height, without being cropped. A very wide backdrop takes the full width.",
@@ -20,17 +20,17 @@
       "strip": "Scrolling images",
       "grid": "Grid",
       "image": "Image",
-      "video_single": "Video",
-      "free_board": "Free board",
-      "rich_text": "Text"
+      "video-single": "Video",
+      "free-board": "Free board",
+      "rich-text": "Text"
     },
     "hint": {
       "strip": "The project's images in a strip that scrolls sideways.",
       "grid": "Images or videos arranged in columns.",
       "image": "A single image, up to full width.",
-      "video_single": "A video from your media library.",
-      "free_board": "Cut-out images placed wherever you like, at the size and angle you want.",
-      "rich_text": "A paragraph, with a title if you want."
+      "video-single": "A video from your media library.",
+      "free-board": "Cut-out images placed wherever you like, at the size and angle you want.",
+      "rich-text": "A paragraph, with a title if you want."
     }
   },
   "boxPreset": {

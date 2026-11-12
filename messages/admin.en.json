@@ -494,17 +494,17 @@
   },
   "blockReg": {
     "types": {
-      "project_board": {
+      "project-board": {
         "label": "Project",
         "description": "A project and its images in a strip: create it on the page, or reuse an existing project.",
         "summary": "Project · {project}"
       },
-      "featured_project": {
+      "featured-project": {
         "label": "Featured project (legacy)",
         "description": "Legacy block, replaced by blocks stacked one under the other (Title linked to a project, Project…).",
         "summary": "{project} · {children|block|blocks}"
       },
-      "video_single": {
+      "video-single": {
         "label": "Video",
         "description": "A video from your media library: player, or silent loop.",
         "summary": "Video · {title}"
@@ -519,7 +519,7 @@
         "description": "A single image, with an optional caption.",
         "summary": "Image · {caption}"
       },
-      "free_board": {
+      "free-board": {
         "label": "Free board",
         "description": "Cut-out images (PNGs without a background) or videos placed wherever you like, at the size and angle you want, directly on the card.",
         "summary": "Free board · {items|image|images}"
@@ -529,7 +529,7 @@
         "description": "Your CV: its pages as images, readable and zoomable, and a button to download the PDF.",
         "summary": "CV · {title}"
       },
-      "section_title": {
+      "section-title": {
         "label": "Title",
         "description": "A title, with an optional label, introduction and counters; can be the main title of the page; can reuse a project's name and introduction.",
         "summary": "{title}"
@@ -540,17 +540,17 @@
         "summary": "{eyebrow}",
         "single": "There is already an Opening on this page: a page can only have one."
       },
-      "collection_tiles": {
+      "collection-tiles": {
         "label": "Collection entries",
         "description": "One large image per collection (Characters, Backgrounds…), leading to its page.",
         "summary": "{title} · {items|entry|entries}"
       },
-      "collection_intro": {
+      "collection-intro": {
         "label": "Collection header (legacy)",
         "description": "Legacy block, replaced by a main “Title” with introduction and counters, and the “This page is the collection” setting.",
         "summary": "{title} · {collection}"
       },
-      "rich_text": {
+      "rich-text": {
         "label": "Text",
         "description": "A paragraph of text; a title can be added on hover on the page.",
         "summary": "{title} · {paragraphs|paragraph|paragraphs}"
@@ -560,12 +560,12 @@
         "description": "An invitation to write to you: a button to your email address, or a form (messages arrive in Admin → Messages).",
         "summary": "{title} · {fields|field|fields}"
       },
-      "contact_form": {
+      "contact-form": {
         "label": "Contact form (legacy)",
         "description": "Legacy block, replaced by “Contact” with the form option.",
         "summary": "{title} · {fields|field|fields}"
       },
-      "page_link": {
+      "page-link": {
         "label": "Link to a page",
         "description": "A “Text →” link to a page of the site, between two blocks.",
         "summary": "{label}"
@@ -577,7 +577,7 @@
         "locked": "This block cannot be deleted: it is what brings the visitor back to the site. You can move it and style it.",
         "single": "There is already an Exit block on this page: a page can only have one."
       },
-      "random_work": {
+      "random-work": {
         "label": "A random work",
         "description": "A published work picked at random on each visit, with its image, its title and a link to its page.",
         "summary": "A random work"
@@ -587,12 +587,12 @@
         "description": "Your portrait, your introduction, your contact details and your social networks.",
         "summary": "{eyebrow} · {paragraphs|paragraph|paragraphs}"
       },
-      "featured_projects": {
+      "featured-projects": {
         "label": "Featured projects (legacy)",
         "description": "Legacy block, replaced by “Featured project”.",
         "summary": "{title} · {limit|project|projects}"
       },
-      "collection_projects": {
+      "collection-projects": {
         "label": "Projects of a collection (legacy)",
         "description": "Legacy block, replaced by “Project” blocks placed one by one.",
         "summary": "Projects · {collection}"
@@ -604,17 +604,17 @@
       }
     },
     "presets": {
-      "grid_videos": {
+      "grid-videos": {
         "label": "Video grid",
         "short": "With videos",
         "description": "One large video and two small ones below (the layout can be changed afterwards)."
       },
-      "grid_images": {
+      "grid-images": {
         "label": "Image grid",
         "short": "With 3 images",
         "description": "Three images side by side (the layout can be changed afterwards)."
       },
-      "contact_with_form": {
+      "contact-with-form": {
         "label": "Contact with form",
         "short": "With a form",
         "description": "A form to write to you: fields of your choice, confirmation message."
@@ -648,8 +648,8 @@
       "1_2": "1 large + 2 small below",
       "2x2": "4 small (2 × 2)",
       "2_1": "2 small + 1 large",
-      "portrait_left": "Portrait on the left + 2 on the right",
-      "portrait_right": "Portrait on the right + 2 on the left",
+      "portrait-left": "Portrait on the left + 2 on the right",
+      "portrait-right": "Portrait on the right + 2 on the left",
       "custom": "Custom"
     },
     "autoHint": "Automatic: images in the same row have the same height, without being cropped. A very wide backdrop takes the full width.",
@@ -660,17 +660,17 @@
         "strip": "Scrolling images",
         "grid": "Grid",
         "image": "Image",
-        "video_single": "Video",
-        "free_board": "Free board",
-        "rich_text": "Text"
+        "video-single": "Video",
+        "free-board": "Free board",
+        "rich-text": "Text"
       },
       "hint": {
         "strip": "The project's images in a strip that scrolls sideways.",
         "grid": "Images or videos arranged in columns.",
         "image": "A single image, up to full width.",
-        "video_single": "A video from your media library.",
-        "free_board": "Cut-out images placed wherever you like, at the size and angle you want.",
-        "rich_text": "A paragraph, with a title if you want."
+        "video-single": "A video from your media library.",
+        "free-board": "Cut-out images placed wherever you like, at the size and angle you want.",
+        "rich-text": "A paragraph, with a title if you want."
       }
     },
     "boxPreset": {
@@ -2450,9 +2450,9 @@
     "title": "Photoshop kit",
     "formats": {
       "svg": "SVG",
-      "svg_mask": "SVG (shape tinted by the theme)",
+      "svg-mask": "SVG (shape tinted by the theme)",
       "avif": "AVIF + WebP",
-      "avif_mask": "AVIF (shape tinted by the theme)",
+      "avif-mask": "AVIF (shape tinted by the theme)",
       "png": "PNG 32 and 64 px (HiDPI screens)"
     },
     "headlineError": "{label}: needs fixing",
@@ -3258,7 +3258,7 @@
       "b1": "1 · Home backdrop: one large frame, free layers. 2 · Logo and paper: what repeats or stretches. 3 · Icons and cursors: the small objects (the frame and the tape too).",
       "b2": "At the top of each file, a strip of instructions with an example. The cards and the _guides group are locked: don't touch them.",
       "b3": "You don't have to redraw everything, or send everything back: a missing file stays unchanged.",
-      "note_entete_decor": "File instructions",
+      "note_entete-decor": "File instructions",
       "note_decor": "1 · Backdrop",
       "note_logo": "2 · Logo and paper",
       "note_icones": "3 · Icons and cursors"
@@ -3669,9 +3669,9 @@
       "title": "Home opening",
       "help": "The shape of the big banner on the home page.",
       "options": {
-        "parallax_layers": "Layered depth",
+        "parallax-layers": "Layered depth",
         "spotlight": "Spotlight",
-        "type_only": "Typographic"
+        "type-only": "Typographic"
       }
     },
     "strip": {
@@ -3686,7 +3686,7 @@
       "title": "Captions",
       "help": "The style of the text under the images.",
       "options": {
-        "mono_split": "Technical",
+        "mono-split": "Technical",
         "handwritten": "Handwritten"
       }
     },
@@ -3694,8 +3694,8 @@
       "title": "Viewer",
       "help": "How an enlarged image is shown.",
       "options": {
-        "passe_partout": "Mat",
-        "full_bleed": "Full screen"
+        "passe-partout": "Mat",
+        "full-bleed": "Full screen"
       }
     },
     "button": {
@@ -3711,7 +3711,7 @@
       "help": "A plain background, or a discreet dotted paper.",
       "options": {
         "none": "Plain background",
-        "paper_dots": "Dotted paper"
+        "paper-dots": "Dotted paper"
       }
     }
   },

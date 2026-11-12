@@ -1,16 +1,16 @@
 {
   "types": {
-    "project_board": {
+    "project-board": {
       "label": "Project",
       "description": "A project and its images in a strip: create it on the page, or reuse an existing project.",
       "summary": "Project · {project}"
     },
-    "featured_project": {
+    "featured-project": {
       "label": "Featured project (legacy)",
       "description": "Legacy block, replaced by blocks stacked one under the other (Title linked to a project, Project…).",
       "summary": "{project} · {children|block|blocks}"
     },
-    "video_single": {
+    "video-single": {
       "label": "Video",
       "description": "A video from your media library: player, or silent loop.",
       "summary": "Video · {title}"
@@ -25,7 +25,7 @@
       "description": "A single image, with an optional caption.",
       "summary": "Image · {caption}"
     },
-    "free_board": {
+    "free-board": {
       "label": "Free board",
       "description": "Cut-out images (PNGs without a background) or videos placed wherever you like, at the size and angle you want, directly on the card.",
       "summary": "Free board · {items|image|images}"
@@ -35,7 +35,7 @@
       "description": "Your CV: its pages as images, readable and zoomable, and a button to download the PDF.",
       "summary": "CV · {title}"
     },
-    "section_title": {
+    "section-title": {
       "label": "Title",
       "description": "A title, with an optional label, introduction and counters; can be the main title of the page; can reuse a project's name and introduction.",
       "summary": "{title}"
@@ -46,17 +46,17 @@
       "summary": "{eyebrow}",
       "single": "There is already an Opening on this page: a page can only have one."
     },
-    "collection_tiles": {
+    "collection-tiles": {
       "label": "Collection entries",
       "description": "One large image per collection (Characters, Backgrounds…), leading to its page.",
       "summary": "{title} · {items|entry|entries}"
     },
-    "collection_intro": {
+    "collection-intro": {
       "label": "Collection header (legacy)",
       "description": "Legacy block, replaced by a main “Title” with introduction and counters, and the “This page is the collection” setting.",
       "summary": "{title} · {collection}"
     },
-    "rich_text": {
+    "rich-text": {
       "label": "Text",
       "description": "A paragraph of text; a title can be added on hover on the page.",
       "summary": "{title} · {paragraphs|paragraph|paragraphs}"
@@ -66,12 +66,12 @@
       "description": "An invitation to write to you: a button to your email address, or a form (messages arrive in Admin → Messages).",
       "summary": "{title} · {fields|field|fields}"
     },
-    "contact_form": {
+    "contact-form": {
       "label": "Contact form (legacy)",
       "description": "Legacy block, replaced by “Contact” with the form option.",
       "summary": "{title} · {fields|field|fields}"
     },
-    "page_link": {
+    "page-link": {
       "label": "Link to a page",
       "description": "A “Text →” link to a page of the site, between two blocks.",
       "summary": "{label}"
@@ -83,7 +83,7 @@
       "locked": "This block cannot be deleted: it is what brings the visitor back to the site. You can move it and style it.",
       "single": "There is already an Exit block on this page: a page can only have one."
     },
-    "random_work": {
+    "random-work": {
       "label": "A random work",
       "description": "A published work picked at random on each visit, with its image, its title and a link to its page.",
       "summary": "A random work"
@@ -93,12 +93,12 @@
       "description": "Your portrait, your introduction, your contact details and your social networks.",
       "summary": "{eyebrow} · {paragraphs|paragraph|paragraphs}"
     },
-    "featured_projects": {
+    "featured-projects": {
       "label": "Featured projects (legacy)",
       "description": "Legacy block, replaced by “Featured project”.",
       "summary": "{title} · {limit|project|projects}"
     },
-    "collection_projects": {
+    "collection-projects": {
       "label": "Projects of a collection (legacy)",
       "description": "Legacy block, replaced by “Project” blocks placed one by one.",
       "summary": "Projects · {collection}"
@@ -110,17 +110,17 @@
     }
   },
   "presets": {
-    "grid_videos": {
+    "grid-videos": {
       "label": "Video grid",
       "short": "With videos",
       "description": "One large video and two small ones below (the layout can be changed afterwards)."
     },
-    "grid_images": {
+    "grid-images": {
       "label": "Image grid",
       "short": "With 3 images",
       "description": "Three images side by side (the layout can be changed afterwards)."
     },
-    "contact_with_form": {
+    "contact-with-form": {
       "label": "Contact with form",
       "short": "With a form",
       "description": "A form to write to you: fields of your choice, confirmation message."

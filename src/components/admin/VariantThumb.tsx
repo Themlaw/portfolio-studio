@@ -163,6 +163,6 @@ const VARIANT_OPTIONS: Record<string, string[]> = {
 /** Libellés des réglages de forme, dans la langue de `t` (`useTranslations("variants")`). */
 export function variantLabels(t: (key: string) => string): Record<string, { title: string; help: string; options: Record<string, string> }> {
   return Object.fromEntries(
-    Object.entries(VARIANT_OPTIONS).map(([k, opts]) => [k, { title: t(`${k}.title`), help: t(`${k}.help`), options: Object.fromEntries(opts.map((o) => [o, t(`${k}.options.${o.replace(/[^A-Za-z0-9_]/g, "_")}`)])) }]),
+    Object.entries(VARIANT_OPTIONS).map(([k, opts]) => [k, { title: t(`${k}.title`), help: t(`${k}.help`), options: Object.fromEntries(opts.map((o) => [o, t(`${k}.options.${o}`)])) }]),
   );
 }

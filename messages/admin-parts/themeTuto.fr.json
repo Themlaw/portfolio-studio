@@ -23,7 +23,7 @@
     "b1": "1 · Décor d'accueil : un grand cadre, des calques libres. 2 · Logo et papier : ce qui se répète ou s'étire. 3 · Icônes et curseurs : les petits objets (le cadre et le scotch aussi).",
     "b2": "En haut de chaque fichier, une bande de consignes avec un exemple. Les cartes et le groupe _guides sont verrouillés : n'y touche pas.",
     "b3": "Tu n'as pas à tout redessiner, ni à tout renvoyer : un fichier absent reste inchangé.",
-    "note_entete_decor": "Consignes du fichier",
+    "note_entete-decor": "Consignes du fichier",
     "note_decor": "1 · Décor",
     "note_logo": "2 · Logo et papier",
     "note_icones": "3 · Icônes et curseurs"
