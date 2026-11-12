@@ -23,6 +23,8 @@ import {
   createDraftProjectAction,
   discardDraftAction,
   installFontAction,
+  pasteBlocksAction,
+  pasteStyleAction,
   publishDraftAction,
   restoreBoardAction,
   saveDraftAction,
@@ -36,11 +38,12 @@ import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, MAX_TIL
 import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
-import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
+import { ancestorsOf, blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { applyHeadOp } from "@/blocks/head";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
 import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
 import { announcePublished } from "@/lib/publish-signal";
+import { applyStyle, blocksClip, CLIP_KEY, readStoredClip, styleClip, styleOf, writeStoredClip, type Clip } from "@/lib/edit/clip";
 import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
@@ -88,6 +91,8 @@ import StructureTree from "./StructureTree";
 import { untranslatedLabel } from "@/lib/translation-gaps";
 import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
+import RevealPanel from "./RevealPanel";
+import { readReveal, type Reveal } from "@/blocks/reveal";
 import BlockThumb from "./thumbs";
 
 /** Journal d'édition (lot 97) : connexion perdue pendant une écriture (le navigateur n'a pas eu de réponse). Renvoie le refus que l'éditeur affiche. */
@@ -1437,6 +1442,140 @@ export default function VisualEditor({
     }
   };
 
+  /* ---- Copier / coller (lot 133) ------------------------------------------------------------------------------------------------------ */
+
+  /** Genre du presse-papiers (localStorage, partagé entre onglets) : relu au retour sur l'onglet et quand un autre onglet écrit. */
+  const [clipKind, setClipKind] = useState<Clip["kind"] | null>(null);
+  useEffect(() => {
+    const read = () => setClipKind(readStoredClip()?.kind ?? null);
+    read();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === CLIP_KEY) read();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", read);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", read);
+    };
+  }, []);
+  const putClip = (clip: Clip, done: string) => {
+    if (!writeStoredClip(clip)) {
+      toast("Copie impossible : le presse-papiers du navigateur est indisponible ou plein.", "error");
+      return;
+    }
+    setClipKind(clip.kind);
+    toast(done);
+  };
+  const copyBlock = (uid: string) => {
+    const block = findBlock(draftRef.current.blocks, uid);
+    if (!block) return;
+    putClip(blocksClip([clone(block)], pageId), "Bloc copié : colle-le ici ou sur une autre page.");
+  };
+  const copyStyle = (uid: string) => {
+    const block = findBlock(draftRef.current.blocks, uid);
+    if (!block) return;
+    putClip(styleClip(block.type, styleOf(block)), "Style copié : colle-le sur un autre bloc.");
+  };
+  /** Colle le bloc copié après le bloc choisi (dans le conteneur choisi s'il l'accepte), validé par le serveur (registre, références, nouveaux uid). */
+  const pasteBlock = async () => {
+    const clip = readStoredClip();
+    if (!clip || clip.kind !== "blocks") {
+      toast("Rien à coller : copie d'abord un bloc.", "error");
+      return;
+    }
+    const first = clip.blocks[0];
+    const place = defaultPlace(first.type);
+    const before = draftRef.current.blocks;
+    const parent = place.parent ? findBlock(before, place.parent) : null;
+    const result = await pasteBlocksAction(pageId, clip, {
+      parentType: parent?.type ?? null,
+      depth: place.parent ? ancestorsOf(before, place.parent).length + 1 : 0,
+      count: (listOf(before, place.parent) ?? []).length,
+      pageTypes: walkTree(before).map((v) => v.block.type),
+    });
+    if (!result.ok) {
+      toast(result.message, "error");
+      return;
+    }
+    // Le brouillon a pu changer pendant l'aller-retour : l'emplacement est relu.
+    let next: DraftBlock[] | null = draftRef.current.blocks;
+    let at = place.index;
+    if (place.parent && !findBlock(next, place.parent)) {
+      toast("Le bloc visé n'existe plus : choisis un autre endroit.", "error");
+      return;
+    }
+    for (const b of result.data.blocks as DraftBlock[]) {
+      next = next ? insertBlock(next, b, place.parent, at++) : null;
+    }
+    if (!next) {
+      toast("Ce bloc ne peut pas aller là.", "error");
+      return;
+    }
+    setBlocks(next);
+    selectBlock(result.data.blocks[0].uid);
+    toast(result.data.blocks.length > 1 ? `${result.data.blocks.length} blocs collés · Défaire (Ctrl+Z) pour les retirer` : "Bloc collé · Défaire (Ctrl+Z) pour le retirer", "success", { label: "Défaire", run: () => void undoRef.current() });
+  };
+  /** Colle le style copié (ou celui du bloc copié) sur le bloc choisi : seulement ce que ses schémas acceptent. */
+  const pasteStyleOn = async (uid: string) => {
+    const clip = readStoredClip();
+    const source = clip?.kind === "style" ? clip : clip?.kind === "blocks" ? styleClip(clip.blocks[0].type, styleOf(clip.blocks[0])) : null;
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    const at = locate(list, uid);
+    if (!source || !block || !at) {
+      toast("Aucun style à coller : copie d'abord le style d'un bloc.", "error");
+      return;
+    }
+    const result = await pasteStyleAction(pageId, source, { type: block.type, top: at.parent === null });
+    if (!result.ok) {
+      toast(result.message, "error");
+      return;
+    }
+    const now = draftRef.current.blocks;
+    if (!findBlock(now, uid)) return;
+    setBlocks(updateBlock(now, uid, (b) => ({ ...b, props: applyStyle(b.props, source.style, result.data.style) })));
+    toast("Style collé · Défaire (Ctrl+Z) pour l'annuler", "success", { label: "Défaire", run: () => void undoRef.current() });
+  };
+
+  // Les fonctions changent à chaque rendu : le clavier (effet plus bas) lit la dernière version.
+  const clipFns = useRef({ copyBlock, pasteBlock });
+  clipFns.current = { copyBlock, pasteBlock };
+
+  /** Apparition au défilement d'un bloc (lot 133, `props.reveal`) ; null = la retire. Un pas d'historique (continu pour le curseur de cascade). */
+  const applyReveal = (uid: string, next: Reveal | null) => {
+    const list = draftRef.current.blocks;
+    if (!findBlock(list, uid)) return;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (next) props.reveal = next;
+        else delete props.reveal;
+        return { ...b, props };
+      }),
+      { key: `reveal:${uid}` },
+    );
+  };
+  /** Planche libre : l'effet de chaque image, décalé image après image (0 à 5, puis on recommence). */
+  const applyFreeCascade = (uid: string, kind: Reveal["kind"] | null) => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    if (!block || !Array.isArray(block.props.items)) return;
+    setBlocks(
+      updateBlock(list, uid, (b) => ({
+        ...b,
+        props: {
+          ...b.props,
+          items: (b.props.items as Record<string, unknown>[]).map((it, i) => {
+            const { reveal: _drop, ...rest } = it;
+            void _drop;
+            return kind ? { ...rest, reveal: { kind, ...(i % 6 ? { delay: i % 6 } : {}) } } : rest;
+          }),
+        },
+      })),
+    );
+  };
+
   /** Planches (avec surcouche d'images) que la suppression d'un bloc retirerait de la page. */
   const overlayLost = (uid: string): string[] => {
     const list = draftRef.current.blocks;
@@ -2715,6 +2854,13 @@ export default function VisualEditor({
       } else if (mod && e.key === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C") && selected && !selected.startsWith("site-") && !window.getSelection()?.toString()) {
+        // Copier le bloc choisi (lot 133) ; une sélection de texte garde le copier du navigateur.
+        e.preventDefault();
+        clipFns.current.copyBlock(selected);
+      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "v" || e.key === "V") && readStoredClip()?.kind === "blocks") {
+        e.preventDefault();
+        void clipFns.current.pasteBlock();
       } else if (e.key === "Escape" && selected) {
         selectBlock(null);
       }
@@ -3472,6 +3618,18 @@ export default function VisualEditor({
                       ⇱
                     </button>
                   )}
+                  <button type="button" className="a-icon-btn" aria-label="Copier le bloc" title="Copier le bloc (Ctrl+C) : à coller ici ou sur une autre page" disabled={Boolean(selDef.locked)} data-testid="block-copy" onClick={() => copyBlock(selBlock.uid)}>
+                    ⎘
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Coller le bloc" title="Coller le bloc copié après celui-ci (Ctrl+V)" disabled={clipKind !== "blocks"} data-testid="block-paste" onClick={() => void pasteBlock()}>
+                    ⎗
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Copier le style" title="Copier le style (mise en page, carte, fond, apparition) sans le contenu" data-testid="style-copy" onClick={() => copyStyle(selBlock.uid)}>
+                    ✎
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Coller le style" title="Coller le style copié sur ce bloc, sans toucher à son contenu" disabled={clipKind === null} data-testid="style-paste" onClick={() => void pasteStyleOn(selBlock.uid)}>
+                    ⬚
+                  </button>
                   <button type="button" className="a-icon-btn" aria-label="Dupliquer" disabled={Boolean(selDef.locked)} title={selDef.locked ? "Ce bloc existe une seule fois sur la page." : undefined} onClick={() => op("duplicate", selBlock.uid)}>
                     ⧉
                   </button>
@@ -3521,6 +3679,13 @@ export default function VisualEditor({
                     : "Ce bloc n'a pas de réglage à part : il s'affiche tel quel. Sa mise en page (espaces) se règle ci-dessous ; tu peux aussi le déplacer, le dupliquer ou le supprimer avec les boutons ci-dessus."}
                 </p>
               )}
+              <RevealPanel
+                key={`reveal-${selBlock.uid}`}
+                value={readReveal(selBlock.props.reveal)}
+                first={selAt?.parent === null && selAt.index === 0}
+                onChange={(next) => applyReveal(selBlock.uid, next)}
+                {...(selBlock.type === "free-board" ? { onCascade: (k: Reveal["kind"] | null) => applyFreeCascade(selBlock.uid, k) } : {})}
+              />
               <BlockLookPanel
                 key={selBlock.uid}
                 type={selBlock.type}

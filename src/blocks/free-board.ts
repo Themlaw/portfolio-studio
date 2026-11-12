@@ -8,6 +8,7 @@
  * est donc la même à toutes les largeurs d'écran (elle se met à l'échelle). `z` = rang d'empilement, `rot` = degrés (−180 à 180).
  */
 import { z } from "zod";
+import { RevealSchema } from "./reveal";
 
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
 import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS } from "../lib/look";
@@ -52,6 +53,8 @@ export const FreeItemSchema = z.object({
   sound: z.enum(SLOT_VIDEO_SOUNDS).optional(),
   /** Image d'attente choisie pour une vidéo (identifiant de la médiathèque) ; absent = celle de la vidéo. */
   poster: z.number().int().positive().optional(),
+  /** Apparition au défilement de cette image (lot 133) ; illisible = ignorée. */
+  reveal: RevealSchema.optional().catch(undefined),
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 

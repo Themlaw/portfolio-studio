@@ -1155,3 +1155,41 @@
     border-radius: 0;
   }
 }
+
+/* ==========================================================================
+   Apparitions au défilement (lot 133, src/blocks/reveal.ts)
+   CSS pur (chronologie de vue du navigateur) ; sans support du navigateur ou sans JS, le contenu est simplement visible (aucun état caché
+   hors de ce @supports). Propriétés individuelles (opacity, translate, scale) : le `transform` des images de la planche libre (rotation) est préservé.
+   `data-rv-d` = cran de cascade (0 à 5) : décale la plage d'animation de 8 %.
+   ========================================================================== */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .rv {
+      animation: rv-fade linear both;
+      animation-timeline: view();
+      animation-range: entry calc(var(--rv-n, 0) * 8%) entry calc(45% + var(--rv-n, 0) * 8%);
+    }
+    .rv[data-rv-d="1"] { --rv-n: 1; }
+    .rv[data-rv-d="2"] { --rv-n: 2; }
+    .rv[data-rv-d="3"] { --rv-n: 3; }
+    .rv[data-rv-d="4"] { --rv-n: 4; }
+    .rv[data-rv-d="5"] { --rv-n: 5; }
+    .rv[data-reveal="slide"] { animation-name: rv-slide; }
+    .rv[data-reveal="scale"] { animation-name: rv-scale; }
+  }
+}
+@keyframes rv-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rv-slide {
+  from { opacity: 0; translate: 0 2.5rem; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes rv-scale {
+  from { opacity: 0; scale: 0.92; }
+  to { opacity: 1; scale: 1; }
+}
+@media print {
+  .rv { animation: none !important; opacity: 1 !important; translate: none !important; scale: none !important; }
+}

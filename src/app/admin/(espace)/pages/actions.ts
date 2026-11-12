@@ -18,6 +18,8 @@ import {
   type PageReference,
 } from "@/lib/edit/pages";
 import { publishWarnings } from "@/lib/edit/warnings";
+import { pasteBlocks, pasteStyle } from "@/lib/edit/paste";
+import type { ClipBlock } from "@/lib/edit/clip";
 import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { discardSiteDraft, saveSiteDraft, type SiteResult } from "@/lib/edit/site";
@@ -68,6 +70,25 @@ export const saveDraftAction = audited("saveDraftAction", async function saveDra
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return saveDraft(pid, draft, rev);
+});
+
+/**
+ * Coller des blocs (lot 133) : le presse-papiers (localStorage) n'est jamais cru, les blocs repassent par les schémas du registre, les références
+ * sont vérifiées et de nouveaux uid sont attribués. Ne modifie rien : l'éditeur pose le résultat dans son brouillon (annuler / rétablir).
+ */
+export const pasteBlocksAction = audited("pasteBlocksAction", async function pasteBlocksAction(id: unknown, clip: unknown, where: unknown): Promise<ActionResult<{ blocks: ClipBlock[] }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return pasteBlocks(pid, clip, where);
+});
+
+/** Coller le style seulement (lot 133) : ce que les schémas du bloc visé acceptent (look, carte, fond, apparition). */
+export const pasteStyleAction = audited("pasteStyleAction", async function pasteStyleAction(id: unknown, clip: unknown, target: unknown): Promise<ActionResult<{ style: Record<string, unknown> }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return pasteStyle(clip, target);
 });
 
 /** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
