@@ -7,7 +7,7 @@
  * de la langue du site. Les commandes d'édition rendues dans les composants publics (EditOnly) le retrouvent par un petit magasin de module.
  * Jamais servi sans session admin : le catalogue n'est lu que par PreviewBanner, derrière isAdminPreview().
  */
-import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
+import { NextIntlClientProvider, type AbstractIntlMessages, useLocale, useMessages, useTimeZone } from "next-intl";
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 
 import { makeAdminTranslator, type AdminT } from "@/i18n/admin-lang";
@@ -55,9 +55,18 @@ export function AdminIntlProvider({ locale, messages, children }: AdminIntlData 
 /** Enveloppe des commandes d'édition posées dans l'arbre du site : textes de l'admin, langue d'interface. */
 export function AdminIntlBoundary({ children }: { children: ReactNode }) {
   const data = useAdminIntlData();
-  if (!data) return <>{children}</>;
+  const locale = useLocale();
+  const messages = useMessages() as AbstractIntlMessages;
+  const timeZone = useTimeZone() ?? "Europe/Paris";
+  if (data) {
+    return (
+      <NextIntlClientProvider locale={data.locale} messages={data.messages} timeZone="Europe/Paris">
+        {children}
+      </NextIntlClientProvider>
+    );
+  }
   return (
-    <NextIntlClientProvider locale={data.locale} messages={data.messages} timeZone="Europe/Paris">
+    <NextIntlClientProvider locale={locale} messages={messages} timeZone={timeZone}>
       {children}
     </NextIntlClientProvider>
   );
