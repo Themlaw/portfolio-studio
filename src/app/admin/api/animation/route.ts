@@ -7,6 +7,7 @@
  * Réponse JSON : { ok, media } (comme /admin/api/upload) ou { ok: false, message }.
  */
 import { assertAdmin } from "@/lib/auth/guard";
+import { adminT } from "@/i18n/admin-msg";
 import { assembleAny } from "@/lib/animation/receive";
 import { ingestAnimation } from "@/lib/animation/ingest";
 import { auditedRoute } from "@/lib/journal/audit";
@@ -25,14 +26,15 @@ const json = (status: number, body: unknown) =>
 
 export const POST = auditedRoute("animation", async function POST(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
+  const t = adminT("animation");
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("originRefused") });
   rememberPort(new URL(request.url).port);
   const full = quotaProblem();
   if (full) return json(507, { ok: false, message: full });
   const maxMb = Number(process.env.MAX_ANIM_MB);
   const limit = (Number.isFinite(maxMb) && maxMb > 0 ? maxMb : 150) * 1024 ** 2;
   const announced = Math.max(0, Number(request.headers.get("content-length")) || 0);
-  if (announced > limit) return json(413, { ok: false, message: `Cet envoi est trop lourd : ${Math.round(limit / 1024 ** 2)} Mo au plus pour une animation.` });
+  if (announced > limit) return json(413, { ok: false, message: t("tooHeavy", { mb: Math.round(limit / 1024 ** 2) }) });
   const disk = await diskProblem(announced, directReservedBytes());
   if (disk) return json(507, { ok: false, message: disk });
   const reservation = reserveDirectUpload(announced || limit);
@@ -55,7 +57,7 @@ export const POST = auditedRoute("animation", async function POST(request: Reque
   } catch (error) {
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
     console.error("[animation] échec", error);
-    return json(500, { ok: false, message: "L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur." });
+    return json(500, { ok: false, message: t("sendFailedDisk") });
   } finally {
     reservation.release();
   }

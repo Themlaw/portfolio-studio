@@ -1,0 +1,19 @@
+{
+  "originRefused": "Origin refused.",
+  "tooHeavy": "This upload is too large: {mb} MB at most for an animation.",
+  "sendFailedDisk": "Upload failed. Try again; if it keeps happening, check the server's disk space.",
+  "sendFailed": "Upload failed. Try again.",
+  "connectionFailed": "Upload failed (connection?). Try again.",
+  "summary": "Create a frame-by-frame animation",
+  "description": "Send your numbered drawings (PNG, WebP or JPEG, 2 to 48 images, in name order), a zip of those images, or a sprite sheet with its column and row counts. The site assembles a single strip; the frame rate (6, 8, 12 or 24 frames per second) is set wherever you place it.",
+  "imagesLabel": "Animation images",
+  "sheetLabel": "Sprite sheet",
+  "cols": "Columns",
+  "rows": "Rows",
+  "assembling": "Assembling…",
+  "create": "Create the animation",
+  "reused": "This animation already existed",
+  "created": "Animation created",
+  "images": "images",
+  "appearsInMedia": "it appears in the media library"
+}
