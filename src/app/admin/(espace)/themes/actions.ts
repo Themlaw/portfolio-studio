@@ -33,7 +33,6 @@ function themeId(id: unknown): string | null {
 export const duplicateThemeAction = audited("duplicateThemeAction", async function duplicateThemeAction(id: unknown): Promise<ActionResult<{ id: string }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const tid = themeId(id);
   if (!tid) return fail(t("Thème inconnu."));
   const result = duplicateTheme(tid);
@@ -50,7 +49,6 @@ const Version = z.number().int().min(1).max(999999);
 export const applyModelAction = audited("applyModelAction", async function applyModelAction(modelId: unknown, mode?: unknown): Promise<ActionResult<ApplyModelResult & { second?: boolean }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const id = themeId(modelId);
   if (!id) return fail(t("Modèle inconnu."));
   if (mode !== undefined && mode !== "replace" && mode !== "second") return fail("Choix inconnu.");
@@ -65,7 +63,6 @@ export const applyModelAction = audited("applyModelAction", async function apply
  */
 export const revertVersionAction = audited("revertVersionAction", async function revertVersionAction(id: unknown, n: unknown, publish?: unknown): Promise<ActionResult<{ version: number }>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
@@ -84,7 +81,6 @@ export const revertVersionAction = audited("revertVersionAction", async function
 export const keepVersionCopyAction = audited("keepVersionCopyAction", async function keepVersionCopyAction(id: unknown, n: unknown): Promise<ActionResult<{ id: string; name: string }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
   if (!tid || !v.success) return fail("Version inconnue.");
@@ -97,7 +93,6 @@ export const keepVersionCopyAction = audited("keepVersionCopyAction", async func
 export const pinVersionAction = audited("pinVersionAction", async function pinVersionAction(id: unknown, n: unknown, pinned: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const tid = themeId(id);
   const v = Version.safeParse(n);
   if (!tid || !v.success || typeof pinned !== "boolean") return fail("Version inconnue.");
@@ -107,7 +102,6 @@ export const pinVersionAction = audited("pinVersionAction", async function pinVe
 /** « En faire mon thème (nouvelle version) » : un ancien thème devient une version de Mon thème. */
 export const adoptOldThemeAction = audited("adoptOldThemeAction", async function adoptOldThemeAction(oldId: unknown): Promise<ActionResult<{ id: string; version: number; created: boolean }>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const tid = themeId(oldId);
   if (!tid) return fail(t("Thème inconnu."));
@@ -119,7 +113,6 @@ export const adoptOldThemeAction = audited("adoptOldThemeAction", async function
 /** Sortie de l'éditeur de thème : la séance d'édition est close, le prochain enregistrement crée une nouvelle version. */
 export const closeEditSessionAction = audited("closeEditSessionAction", async function closeEditSessionAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const tid = themeId(id);
   if (!tid) return fail(t("Thème inconnu."));
@@ -133,7 +126,6 @@ export const closeEditSessionAction = audited("closeEditSessionAction", async fu
  */
 export const saveThemeAction = audited("saveThemeAction", async function saveThemeAction(id: unknown, input: unknown, confirmLive?: unknown): Promise<ActionResult<{ version?: number; created?: boolean } | null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const tid = themeId(id);
   if (!tid) return fail(t("Thème inconnu."));
@@ -153,7 +145,6 @@ export const saveThemeAction = audited("saveThemeAction", async function saveThe
 export const activateThemeAction = audited("activateThemeAction", async function activateThemeAction(id: unknown, options?: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const tid = themeId(id);
   if (!tid) return fail(t("Thème inconnu."));
   const resetColors = Boolean(options && typeof options === "object" && (options as { resetColors?: unknown }).resetColors === true);
@@ -169,7 +160,6 @@ export const activateThemeAction = audited("activateThemeAction", async function
 export const resetSiteColorsAction = audited("resetSiteColorsAction", async function resetSiteColorsAction(): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const result = resetPublishedSitePalette();
   if (result.ok) {
     revalidateSettings();
@@ -180,7 +170,6 @@ export const resetSiteColorsAction = audited("resetSiteColorsAction", async func
 
 export const deleteThemeAction = audited("deleteThemeAction", async function deleteThemeAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const tid = themeId(id);
   if (!tid) return fail(t("Thème inconnu."));
@@ -208,7 +197,6 @@ export const deleteThemeAction = audited("deleteThemeAction", async function del
 export const applyKitImportAction = audited("applyKitImportAction", async function applyKitImportAction(themeIdInput: unknown, importId: unknown, options: unknown): Promise<ActionResult<{ id: string; version: number }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const tid = themeId(themeIdInput);
   if (!tid || !isImportId(importId)) return fail("Import inconnu.");
   const o = (options && typeof options === "object" ? options : {}) as { mirror?: unknown; colors?: unknown; base?: unknown };
@@ -225,7 +213,6 @@ export const applyKitImportAction = audited("applyKitImportAction", async functi
  */
 export const importThemeLogoAction = audited("importThemeLogoAction", async function importThemeLogoAction(mediaId: unknown): Promise<ActionResult<{ signature: KitImage }>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   return logoFromMedia(mediaId);
 });

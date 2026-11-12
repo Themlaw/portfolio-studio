@@ -31,7 +31,6 @@ const validId = (id: string) => /^[a-z0-9-]{1,80}$/.test(id);
 export async function POST(request: Request, { params }: Params) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   const { id } = await params;
   const theme = validId(id) ? loadSavedTheme(id) : null;
@@ -48,7 +47,6 @@ export async function POST(request: Request, { params }: Params) {
 
 export async function GET(request: Request, { params }: Params) {
   const session = await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const { id } = await params;
   const theme = validId(id) ? loadSavedTheme(id) : null;

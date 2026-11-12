@@ -28,8 +28,6 @@ const apiCode = (error: unknown) => (error as { body?: { code?: unknown } } | nu
 export const changePasswordAction = audited("changePasswordAction", async function changePasswordAction(input: unknown): Promise<ActionResult<null>> {
   const session = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
-  const t = adminT("actions");
   const config = readAuthConfig();
   if (!config.passwordEnabled) return fail(t("passwordDisabled"));
   const ChangePassword = z
@@ -80,7 +78,6 @@ export const changePasswordAction = audited("changePasswordAction", async functi
 export const revokeOtherSessionsAction = audited("revokeOtherSessionsAction", async function revokeOtherSessionsAction(): Promise<ActionResult<{ revoked: number }>> {
   const session = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const revoked = revokeOtherUserSessions(session.user.id, session.session.id);
   console.log(`[auth] ${revoked} autre(s) session(s) déconnectée(s) depuis l'admin`);
   return done({ revoked });
@@ -92,7 +89,6 @@ export const revokeOtherSessionsAction = audited("revokeOtherSessionsAction", as
  */
 export const setAdminLangAction = audited("setAdminLangAction", async function setAdminLangAction(lang: unknown): Promise<ActionResult<{ lang: AdminLang }>> {
   const session = await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const parsed = parseAdminLang(lang);
   if (!parsed) {

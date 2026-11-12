@@ -15,7 +15,6 @@ import { adminT } from "@/i18n/admin-msg";
 export const markMessagesSeenAction = audited("markMessagesSeenAction", async function markMessagesSeenAction(upTo: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const parsed = z.number().int().positive().safeParse(upTo);
   if (!parsed.success) return fail("Message inconnu.");
   const db = getDb();
@@ -31,7 +30,6 @@ export const markMessagesSeenAction = audited("markMessagesSeenAction", async fu
 export const deleteMessageAction = audited("deleteMessageAction", async function deleteMessageAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const parsed = z.number().int().positive().safeParse(id);
   if (!parsed.success) return fail("Message inconnu.");
   getDb().delete(schema.messages).where(eq(schema.messages.id, parsed.data)).run();
@@ -40,7 +38,6 @@ export const deleteMessageAction = audited("deleteMessageAction", async function
 
 export const deleteAllMessagesAction = audited("deleteAllMessagesAction", async function deleteAllMessagesAction(confirm: unknown): Promise<ActionResult<{ deleted: number }>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   if (confirm !== "tout") return fail("Confirmation manquante.");
   const res = getDb().delete(schema.messages).run();

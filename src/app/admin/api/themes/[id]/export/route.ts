@@ -17,7 +17,6 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: Params) {
   const session = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) {

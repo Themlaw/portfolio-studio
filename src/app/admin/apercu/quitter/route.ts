@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   if (!isSameOrigin(request)) return new Response(t("Origine refusée"), { status: 403 });
 
   const form = await request.formData().catch(() => null);

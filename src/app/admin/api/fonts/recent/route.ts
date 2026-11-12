@@ -18,13 +18,11 @@ const json = (status: number, body: unknown) =>
 export async function GET() {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   return json(200, { fonts: readRecentFonts() });
 }
 
 export async function POST(request: Request) {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   if (!isSameOrigin(request)) return json(403, { message: t("Origine refusée.") });
   let body: unknown;

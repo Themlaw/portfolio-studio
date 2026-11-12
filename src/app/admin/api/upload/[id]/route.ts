@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 export const DELETE = auditedRoute("upload-cancel", async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id } = await params;
   return uploadStep(request, async () => {
     await cancelUpload(id, user.id);

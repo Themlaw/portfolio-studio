@@ -41,7 +41,6 @@ export const saveBackupSettingsAction = audited("saveBackupSettingsAction", asyn
 export const backupNowAction = audited("backupNowAction", async function backupNowAction(): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const r = await startBackupNow();
   return r.ok ? done(null) : fail(r.message);
 });
@@ -55,7 +54,6 @@ const Unlock = z.object({ password: z.string().max(256).optional() });
  */
 export const unlockBackupDownloadAction = audited("unlockBackupDownloadAction", async function unlockBackupDownloadAction(input: unknown): Promise<ActionResult<null>> {
   const session = await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const parsed = Unlock.safeParse(input ?? {});
   if (!parsed.success) return fail(t("Mot de passe trop long."));
@@ -78,7 +76,6 @@ export const unlockBackupDownloadAction = audited("unlockBackupDownloadAction", 
 
 export async function backupStatusAction(): Promise<ActionResult<BackupStatus>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   return done(await getBackupStatus());
 }

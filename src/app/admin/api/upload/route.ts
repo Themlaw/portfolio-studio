@@ -29,7 +29,6 @@ const json = (status: number, body: unknown) =>
 export const POST = auditedRoute("upload", async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   rememberPort(new URL(request.url).port);
   // Quota déjà atteint : refus avant de lire le fichier.

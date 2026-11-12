@@ -25,7 +25,6 @@ export const dynamic = "force-dynamic";
 export const POST = auditedRoute("upload-complete", async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id } = await params;
   // Média : { media } ; kit de thème : { kitImport } (import mis en file).
   return uploadStep(request, async () => completeUpload(id, user.id, await readTags(request)), { revalidate: true });

@@ -26,7 +26,6 @@ const json = (status: number, body: unknown) =>
 export const POST = auditedRoute("theme-import", async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   let tmpPath: string | null = null;
   try {

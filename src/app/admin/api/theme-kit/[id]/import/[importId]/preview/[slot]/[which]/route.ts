@@ -19,7 +19,6 @@ const notFound = () => new Response(t("Aperçu introuvable"), { status: 404, hea
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string; importId: string; slot: string; which: string }> }) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id, importId, slot, which } = await params;
   if (!/^[a-z0-9-]{1,80}$/.test(id) || !isImportId(importId) || (which !== "avant" && which !== "apres")) return notFound();
   const spec = ALL_SLOTS.find((s) => s.id.replace(/\//g, "--") === slot) ?? (DECOR_SLOT.test(slot) ? { id: slot.replace("--", "/") } : undefined);

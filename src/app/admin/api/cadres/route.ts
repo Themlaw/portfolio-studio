@@ -22,7 +22,6 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 export const POST = auditedRoute("cadre-import", async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
   let tmp: string | undefined;
   try {
