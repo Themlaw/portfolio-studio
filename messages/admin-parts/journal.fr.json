@@ -34,5 +34,21 @@
   "changeBoth": " : « {a} » → « {b} »",
   "changeTo": " : « {b} »",
   "changeRemoved": " : « {a} » retiré",
-  "changeNote": " ({note})"
+  "changeNote": " ({note})",
+  "type_modification": "Modification",
+  "type_creation": "Création",
+  "type_suppression": "Suppression",
+  "type_publication": "Publication",
+  "type_abandon": "Abandon du brouillon",
+  "type_restauration": "Restauration",
+  "type_import": "Envoi ou import",
+  "type_theme": "Thème",
+  "type_reglage": "Réglage",
+  "type_compte": "Compte",
+  "type_telechargement": "Téléchargement",
+  "type_erreur": "Erreur du navigateur",
+  "result_ok": "Réussi",
+  "result_refus": "Refusé",
+  "result_conflit": "Conflit",
+  "result_erreur": "Erreur"
 }

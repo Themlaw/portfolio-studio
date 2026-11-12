@@ -43,7 +43,7 @@ function usePixels(url: string | undefined): Uint8ClampedArray | null {
 function CursorRow({ kind, cursor, grounds }: { kind: CursorKind; cursor: KitCursor; grounds: { hex: string; label: string }[] }) {
   const t = useTranslations("cursorSettings");
   const pixels = usePixels(cursor.png2x);
-  const problem = pixels ? cursorProblem(pixels, grounds) : null;
+  const problem = pixels ? cursorProblem(pixels, grounds, (key, values) => t(key, values as Record<string, string | number>)) : null;
   return (
     <div className="a-cursor-row" data-cursor={kind}>
       <strong>{t(`kind.${kind}`)}</strong>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
-import { facets, listEntries, RESULT_LABELS, TYPE_LABELS, type Entry, type Filters } from "@/lib/journal/store";
+import { facets, listEntries, type Entry, type Filters } from "@/lib/journal/store";
 import { requireAdmin } from "@/lib/auth/guard";
 import { getAdminLang, getAdminT } from "@/i18n/admin-server";
 import { intlLocale } from "@/i18n/admin-lang";
@@ -57,13 +57,13 @@ function EntryRow({ e, t, when, locale }: { e: Entry; t: Tr; when: (t: number) =
       <summary>
         <time dateTime={new Date(e.t).toISOString()}>{when(e.t)}</time>
         <span className="a-journal-result" data-result={e.result}>
-          {RESULT_LABELS[e.result]}
+          {t(`result_${e.result}`)}
         </span>
         <span className="a-journal-label">{e.label}</span>
       </summary>
       <dl className="a-journal-details">
         <dt>{t("dType")}</dt>
-        <dd>{TYPE_LABELS[e.type] ?? e.type}</dd>
+        <dd>{t(`type_${e.type}`) ?? e.type}</dd>
         {e.page && (
           <>
             <dt>{t("dPage")}</dt>
@@ -184,7 +184,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
             <option value="">{t("optAllM")}</option>
             {f.types.map((t) => (
               <option key={t} value={t}>
-                {TYPE_LABELS[t as keyof typeof TYPE_LABELS] ?? t}
+                {t(`type_${t}`) ?? t}
               </option>
             ))}
           </select>
@@ -193,9 +193,9 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
           {t("fResult")}
           <select name="resultat" defaultValue={result} className="a-select">
             <option value="">{t("optAllM")}</option>
-            {Object.entries(RESULT_LABELS).map(([k, v]) => (
+            {(["ok","refus","conflit","erreur"]).map((k) => (
               <option key={k} value={k}>
-                {v}
+                {t(`result_${k}`)}
               </option>
             ))}
           </select>

@@ -21,17 +21,6 @@ export type MonoShape = (typeof MONO_SHAPES)[number];
 export const MONO_COLOR_KEYS = ["bg", "surface", "ink", "primary", "secondary", "tertiary", "onPrimary"] as const;
 export type MonoColorKey = (typeof MONO_COLOR_KEYS)[number];
 
-export const SHAPE_LABELS: Record<MonoShape, string> = { round: "Rond", squircle: "Carré arrondi", none: "Sans fond" };
-export const COLOR_LABELS: Record<MonoColorKey, string> = {
-  bg: "Fond du site",
-  surface: "Cartes",
-  ink: "Texte",
-  primary: "Action",
-  secondary: "Accent secondaire",
-  tertiary: "Détails",
-  onPrimary: "Texte sur l'action",
-};
-
 /** 2 ou 3 lettres (chiffres admis) ; null : les initiales du nom du site. */
 export const LETTERS_RE = /^[\p{L}\p{N}]{2,3}$/u;
 

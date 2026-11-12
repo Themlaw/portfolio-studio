@@ -1141,7 +1141,9 @@
     "title": "Curseurs de la souris",
     "systemHelp": "Les curseurs du système. Pour les dessiner : groupe « 9 · Curseur » du kit Photoshop (normal, et au survol de ce qui se clique).",
     "useDrawn": "Utiliser les curseurs dessinés sur le site",
-    "useDrawnHelp": "Décoché : les curseurs du système, tes dessins restent gardés. Sur le site public seulement (pas dans l'administration) ; les champs de texte gardent leur barre de saisie."
+    "useDrawnHelp": "Décoché : les curseurs du système, tes dessins restent gardés. Sur le site public seulement (pas dans l'administration) ; les champs de texte gardent leur barre de saisie.",
+    "cursorEmpty": "Curseur vide.",
+    "cursorProblem": "Curseur presque invisible sur {labels} ({percent} % de ses pixels ressortent à 3:1) : ajoute un contour clair ou foncé."
   },
   "dashboard": {
     "title": "Tableau de bord",
@@ -2099,7 +2101,17 @@
     "saving": "Enregistrement…",
     "unsaved": "Modifications non enregistrées",
     "savedState": "✓ Enregistré",
-    "saveIcon": "Enregistrer l'icône"
+    "saveIcon": "Enregistrer l'icône",
+    "shape_round": "Rond",
+    "shape_squircle": "Carré arrondi",
+    "shape_none": "Sans fond",
+    "color_bg": "Fond du site",
+    "color_surface": "Cartes",
+    "color_ink": "Texte",
+    "color_primary": "Action",
+    "color_secondary": "Accent secondaire",
+    "color_tertiary": "Détails",
+    "color_onPrimary": "Texte sur l'action"
   },
   "fields": {
     "languageOf": "Langue — {label}",
@@ -2349,7 +2361,23 @@
     "changeBoth": " : « {a} » → « {b} »",
     "changeTo": " : « {b} »",
     "changeRemoved": " : « {a} » retiré",
-    "changeNote": " ({note})"
+    "changeNote": " ({note})",
+    "type_modification": "Modification",
+    "type_creation": "Création",
+    "type_suppression": "Suppression",
+    "type_publication": "Publication",
+    "type_abandon": "Abandon du brouillon",
+    "type_restauration": "Restauration",
+    "type_import": "Envoi ou import",
+    "type_theme": "Thème",
+    "type_reglage": "Réglage",
+    "type_compte": "Compte",
+    "type_telechargement": "Téléchargement",
+    "type_erreur": "Erreur du navigateur",
+    "result_ok": "Réussi",
+    "result_refus": "Refusé",
+    "result_conflit": "Conflit",
+    "result_erreur": "Erreur"
   },
   "kit": {
     "emptyFile": "« {name} » est vide : choisis le bon fichier.",

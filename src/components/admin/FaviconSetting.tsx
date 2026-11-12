@@ -24,7 +24,7 @@ import type { EditorContext } from "@/blocks/editor-types";
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import type { AdminMediaRow } from "@/lib/admin";
 import type { FaviconPreview } from "@/lib/favicon";
-import { COLOR_LABELS, FAVICON_MODES, LETTERS_RE, MONO_COLOR_KEYS, MONO_SHAPES, SHAPE_LABELS, initialsOf, type FaviconInput, type MonoColorKey, type MonoShape } from "@/lib/favicon-spec";
+import { FAVICON_MODES, LETTERS_RE, MONO_COLOR_KEYS, MONO_SHAPES, initialsOf, type FaviconInput, type MonoColorKey, type MonoShape } from "@/lib/favicon-spec";
 
 import { clone, same, toast, useUnsavedGuard } from "./editing";
 
@@ -134,8 +134,8 @@ export default function FaviconSetting({
           type="button"
           role="radio"
           aria-checked={value.mono[field] === k}
-          aria-label={COLOR_LABELS[k]}
-          title={COLOR_LABELS[k]}
+          aria-label={t(`color_${k}`)}
+          title={t(`color_${k}`)}
           data-color={k}
           className="a-fav-swatch"
           style={{ background: colors[k] }}
@@ -207,7 +207,7 @@ export default function FaviconSetting({
             {MONO_SHAPES.map((s: MonoShape) => (
               <label key={s} className="a-logo-choice">
                 <input type="radio" name={id("shape")} checked={value.mono.shape === s} onChange={() => setMono({ shape: s })} data-testid={`fav-shape-${s}`} />
-                <span>{SHAPE_LABELS[s]}</span>
+                <span>{t(`shape_${s}`)}</span>
               </label>
             ))}
           </div>

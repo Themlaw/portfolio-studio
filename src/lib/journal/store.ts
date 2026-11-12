@@ -29,22 +29,6 @@ export const HARD_MAX_ROWS = 200_000;
 
 export type EntryResult = "ok" | "refus" | "conflit" | "erreur";
 export type EntryType = "modification" | "creation" | "suppression" | "publication" | "abandon" | "restauration" | "import" | "theme" | "reglage" | "compte" | "telechargement" | "erreur";
-export const TYPE_LABELS: Record<EntryType, string> = {
-  modification: "Modification",
-  creation: "Création",
-  suppression: "Suppression",
-  publication: "Publication",
-  abandon: "Abandon du brouillon",
-  restauration: "Restauration",
-  import: "Envoi ou import",
-  theme: "Thème",
-  reglage: "Réglage",
-  compte: "Compte",
-  telechargement: "Téléchargement",
-  erreur: "Erreur du navigateur",
-};
-export const RESULT_LABELS: Record<EntryResult, string> = { ok: "Réussi", refus: "Refusé", conflit: "Conflit", erreur: "Erreur" };
-
 export type NewEntry = {
   kind: "action" | "client";
   action: string;

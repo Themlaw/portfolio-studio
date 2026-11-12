@@ -107,6 +107,7 @@ export function HeroEditor() {
 
 export function CollectionTilesEditor() {
   const t = useTranslations("blockEditors");
+  const tf = useTranslations("fields");
   const tl = useTranslations("blockRegLabels");
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
@@ -205,7 +206,11 @@ export function CollectionTilesEditor() {
                 label={t("collection")}
                 help={t("aCollectionEntryShows")}
                 value={item.collection as "characters" | "backgrounds" | "animation" | undefined}
-                options={COLLECTION_OPTIONS}
+                options={[
+                  { value: "characters", label: tf("collection_characters") },
+                  { value: "backgrounds", label: tf("collection_backgrounds") },
+                  { value: "animation", label: tf("collection_animation") },
+                ]}
                 allowEmpty={t("noneSimplePage")}
                 onChange={(v) => {
                   const { collection: _c, ...rest } = item;

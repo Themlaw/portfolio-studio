@@ -32,5 +32,15 @@
   "saving": "Saving…",
   "unsaved": "Unsaved changes",
   "savedState": "✓ Saved",
-  "saveIcon": "Save the icon"
+  "saveIcon": "Save the icon",
+  "shape_round": "Round",
+  "shape_squircle": "Rounded square",
+  "shape_none": "No background",
+  "color_bg": "Site background",
+  "color_surface": "Cards",
+  "color_ink": "Text",
+  "color_primary": "Action",
+  "color_secondary": "Secondary accent",
+  "color_tertiary": "Details",
+  "color_onPrimary": "Text on action"
 }

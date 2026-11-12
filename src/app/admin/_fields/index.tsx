@@ -227,9 +227,9 @@ export function Select<T extends string | number>({
 }
 
 export const COLLECTION_OPTIONS = [
-  { value: "characters" as const, label: "Personnages" },
-  { value: "backgrounds" as const, label: "Décors" },
-  { value: "animation" as const, label: "Animation" },
+  { value: "characters" as const, label: "characters" },
+  { value: "backgrounds" as const, label: "backgrounds" },
+  { value: "animation" as const, label: "animation" },
 ];
 
 /** Collections avec leur libellé traduit (catalogue `fields`, clés `collection_<valeur>`). */

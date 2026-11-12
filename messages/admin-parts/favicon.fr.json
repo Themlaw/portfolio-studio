@@ -32,5 +32,15 @@
   "saving": "Enregistrement…",
   "unsaved": "Modifications non enregistrées",
   "savedState": "✓ Enregistré",
-  "saveIcon": "Enregistrer l'icône"
+  "saveIcon": "Enregistrer l'icône",
+  "shape_round": "Rond",
+  "shape_squircle": "Carré arrondi",
+  "shape_none": "Sans fond",
+  "color_bg": "Fond du site",
+  "color_surface": "Cartes",
+  "color_ink": "Texte",
+  "color_primary": "Action",
+  "color_secondary": "Accent secondaire",
+  "color_tertiary": "Détails",
+  "color_onPrimary": "Texte sur l'action"
 }

@@ -34,5 +34,21 @@
   "changeBoth": " : “{a}” → “{b}”",
   "changeTo": " : “{b}”",
   "changeRemoved": " : “{a}” removed",
-  "changeNote": " ({note})"
+  "changeNote": " ({note})",
+  "type_modification": "Modification",
+  "type_creation": "Creation",
+  "type_suppression": "Deletion",
+  "type_publication": "Publication",
+  "type_abandon": "Draft abandoned",
+  "type_restauration": "Restoration",
+  "type_import": "Upload or import",
+  "type_theme": "Theme",
+  "type_reglage": "Setting",
+  "type_compte": "Account",
+  "type_telechargement": "Download",
+  "type_erreur": "Browser error",
+  "result_ok": "Succeeded",
+  "result_refus": "Refused",
+  "result_conflit": "Conflict",
+  "result_erreur": "Error"
 }

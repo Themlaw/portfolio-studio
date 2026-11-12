@@ -25,16 +25,17 @@
     "src/components/CollectionTileTools.tsx",
     "src/components/CanvasTexts.tsx",
     "src/components/AdminIntl.tsx",
-    "src/components/EditOnly.tsx"
+    "src/components/EditOnly.tsx",
+    "src/themes/cursor.ts",
+    "src/lib/favicon-spec.ts",
+    "src/lib/look.ts",
+    "src/themes/palette.ts"
   ],
   "exclude": [],
   "allow": {
     "src/components/edit/readability.ts": {
       "Lisibilité :": "module pur testé par node (test-chrome24) : repli français de readabilityText ; l'affichage passe par useReadability (editMenusReadability)",
       "il faut au moins": "module pur testé par node (test-chrome24) : repli français de ratioTip ; l'affichage passe par useReadability (editMenusReadability)"
-    },
-    "src/app/admin/_fields/index.tsx": {
-      "Décors": "COLLECTION_OPTIONS : libellé de collection partagé avec src/blocks/editors.tsx ; traduit à l'étape 130b avec les blocs"
     },
     "src/components/admin/UploadQueue.tsx": {
       "hors de UploadQueueProvider": "erreur de développeur levée par throw, jamais affichée à l'utilisateur"
@@ -101,6 +102,74 @@
     },
     "src/components/edit/GridLayer.tsx": {
       "vidéo": "valeur de la prop what de FrameWindow (code, pas un texte affiché) ; traduite dans FrameMenu"
+    },
+    "src/themes/cursor.ts": {
+      "Curseur presque invisible sur": "module pur testé par node (test-palette) : repli français ; l'affichage passe par CursorSettings (cursorSettings)"
+    },
+    "src/lib/favicon-spec.ts": {
+      "Écris 2 ou 3 lettres.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)"
+    },
+    "src/lib/look.ts": {
+      "Étroite": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Léger": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Titre de page": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Étiquette": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Légende": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Nom du site": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Titres du thème": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Texte du thème": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Police inconnue : choisis-la dans le catalogue.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Épais": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Cadre du thème": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Un cadre de la bibliothèque porte son identifiant (et lui seul).": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Couleur et épaisseur ne vont qu'avec une bande de couleur.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "au plus.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "styles de texte": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Grand en haut, réduit au défilement": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Centré dans la barre": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "En haut de la barre": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "En bas de la barre": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "La barre s'agrandit": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Remplir la hauteur": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Logo réduit": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Même logo": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Tout le menu": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Tout le pied de page": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Trop de réglages de texte.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)"
+    },
+    "src/themes/palette.ts": {
+      "Le fond des pages.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Fond des blocs": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Sépare deux blocs sans trait.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "le fond, un cran plus foncé (plus clair sur un thème sombre)": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Traits fins ; transparence acceptée.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "12 % du texte dans le fond": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Texte": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Titres et paragraphes.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Présentations et légendes.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "le texte éclairci vers le fond, juste assez pour rester lisible": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Teinte des ombres des cartes et des images.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "le texte (noir sur un thème sombre)": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Liens et fond des boutons.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Action au survol": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Boutons et liens sous la souris.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "l'action un cran plus foncée (plus claire sur un thème sombre)": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Posé sur la couleur d'action.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "blanc, ou la couleur la plus sombre du thème si elle se lit mieux": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Détails mis en valeur.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Petits textes d'étiquette": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "étiquettes": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Petits textes au-dessus des titres.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Détails": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Ornements discrets ; transparence acceptée.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Fond des images agrandies": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Fond sombre derrière une image agrandie ou une vidéo.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "le texte (le fond sur un thème sombre)": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Légendes et boutons posés sur le fond des images agrandies.": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "le fond (le texte sur un thème sombre)": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Fond de page": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Cartes et encadrés": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)",
+      "Boutons et liens": "module pur testé par node : repli français ; l'affichage traduit côté composant (adminT/useTranslations)"
     }
   }
 }
