@@ -158,13 +158,13 @@ if (fr && en) {
   const badKeys = [];
   const checkKeyNames = (obj, prefix = "") => {
     for (const k of Object.keys(obj)) {
-      if (!/^[A-Za-z0-9_-]+$/.test(k)) badKeys.push(`${prefix}${k}`);
+      if (!/^[A-Za-z0-9_:\/-]+$/.test(k)) badKeys.push(`${prefix}${k}`);
       if (obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k])) checkKeyNames(obj[k], `${prefix}${k}.`);
     }
   };
   checkKeyNames(frRaw);
   checkKeyNames(enRaw);
-  ok("G1 chaque nom de clé respecte /^[A-Za-z0-9_-]+$/ (pas de point, d'espace ni d'accent)", badKeys.length === 0, `${badKeys.length} invalides, p. ex. ${badKeys.slice(0, 6).join(", ")}`);
+  ok("G1 chaque nom de clé respecte /^[A-Za-z0-9_:\/-]+$/ (pas de point, d'espace ni d'accent)", badKeys.length === 0, `${badKeys.length} invalides, p. ex. ${badKeys.slice(0, 6).join(", ")}`);
 }
 
 {
