@@ -17,17 +17,16 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, { params }: Params) {
   const session = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) {
-    return new Response(JSON.stringify({ ok: false, message: t("Ce thème n'existe plus.") }), {
+    return new Response(JSON.stringify({ ok: false, message: t("themeNoLongerExists") }), {
       status: 404,
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
   const zip = await exportThemePackage(theme);
-  recordEvent({ action: "download:theme-export", type: "telechargement", user: session.user.id, result: "ok", label: t("Thème exporté (archive)"), target: theme.id });
+  recordEvent({ action: "download:theme-export", type: "telechargement", user: session.user.id, result: "ok", label: t("themeExportedArchive"), target: theme.id });
   return new Response(new Uint8Array(zip), {
     headers: {
       "Content-Type": "application/zip",

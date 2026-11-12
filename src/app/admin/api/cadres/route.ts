@@ -22,8 +22,7 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 export const POST = auditedRoute("cadre-import", async function POST(request: Request) {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("Origine refusée.") });
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("originRefusedDot") });
   let tmp: string | undefined;
   try {
     const file = await receiveOneFile(request, uploadTmpDir(), { maxBytes: FRAME_MAX_BYTES });
@@ -35,7 +34,7 @@ export const POST = auditedRoute("cadre-import", async function POST(request: Re
   } catch (error) {
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
     console.error("[cadres] échec", error);
-    return json(500, { ok: false, message: t("L'envoi a échoué. Réessaie avec un autre fichier.") });
+    return json(500, { ok: false, message: t("uploadFailedTryAnotherFile") });
   } finally {
     if (tmp) await rm(tmp, { force: true });
   }

@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   noteUserActivity(); // envoi en cours = l'artiste travaille (lot 118)
   const { id } = await params;
   return uploadStep(request, async () => ({ upload: await writeChunk(id, new URL(request.url).searchParams.get("offset"), request, user.id) }));

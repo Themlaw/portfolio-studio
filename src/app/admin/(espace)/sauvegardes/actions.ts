@@ -29,7 +29,7 @@ export const saveBackupSettingsAction = audited("saveBackupSettingsAction", asyn
     maxHours: z.number().min(LIMITS.maxHours.min, t("atLeastHours", { n: LIMITS.maxHours.min })).max(LIMITS.maxHours.max, t("atMostHours", { n: LIMITS.maxHours.max })).nullable(),
   });
   const parsed = Input.safeParse(input);
-  if (!parsed.success) return fail(t("Vérifie les réglages."), zodFieldErrors(parsed.error.issues));
+  if (!parsed.success) return fail(t("checkSettings"), zodFieldErrors(parsed.error.issues));
   const v = parsed.data;
   const overrides = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null));
   writeBackupOverrides(overrides);
@@ -40,7 +40,6 @@ export const saveBackupSettingsAction = audited("saveBackupSettingsAction", asyn
 /** Lance une sauvegarde en fond et rend la main ; l'écran suit l'avancement avec `backupStatusAction`. */
 export const backupNowAction = audited("backupNowAction", async function backupNowAction(): Promise<ActionResult<null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const r = await startBackupNow();
   return r.ok ? done(null) : fail(r.message);
@@ -56,9 +55,8 @@ const Unlock = z.object({ password: z.string().max(256).optional() });
 export const unlockBackupDownloadAction = audited("unlockBackupDownloadAction", async function unlockBackupDownloadAction(input: unknown): Promise<ActionResult<null>> {
   const session = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const parsed = Unlock.safeParse(input ?? {});
-  if (!parsed.success) return fail(t("Mot de passe trop long."));
+  if (!parsed.success) return fail(t("passwordTooLong"));
   const auth = readAuthConfig();
   const jar = await cookies();
   const grant = () => {
@@ -66,19 +64,18 @@ export const unlockBackupDownloadAction = audited("unlockBackupDownloadAction", 
     return done(null);
   };
   if (isFreshSession(session.session.createdAt) || isUnlocked(auth.secret, session.session.id, jar.get(UNLOCK_COOKIE)?.value)) return grant();
-  if (!auth.passwordEnabled) return fail(t("Pour télécharger une sauvegarde, reconnecte-toi (ta connexion date de plus de 10 minutes)."), { reauth: "relogin" });
+  if (!auth.passwordEnabled) return fail(t("reconnectToDownloadBackupOldSession"), { reauth: "relogin" });
   const password = parsed.data.password ?? "";
-  if (!password) return fail(t("Confirme ton mot de passe pour télécharger une sauvegarde."), { reauth: "password" });
+  if (!password) return fail(t("confirmPasswordForBackup"), { reauth: "password" });
   const r = await verifyCurrentPassword(await headers(), session.user.email, password);
   if (r.ok) return grant();
   if (r.reason === "throttled") return fail(t("tooManyTries", { wait: r.wait ?? 60 }), { reauth: "throttled" });
-  if (r.reason === "disabled") return fail(t("Pour télécharger une sauvegarde, reconnecte-toi."), { reauth: "relogin" });
-  return fail(t("Mot de passe incorrect."), { reauth: "wrong" });
+  if (r.reason === "disabled") return fail(t("reconnectToDownloadBackup"), { reauth: "relogin" });
+  return fail(t("wrongPassword"), { reauth: "wrong" });
 });
 
 export async function backupStatusAction(): Promise<ActionResult<BackupStatus>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   return done(await getBackupStatus());
 }

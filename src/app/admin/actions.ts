@@ -20,7 +20,6 @@ import { adminT } from "@/i18n/admin-msg";
 export const signOutAction = audited("signOutAction", async function signOutAction(): Promise<void> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   await getAuth().api.signOut({ headers: await headers() });
   // Fin de l'aperçu de thème et de la vue brouillon avec la session ; tous les cookies de l'app sont effacés (docs/SECURITE.md N19),
   // dont l'indicateur « portfolio-admin » du bouton « Modifier cette page » (src/components/EditThisPage.tsx, posé par le proxy).

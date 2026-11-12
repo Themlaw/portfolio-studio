@@ -35,7 +35,6 @@ const id = (v: unknown) => {
 export const createProjectAction = audited("createProjectAction", async function createProjectAction(input?: unknown): Promise<ActionResult<{ id: number; slug: string }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const result = createProject(input);
   if (result.ok) revalidateProject(result.data.id, { structure: true });
   return result;
@@ -44,9 +43,8 @@ export const createProjectAction = audited("createProjectAction", async function
 export const saveProjectAction = audited("saveProjectAction", async function saveProjectAction(projectId: unknown, input: unknown): Promise<ActionResult<{ textsHeld: string | null }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail("Projet inconnu.");
+  if (!pid) return fail(t("unknownProject"));
   const result = saveProject(pid, input);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -54,7 +52,6 @@ export const saveProjectAction = audited("saveProjectAction", async function sav
 
 export const reorderProjectsAction = audited("reorderProjectsAction", async function reorderProjectsAction(ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const result = reorderProjects(ids);
   if (result.ok) revalidateProjects();
@@ -67,9 +64,8 @@ export const deleteProjectAction = audited("deleteProjectAction", async function
 ): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: ProjectReference[] }> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail("Projet inconnu.");
+  if (!pid) return fail(t("unknownProject"));
   const result = deleteProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -79,9 +75,8 @@ export const deleteProjectAction = audited("deleteProjectAction", async function
 export const restoreProjectAction = audited("restoreProjectAction", async function restoreProjectAction(projectId: unknown): Promise<ActionResult<{ title: string }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail("Projet inconnu.");
+  if (!pid) return fail(t("unknownProject"));
   const result = restoreProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
@@ -90,9 +85,8 @@ export const restoreProjectAction = audited("restoreProjectAction", async functi
 export const addSlotsAction = audited("addSlotsAction", async function addSlotsAction(projectId: unknown, mediaIds: unknown, at?: unknown): Promise<ActionResult<{ ids: number[] }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail("Projet inconnu.");
+  if (!pid) return fail(t("unknownProject"));
   const result = addSlots(pid, mediaIds, at);
   if (result.ok) revalidateProject(pid);
   return result;
@@ -101,9 +95,8 @@ export const addSlotsAction = audited("addSlotsAction", async function addSlotsA
 export const saveSlotAction = audited("saveSlotAction", async function saveSlotAction(slotId: unknown, input: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail("Emplacement inconnu.");
+  if (!sid) return fail(t("unknownSlot"));
   const result = saveSlot(sid, input);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
@@ -112,9 +105,8 @@ export const saveSlotAction = audited("saveSlotAction", async function saveSlotA
 export const setSlotMediaAction = audited("setSlotMediaAction", async function setSlotMediaAction(slotId: unknown, mediaId: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail("Emplacement inconnu.");
+  if (!sid) return fail(t("unknownSlot"));
   const result = setSlotMedia(sid, mediaId);
   if (result.ok) {
     revalidateProject(result.data.projectId);
@@ -126,9 +118,8 @@ export const setSlotMediaAction = audited("setSlotMediaAction", async function s
 export const deleteSlotAction = audited("deleteSlotAction", async function deleteSlotAction(slotId: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const sid = id(slotId);
-  if (!sid) return fail("Emplacement inconnu.");
+  if (!sid) return fail(t("unknownSlot"));
   const result = deleteSlot(sid);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
@@ -137,9 +128,8 @@ export const deleteSlotAction = audited("deleteSlotAction", async function delet
 export const reorderSlotsAction = audited("reorderSlotsAction", async function reorderSlotsAction(projectId: unknown, ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const pid = id(projectId);
-  if (!pid) return fail("Projet inconnu.");
+  if (!pid) return fail(t("unknownProject"));
   const result = reorderSlots(pid, ids);
   if (result.ok) revalidateProject(pid);
   return result;

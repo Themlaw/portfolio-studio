@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const { user } = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   noteUserActivity(); // lot 118
   return uploadStep(request, async () => ({ upload: await initUpload(await request.json().catch(() => null), user.id) }));
 }

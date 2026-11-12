@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const { id } = await params;
   return uploadStep(request, async () => ({ upload: uploadStatus(id, user.id) }));
 }

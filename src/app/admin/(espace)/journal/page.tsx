@@ -182,9 +182,9 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
           {t("fType")}
           <select name="type" defaultValue={type} className="a-select">
             <option value="">{t("optAllM")}</option>
-            {f.types.map((t) => (
-              <option key={t} value={t}>
-                {t(`type_${t}`) ?? t}
+            {f.types.map((ty) => (
+              <option key={ty} value={ty}>
+                {t(`type_${ty}`) ?? ty}
               </option>
             ))}
           </select>

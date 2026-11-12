@@ -22,6 +22,8 @@ const ok = (label, cond, detail = "") => {
 };
 const ROOT = new URL("..", import.meta.url).pathname;
 const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
+const frRaw = JSON.parse(read("messages/admin.fr.json"));
+const enRaw = JSON.parse(read("messages/admin.en.json"));
 const flat = (o, pre = "", out = {}) => {
   for (const [k, v] of Object.entries(o)) typeof v === "object" && v !== null ? flat(v, `${pre}${k}.`, out) : (out[`${pre}${k}`] = v);
   return out;
@@ -148,6 +150,91 @@ if (fr && en) {
   ok("F1 la garde (requireAdmin, assertAdmin) pose la langue du compte pour les messages serveur", (guard.match(/primeAdminLang\(/g) ?? []).length >= 2);
   const m = await import("../src/i18n/admin-msg.ts").catch(() => null);
   ok("F2 src/i18n/admin-msg.ts : français hors requête, anglais sur demande", Boolean(m) && m.currentAdminLang() === "fr" && m.adminT("sortable")("theItem") === "l'élément" && m.adminT("sortable", "en")("theItem") !== "l'élément");
+}
+
+
+/* ---- G. clés plates et résolution des appels t(...) (lot 130c, bug next-intl) ---- */
+{
+  const badKeys = [];
+  const checkKeyNames = (obj, prefix = "") => {
+    for (const k of Object.keys(obj)) {
+      if (!/^[A-Za-z0-9_-]+$/.test(k)) badKeys.push(`${prefix}${k}`);
+      if (obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k])) checkKeyNames(obj[k], `${prefix}${k}.`);
+    }
+  };
+  checkKeyNames(frRaw);
+  checkKeyNames(enRaw);
+  ok("G1 chaque nom de clé respecte /^[A-Za-z0-9_-]+$/ (pas de point, d'espace ni d'accent)", badKeys.length === 0, `${badKeys.length} invalides, p. ex. ${badKeys.slice(0, 6).join(", ")}`);
+}
+
+{
+  const scope = JSON.parse(read("scripts/adminlang130.scope.json"));
+  const norm = (p) => p.split(path.sep).join("/");
+  const files = scope.include
+    .flatMap((d) => walk(path.join(ROOT, d)))
+    .map((f) => norm(path.relative(ROOT, f)))
+    .filter((f) => !scope.exclude.some((x) => (x.startsWith("*") ? f.endsWith(x.slice(1)) : f.startsWith(x))));
+  const resolveMsg = (messages, key) => {
+    const parts = String(key).split(".");
+    let cur = messages;
+    for (const part of parts) {
+      if (!part) return false;
+      if (!cur || typeof cur !== "object" || Array.isArray(cur) || !(part in cur)) return false;
+      cur = cur[part];
+    }
+    return typeof cur === "string";
+  };
+  const declRe = /(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getAdminT|adminT)\s*\(\s*["']([^"']+)["']\s*\)/g;
+  const declRe2 = /(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?makeAdminTranslator\s*\([^)]*["']([^"']+)["']\s*\)/g;
+  const callRe = /(\w+)\s*\(\s*(?:"([^"]*)"|`([^`]*)`)\s*\)/g;
+  const unresolved = [];
+  for (const f of files) {
+    const src = read(f);
+    const nsByVar = new Map();
+    for (const m of src.matchAll(declRe)) nsByVar.set(m[1], m[2]);
+    for (const m of src.matchAll(declRe2)) nsByVar.set(m[1], m[2]);
+    for (const m of src.matchAll(callRe)) {
+      const ns = nsByVar.get(m[1]);
+      if (!ns || !(ns in frRaw)) continue;
+      let key = m[2] !== undefined ? m[2] : m[3];
+      if (key.includes("${")) {
+        const prefix = key.split("${")[0].replace(/\.$/, "");
+        if (!prefix) continue;
+        // Vérifie qu'au moins une clé du catalogue commence par ce préfixe fixe.
+        const allKeys = [];
+        const collect = (obj, pre = "") => {
+          for (const k of Object.keys(obj)) {
+            const pth = pre ? `${pre}.${k}` : k;
+            allKeys.push(pth);
+            if (obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k])) collect(obj[k], pth);
+          }
+        };
+        collect(frRaw[ns]);
+        let okPrefix = allKeys.some((k) => k === prefix || k.startsWith(prefix) || k.startsWith(`${prefix}.`));
+        if (!okPrefix) {
+          // try all namespaces
+          for (const nsn of Object.keys(frRaw)) {
+            const ks = [];
+            const coll = (o, pre="") => { for (const k of Object.keys(o)) { const pth = pre?`${pre}.${k}`:k; ks.push(pth); if (o[k]&&typeof o[k]==="object"&&!Array.isArray(o[k])) coll(o[k],pth); } };
+            coll(frRaw[nsn]);
+            if (ks.some((k)=>k===prefix||k.startsWith(prefix)||k.startsWith(`${prefix}.`))) { okPrefix=true; break; }
+          }
+        }
+        if (!okPrefix) {
+          const line = src.slice(0, m.index).split("\n").length;
+          unresolved.push(`${f}:${line} ${ns}::${prefix}`);
+        }
+        continue;
+      }
+      let resolved = resolveMsg(frRaw[ns], key);
+      if (!resolved) for (const nsn of Object.keys(frRaw)) if (resolveMsg(frRaw[nsn], key)) { resolved = true; break; }
+      if (!resolved) {
+        const line = src.slice(0, m.index).split("\n").length;
+        unresolved.push(`${f}:${line} ${ns}::${key}`);
+      }
+    }
+  }
+  ok("G2 chaque appel t(...) se résout dans le catalogue (points = niveaux)", unresolved.length === 0, `${unresolved.length} non résolus, p. ex. ${unresolved.slice(0, 6).join(" | ")}`);
 }
 
 console.log(failures === 0 ? "\nTout est vert." : `\n${failures} échec(s).`);

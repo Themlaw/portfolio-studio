@@ -19,9 +19,8 @@ const Target = z.strictObject({ kind: z.enum(["page", "project", "media", "wallp
 export const purgeTrashItemAction = audited("purgeTrashItemAction", async function purgeTrashItemAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const t = adminT("actions");
-  const t = adminT("actions");
   const parsed = Target.safeParse(input);
-  if (!parsed.success) return fail(t("Requête invalide."));
+  if (!parsed.success) return fail(t("invalidRequest"));
   const result = await purgeOne(parsed.data.kind, parsed.data.id);
   if (!result.ok) return fail(result.message);
   // Rien de public n'a changé (l'élément n'y était plus) ; les compteurs et usages se relisent.
@@ -33,7 +32,6 @@ export const purgeTrashItemAction = audited("purgeTrashItemAction", async functi
 /** Vide la corbeille : purge immédiate, dans l'ordre du job. */
 export const emptyTrashAction = audited("emptyTrashAction", async function emptyTrashAction(): Promise<ActionResult<PurgeReport & { kept: number }>> {
   await assertAdmin();
-  const t = adminT("actions");
   const t = adminT("actions");
   const report = await emptyTrash();
   revalidateMedia();

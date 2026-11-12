@@ -1152,7 +1152,7 @@ export function FreeBoardEditor() {
         label={t("areaFormat")}
         help={t("theAreaSHeight")}
         value={format}
-        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? t("freeCropped") : tl(`freeFormat.${f}`) }))}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? t("freeCropped") : tl(`freeFormat.${f.replace(/[+:]/g, "_")}`) }))}
         onChange={(v) => {
           if (cropped && v === "free") return;
           apply({ op: "set", format: (v as FreeFormat) ?? "3:2" });

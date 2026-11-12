@@ -2,12 +2,12 @@
   "gridLayout": {
     "auto": "Automatic",
     "1": "1 large",
-    "1+2": "1 large + 2 small below",
+    "1_2": "1 large + 2 small below",
     "2": "2 side by side",
     "3": "3 side by side",
     "2x2": "4 small (2 × 2)",
     "4": "4 in a row",
-    "2+1": "2 small + 1 large",
+    "2_1": "2 small + 1 large",
     "portrait-left": "Portrait on the left + 2 on the right",
     "portrait-right": "Portrait on the right + 2 on the left",
     "custom": "Custom"
@@ -64,10 +64,10 @@
     }
   },
   "freeFormat": {
-    "16:9": "16:9",
-    "3:2": "3:2",
-    "4:3": "4:3",
-    "1:1": "Square",
+    "16_9": "16:9",
+    "3_2": "3:2",
+    "4_3": "4:3",
+    "1_1": "Square",
     "free": "Free height"
   },
   "freePhone": {
