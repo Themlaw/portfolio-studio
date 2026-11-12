@@ -10,6 +10,7 @@
 import { z } from "zod";
 import { RevealSchema } from "./reveal";
 
+import { animSlotFields } from "../lib/animation/sheet";
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
 import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS } from "../lib/look";
 
@@ -55,6 +56,8 @@ export const FreeItemSchema = z.object({
   poster: z.number().int().positive().optional(),
   /** Apparition au défilement de cette image (lot 133) ; illisible = ignorée. */
   reveal: RevealSchema.optional().catch(undefined),
+  /** Lot 132 : animation image par image : cadence (6 / 8 / 12 / 24) et boucle (`false` = un tour) de CETTE image. Absent = rendu d'avant. */
+  ...animSlotFields,
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 

@@ -13,6 +13,7 @@
  */
 import { z } from "zod";
 
+import { fpsSchema } from "../animation/sheet";
 import { cleanLook, FrameSchema, ImageBgSchema, MEDIA_LOOK_FIELDS, RADII, SLOT_PANO_MODES, SLOT_VIDEO_MODES, SLOT_VIDEO_SOUNDS, type Look, type MediaLookData, type MediaLookField } from "../look";
 
 export const MediaPatchSchema = z
@@ -24,8 +25,11 @@ export const MediaPatchSchema = z
     video: z.enum(SLOT_VIDEO_MODES).nullable().optional(),
     /** Son au départ d'une vidéo (lot 127) : place de carrousel et Planche libre ; ailleurs, `props.sound` (message `video-sound`). */
     sound: z.enum(SLOT_VIDEO_SOUNDS).nullable().optional(),
+    /** Lot 132 : cadence et boucle d'une animation image par image (Planche libre seulement : ailleurs, `props.fps` / `props.loop` du bloc). */
+    fps: fpsSchema.nullable().optional(),
+    loop: z.boolean().nullable().optional(),
   })
-  .refine((p) => MEDIA_LOOK_FIELDS.some((k) => p[k] !== undefined), { message: "Rien à changer." });
+  .refine((p) => MEDIA_LOOK_FIELDS.some((k) => p[k] !== undefined) || p.fps !== undefined || p.loop !== undefined, { message: "Rien à changer." });
 export type MediaPatch = z.infer<typeof MediaPatchSchema>;
 
 /** Champs que seule une place de carrousel porte. */
@@ -33,6 +37,7 @@ const SLOT_ONLY: readonly MediaLookField[] = ["pano", "video", "sound"];
 
 /** Le patch concerne-t-il une place de carrousel seulement ? Message (français simple) si un champ n'a pas sa place là. */
 export function patchError(patch: MediaPatch, where: "slot" | "own" | "free"): string | null {
+  if (where !== "free" && (patch.fps !== undefined || patch.loop !== undefined)) return "La cadence d'une animation se règle sur son bloc ou dans la Planche libre.";
   if (where === "slot") return null;
   // Planche libre (lot 116) : la lecture d'une vidéo (Boucle / Lecteur) se règle sur sa ligne, comme sur une place de carrousel ; pas le panorama.
   if (where === "free") return patch.pano !== undefined ? "Le panorama ne se règle que sur une place d'« Images qui défilent »." : null;
@@ -88,15 +93,16 @@ export function applyMediaPatch(look: Look | undefined, patch: MediaPatch, slug?
 }
 
 /** Une image de la Planche libre : ses trois réglages vivent sur sa ligne (`frame`, `bg`, `radius`). */
-export type FreeLook = { frame?: unknown; bg?: unknown; radius?: unknown; video?: unknown; sound?: unknown };
+export type FreeLook = { frame?: unknown; bg?: unknown; radius?: unknown; video?: unknown; sound?: unknown; fps?: unknown; loop?: unknown };
 export function applyMediaPatchToFree<T extends FreeLook>(item: T, patch: MediaPatch): { item: T } | { error: string } {
   const error = patchError(patch, "free");
   if (error) return { error };
   const next: Record<string, unknown> = { ...item };
-  for (const k of ["frame", "bg", "radius", "video", "sound"] as const) {
+  for (const k of ["frame", "bg", "radius", "video", "sound", "fps", "loop"] as const) {
     const v = patch[k];
     if (v === undefined) continue;
-    if (v === null || (k === "sound" && v === "on")) delete next[k];
+    // Défauts jamais écrits : son activé, 8 i/s, en boucle (lot 132).
+    if (v === null || (k === "sound" && v === "on") || (k === "fps" && v === 8) || (k === "loop" && v === true)) delete next[k];
     else next[k] = v;
   }
   return { item: next as T };

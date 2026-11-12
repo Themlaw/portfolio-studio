@@ -156,6 +156,7 @@ export const SPECS: Record<string, Spec> = {
   revokeOtherSessionsAction: { label: "Autres sessions déconnectées", type: "compte", values: [] },
   // Routes d'écriture
   "route:upload": { label: "Fichier envoyé", type: "import", values: [] },
+  "route:animation": { label: "Animation image par image envoyée", type: "import", values: [] },
   "route:upload-complete": { label: "Envoi par morceaux terminé", type: "import", values: [] },
   "route:upload-cancel": { label: "Envoi annulé", type: "suppression", values: [] },
   "route:theme-import": { label: "Thème importé (archive)", type: "import", values: [] },

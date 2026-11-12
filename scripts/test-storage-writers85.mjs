@@ -27,6 +27,8 @@ const TABLE = {
   "src/lib/images/crop-cache.ts": ["b", "cache/crops (régénérable, vidé à la restauration)"],
   "src/lib/auth/dev-secret.ts": ["t", ".dev-secret (secret de DÉVELOPPEMENT aléatoire, jamais en production ; ne doit pas être sauvegardé ni restauré)"],
   "src/lib/images/process.ts": ["b", "media/img/ (variantes) ; tmp/"],
+  "src/lib/animation/ingest.ts": ["a", "media/originals/ (feuille WebP)"],
+  "src/lib/animation/process.ts": ["b", "media/img/ (variante = copie de la feuille)"],
   "src/lib/kit/apply.ts": ["c", "media/kit/ (dessins du kit appliqués) : sauvegardé par défaut"],
   "src/lib/kit/build-multi.ts": ["b", "cache/kits (export du kit), fiches : cache/kits/manifests (sauvegardées, exception)"],
   "src/lib/kit/build.ts": ["b", "cache/kits, aperçus des fiches (sauvegardés avec elles)"],

@@ -41,6 +41,7 @@ import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { ConfirmDialog, same, toast, undoToast, useUnsavedGuard } from "./editing";
 import MediaPreviewDialog from "./editor/MediaPreviewDialog";
 import { filterMedia } from "./LibraryStrip";
+import AnimationUploader from "./AnimationUploader";
 import Uploader from "./Uploader";
 import { useUploadQueue } from "./UploadQueue";
 import { formatBytes, formatSent, useMediaWatch } from "./uploads";
@@ -849,6 +850,7 @@ export default function MediaLibrary({ initial, trashed, summary, usage, focus }
           )}
         </div>
         <Uploader origin="medias" libraryLabel="Voir" onSeeLibrary={() => setTab("media")} />
+        <AnimationUploader />
         <PendingUploads onResume={(file, id) => queue.addFiles([file], { origin: "medias", resumeId: id })} />
         <div className="a-tabs" role="tablist" aria-label="Médiathèque">
           <button type="button" role="tab" id="tab-media" aria-selected={tab === "media"} aria-controls="panel-media" onClick={() => setTab("media")}>

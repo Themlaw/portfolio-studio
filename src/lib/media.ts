@@ -1,6 +1,7 @@
 import { and, eq, isNull, like } from "drizzle-orm";
 
 import { DOC_PREFIX, hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pdfView, pictureSources, variantMime, VARIANTS_PREFIX, VIDEO_PREFIX, videoSources, type PdfView, type PictureSources, type VideoSources } from "./images/variants";
+import { animOf, type AnimMeta } from "./animation/sheet";
 import { formatDuration, isLoop } from "./video/limits";
 
 import { cached, TAGS } from "./cache";
@@ -23,6 +24,8 @@ export type MediaInfo = {
   width: number | null;
   height: number | null;
   alt: L | null;
+  /** Lot 132 : animation image par image (width / height sont alors ceux d'UNE image ; `url` / `sources` la bande entière). */
+  anim?: AnimMeta;
 };
 
 /** URL publique d'un média (servie par src/app/media/[...key]/route.ts). */
@@ -77,6 +80,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
     const row = getDb().select().from(schema.media).where(eq(schema.media.id, id)).get();
     if (!row || row.status !== "ready" || row.deletedAt) return null;
     const sources = mediaSources(row);
+    const anim = row.kind === "image" ? animOf(row.variants) : null;
     return {
       id: row.id,
       key: row.key,
@@ -85,9 +89,10 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
       video: videoView(row),
       pdf: row.kind === "pdf" ? pdfViewOf(row) : null,
       mime: row.mime,
-      width: row.width,
-      height: row.height,
+      width: anim ? anim.fw : row.width,
+      height: anim ? anim.fh : row.height,
       alt: row.alt ?? null,
+      ...(anim ? { anim } : {}),
     };
   });
 }

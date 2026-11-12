@@ -1,0 +1,39 @@
+/* Lot 132 — animations dessinées image par image (AnimatedSheet) : la bande WebP (N images côte à côte) est un fond 100 % de haut et
+   N × 100 % de large ; `background-position-x` va de 0 % (1re image) à 100 % (dernière) par N paliers (`jump-none` : les deux bouts sont
+   des images, chacune tenue 1/N de la durée). Durée = images ÷ cadence (`--af-d`), posée par le rendu. */
+.anim-sheet {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-size: calc(var(--af-n) * 100%) 100%;
+  background-position: 0 0;
+  animation: anim-steps var(--af-d) steps(var(--af-n), jump-none) infinite;
+}
+@keyframes anim-steps {
+  from {
+    background-position-x: 0%;
+  }
+  to {
+    background-position-x: 100%;
+  }
+}
+/* Hors écran : en pause (IntersectionObserver, `data-vis`). Un seul tour : il ne démarre qu'à l'écran et s'arrête sur la dernière image. */
+.anim-sheet[data-vis="0"] {
+  animation-play-state: paused;
+}
+.anim-sheet[data-loop="once"] {
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.anim-sheet[data-loop="once"]:not([data-vis="1"]) {
+  animation-play-state: paused;
+}
+/* Réduire les animations : la première image, fixe. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-sheet,
+  .anim-sheet[data-loop="once"] {
+    animation: none;
+    background-position: 0 0;
+  }
+}
