@@ -22,7 +22,7 @@ const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 const SHOTS = process.env.SHOTS;
-const STAGE = process.env.STAGE ?? "a"; // a : admin hors éditeur ; b : + éditeur
+const STAGE = process.env.STAGE ?? "b"; // a : admin hors éditeur ; b : + éditeur et sa toile (iframe)
 // STRICT=1 (étape 130c, tout traduit) : le moindre reste français d'interface échoue. Sinon (étapes a, b) : les restes qui viennent des modules
 // de src/lib et de src/blocks, traduits aux étapes suivantes, sont seulement listés (INFO) ; une chaîne du catalogue français rendue en
 // mode anglais (clé mal câblée) échoue toujours.
@@ -69,12 +69,14 @@ const setLang = async (lang) => {
 };
 
 /** Textes d'INTERFACE de la page (le contenu saisi — valeurs de champs, cellules de contenu, noms — n'en fait pas partie). */
-const uiTexts = () =>
-  page.evaluate(() => {
+const uiTexts = (target = page, only = null) =>
+  target.evaluate((only) => {
     const out = [];
     const vis = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
     const SEL = "h1,h2,h3,h4,label,button,th,legend,summary,figcaption,option,.a-help,.a-field-error,.a-badge,.a-btn,nav a,dialog p,.a-toast,[role=tab],[role=status],p.muted,.a-page-header p,small";
+    const inScope = (el) => !only || el.closest(only);
     for (const el of document.querySelectorAll(SEL)) {
+      if (!inScope(el)) continue;
       if (!vis(el) && el.tagName !== "OPTION") continue;
       if (el.closest("[data-content],[contenteditable=true],textarea,pre,code")) continue;
       // texte propre de l'élément (sans les enfants éléments qui sont eux-mêmes listés ou sont du contenu)
@@ -82,17 +84,18 @@ const uiTexts = () =>
       if (own) out.push(own);
     }
     for (const el of document.querySelectorAll("[title],[aria-label],[placeholder],img[alt]")) {
+      if (!inScope(el)) continue;
       for (const a of ["title", "aria-label", "placeholder", "alt"]) {
         const v = el.getAttribute(a);
         if (v && !el.closest("[data-content]")) out.push(v.trim());
       }
     }
     return out;
-  });
+  }, only);
 const strip = (s) => s.replace(/[“«"][^”»"]*[”»"]/g, " ").replace(/\([^)]*\)/g, " ").replace(/#[0-9a-f]{3,8}/gi, " ").trim();
 /** { leaks : chaînes du catalogue français affichées en mode anglais ; rest : autres chaînes françaises d'interface (modules lib / blocs) }. */
-const frenchLeft = async () => {
-  const texts = [...new Set(await uiTexts())];
+const frenchLeft = async (target = page, only = null) => {
+  const texts = [...new Set(await uiTexts(target, only))];
   const leaks = texts.filter((s) => FR_ONLY.some((f) => s === f && f.length >= 14 && !EN_VALUES.has(f.toLowerCase())));
   const rest = texts.filter((s) => !leaks.includes(s) && !EN_VALUES.has(s.toLowerCase()) && isFrench(strip(s)));
   return { leaks, rest };
@@ -202,6 +205,21 @@ try {
     await page.waitForTimeout(1500);
     checkScreen("L7 éditeur de page en anglais", await frenchLeft());
     await shot("l7-editeur-en");
+    // La toile (iframe : page publique en vue brouillon) : seulement les éléments de la couche d'édition et ses commandes, pas le contenu du site.
+    const toile = page.frames().find((f) => f !== page.mainFrame() && /\/(fr|en)(\/|$|\?)/.test(new URL(f.url(), BASE).pathname));
+    ok("L7 la toile de l'éditeur est chargée", Boolean(toile));
+    if (toile) {
+      await toile.waitForSelector(".pe-host", { timeout: 20000, state: "attached" }).catch(() => {});
+      const EDIT_UI = ".pe-host,.pe-bitem-bar,.pe-bitem-add,.pe-bitem-empty,.pe-board-add,.pe-tile-tools,.pe-tile-cover,.pe-tile-add-row,[data-edit-invalid]";
+      const attrs = await toile.evaluate(() => [...document.querySelectorAll("[data-placeholder],[data-site-hint],[data-edit-label]")].map((e) => e.dataset.placeholder || e.dataset.siteHint || e.dataset.editLabel).filter(Boolean));
+      const { leaks, rest } = await frenchLeft(toile, EDIT_UI);
+      const restAttrs = attrs.filter((a) => isFrench(strip(a)) && !EN_VALUES.has(a.toLowerCase()));
+      ok("L7 toile : aucune chaîne du catalogue français dans la couche d'édition", leaks.length === 0, leaks.slice(0, 6).join(" | "));
+      const all = [...rest, ...restAttrs];
+      if (all.length) console.log(`${STRICT ? "FAIL" : "INFO"} L7 toile : reste français d'interface : ${all.slice(0, 8).join(" | ")}`);
+      if (STRICT && all.length) failures++;
+      await toile.evaluate(() => 0);
+    }
     await setLang("fr");
   }
 } catch (error) {

@@ -854,7 +854,7 @@ if (run("D")) {
     await page.keyboard.type(text);
     await page.keyboard.press("Enter");
   };
-  const bodyHas = (re) => waitFor(async () => re.test((await page.locator("body").textContent()) ?? ""), 15000);
+  const bodyHas = (re) => waitFor(async () => re.test((await page.locator("body").innerText()) ?? ""), 15000);
   releaseText();
   f = await openEditor(homeId);
   await sleep(1500);

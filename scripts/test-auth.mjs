@@ -735,7 +735,7 @@ r = await postForm(jar, "/admin/apercu", { id: "pro" }, { referer: `${BASE}/admi
 ok("A7b aperçu (formulaire natif) → 303 /fr + draft mode", r.status === 303 && r.headers.get("location") === "/fr" && jar.cookies.has("__prerender_bypass") && jar.cookies.get("theme-preview") === "pro", `${r.status} ${r.headers.get("location")}`);
 r = await http("/fr", { jar });
 const previewHtml = await r.text();
-ok("A7c l'admin voit l'aperçu (pro) et le bandeau", previewHtml.includes('data-theme="pro"') && /class="preview-banner"[\s\S]*Aperçu du thème : <strong>Pro<\/strong>/.test(previewHtml));
+ok("A7c l'admin voit l'aperçu (pro) et le bandeau", previewHtml.includes('data-theme="pro"') && /class="preview-banner"[\s\S]*Aperçu du thème :(?:<!-- -->)? <strong>Pro<\/strong>/.test(previewHtml));
 const noSession = jar.copy((k) => !k.includes("session_token"));
 r = await http("/fr", { jar: noSession });
 const noSessionHtml = await r.text();
