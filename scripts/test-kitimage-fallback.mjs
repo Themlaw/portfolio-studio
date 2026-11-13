@@ -73,7 +73,7 @@ for (const name of rasterVars) {
 }
 
 // Variante image-set(…type("image/avif")…) à l'intérieur du @supports.
-ok("image-set type(image/avif) présent dans @supports", /image-set\([^)]*type\("image\/avif"\)/.test(inside), inside.slice(0, 200));
+ok("image-set type(image/avif) présent dans @supports", /image-set\(url\("[^"]*\.avif"\) type\("image\/avif"\)/.test(inside), inside.slice(0, 200));
 for (const name of rasterVars) {
   const re = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ':image-set\\(');
   ok(`${name} : image-set( dans @supports`, re.test(inside));
@@ -97,7 +97,7 @@ const frameCss = frameLibraryCss([entry]);
 const fi = splitSupports(frameCss);
 ok("frame-library : border-image-source url(webp) hors @supports", /border-image-source:url\("[^"]*\.webp"\)/.test(fi.outside));
 ok("frame-library : aucun image-set hors @supports", !fi.outside.includes("image-set("));
-ok("frame-library : image-set type(avif) dans @supports", /image-set\([^)]*type\("image\/avif"\)/.test(fi.inside));
+ok("frame-library : image-set type(avif) dans @supports", /image-set\(url\("[^"]*\.avif"\) type\("image\/avif"\)/.test(fi.inside));
 
 if (failures) {
   console.error(`\ntest-kitimage-fallback : ${failures} échec(s)`);
