@@ -11,10 +11,11 @@ import { parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { signCrop } from "@/lib/images/crop-cache";
 import { cropVars } from "@/lib/look";
 import { getMedia, mediaUrl } from "@/lib/media";
+import { extractRefs } from "./refs";
 import { getNav, getPageBlocks, getPageIndex, hrefForPage } from "@/lib/pages";
 import { getSiteView } from "@/lib/settings";
 
-import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, orderEntryPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type EntryPage, type TileItem } from "./collection-pages";
+import { autoEntries, manualEntries, MAX_TILES, orderCollectionPages, orderEntryPages, tilesMode, TILE_GEOMETRY, tileSize, type CollectionPage, type EntryPage, type TileItem } from "./collection-pages";
 import { collection, inline, localized, mediaRef, pageRef, textStyle, tr, type BlockContext, localizedText } from "./types";
 import { editI18n } from "./edit-i18n";
 
@@ -48,6 +49,29 @@ async function findCollectionPages(ctx: BlockContext): Promise<{ found: Collecti
   const menu = (await getNav(ctx.locale, view.nav)).flatMap((n) => (n.pageId !== undefined ? [n.pageId] : []));
   const pages = await Promise.all(index.map(async (p) => ({ id: p.id, slug: p.slug, title: p.title, collection: p.collection, blocks: (await getPageBlocks(p.id)).filter((b) => !b.corrupt) })));
   return { found: orderCollectionPages(pages, menu), entryPages: orderEntryPages(pages, menu), published: new Set(index.map((p) => p.id)) };
+}
+
+type MediaRow = NonNullable<Awaited<ReturnType<typeof getMedia>>>;
+const asCover = (m: MediaRow, title: { fr: string; en: string }, locale: BlockContext["locale"]) => ({
+  image: m.url,
+  sources: m.sources ?? undefined,
+  width: m.width!,
+  height: m.height!,
+  mediaId: m.id,
+  video: undefined,
+  alt: (m.alt ? tr(m.alt, locale) : "") || tr(title, locale),
+});
+
+/** v1.0.1 : première image (ni vidéo ni PDF) citée par les blocs publiés de cette page : tuile d'une collection sans œuvre affichée. */
+async function pageCover(pageId: number): Promise<MediaRow | null> {
+  const blocks = (await getPageBlocks(pageId)).filter((b) => !b.corrupt);
+  for (const b of blocks) {
+    for (const id of extractRefs(b.type, b.props).media) {
+      const m = await getMedia(id);
+      if (m && !m.video && !m.pdf && m.width && m.height) return m;
+    }
+  }
+  return null;
 }
 
 export default async function CollectionTilesBlock({
@@ -111,20 +135,19 @@ export default async function CollectionTilesBlock({
       });
       continue;
     }
-    // Collection sans œuvre publiée : rien en public ; sur la toile, un avis dans la tuile (lot 26).
+    // v1.0.1 : la tuile d'une page de collection PUBLIÉE est toujours montrée, même si aucun projet affiché n'a d'œuvre
+    // dans cette collection (la page peut montrer ses images directement). Couverture : l'image choisie sur la tuile, sinon
+    // celle de la collection (œuvre « Couverture » ou la première, projets affichés seulement : #24), sinon la première
+    // image de la page elle-même (déjà publique). Le compteur d'œuvres n'apparaît que s'il y en a.
     const works = await countCollection(row.collection);
-    const visibility = tileVisibility(works, Boolean(ctx.edit));
-    if (visibility !== "tile") {
-      if (visibility === "notice") tiles.push({ key: row.key, empty: true, collectionName: ctx.edit ? ta(`collection.${row.collection}`) : COLLECTION_NAMES[row.collection], pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
-      continue;
-    }
-    // Couverture choisie sur la tuile (une image de la médiathèque), sinon celle de la collection (œuvre « Couverture » de l'admin, ou la première).
     const chosen = row.mediaId !== undefined ? await getMedia(row.mediaId) : null;
     const own = chosen && !chosen.video && !chosen.pdf && chosen.width && chosen.height ? chosen : null;
-    const cover = own
-      ? { image: own.url, sources: own.sources ?? undefined, width: own.width!, height: own.height!, mediaId: own.id, video: undefined, alt: (own.alt ? tr(own.alt, ctx.locale) : "") || tr(row.title, ctx.locale) }
-      : await getCollectionCover(row.collection, ctx.locale);
-    if (!cover) continue;
+    const cover = own ? asCover(own, row.title, ctx.locale) : ((await getCollectionCover(row.collection, ctx.locale)) ?? (await pageCover(row.pageId).then((m) => (m ? asCover(m, row.title, ctx.locale) : undefined))));
+    if (!cover) {
+      // Ni image choisie, ni œuvre, ni image sur la page : rien en public ; sur la toile, l'avis du lot 26.
+      if (ctx.edit) tiles.push({ key: row.key, empty: true, collectionName: ta(`collection.${row.collection}`), pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
+      continue;
+    }
     const crop = ctx.look?.tileCrop?.[row.collection];
     // Recadrage libre (lot 17d) : variante extraite de l'ORIGINAL de la couverture ; la tuile prend le rapport du rectangle.
     const free = crop?.rect && cover.mediaId && cover.sources && !cover.video ? cropSources({ id: cover.mediaId, width: cover.width, height: cover.height }, crop.rect, signCrop, mediaUrl, cover.sources.color) : null;
@@ -148,7 +171,7 @@ export default async function CollectionTilesBlock({
       eyebrow: tr(row.eyebrow, ctx.locale),
       title: tr(row.title, ctx.locale),
       intro: tr(row.intro, ctx.locale),
-      count: tg("count", { count: works }),
+      count: works > 0 ? tg("count", { count: works }) : "",
       image: cover.image,
       sources: free ? free.sources : cover.sources,
       imageAlt: cover.alt,

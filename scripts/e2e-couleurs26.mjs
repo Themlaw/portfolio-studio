@@ -331,6 +331,16 @@ if (run("T")) {
   await empty.first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/T5-collection-vide.png` });
   ok("T6 public : jamais d'avis (repères d'édition seulement sur la toile)", !/data-tile-empty|aucune œuvre publiée/.test(home.html) && !/data-tile-empty|aucune œuvre publiée/.test((await anon("/fr")).html));
+  // v1.0.1 : la page de la collection montre une image posée directement (pas de projet) : la tuile reste visible,
+  // avec cette image en couverture et sans compteur (cas de la prod : page Décors en grilles d'images).
+  const animPage = q("select id from pages where collection = 'animation' and deleted_at is null limit 1")[0].id;
+  const img = q("select id from media where kind = 'image' and width > 0 and height > 0 order by id limit 1")[0].id;
+  exec("insert into blocks (page_id, position, type, props) values (?, 999, 'image', ?)", animPage, JSON.stringify({ mediaId: img, width: "wide" }));
+  f = await openEditor(homeId);
+  await f.locator(tiles).first().scrollIntoViewIfNeeded();
+  ok("T8 page de collection avec une image posée : plus d'avis, la tuile est là", await waitFor(async () => (await f.locator("[data-tile-empty]").count()) === 0 && (await f.locator(`${tiles} .tile`).count()) === 3, 30000), `${await f.locator("[data-tile-empty]").count()} avis, ${await f.locator(`${tiles} .tile`).count()} tuiles`);
+  ok("T8b sans œuvre affichée : pas de compteur d'œuvres sur cette tuile", await f.locator(`${tiles} .tile`).evaluateAll((ts) => ts.some((t) => !/\d+\s+(œuvre|work)/i.test(t.textContent ?? ""))));
+  await page.screenshot({ path: `${SHOTS}/T8-tuile-image-de-la-page.png` });
   ok("T7 aucune erreur de page", errors.length === 0, errors.join(" | "));
 }
 
