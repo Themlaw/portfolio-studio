@@ -19,7 +19,9 @@ name: tests
 
 on:
   push:
-    branches: ["**"]
+    # Les branches Dependabot ne sont testées que par leur demande de tirage : tester aussi le push
+    # doublait chaque run et remplissait les jobs simultanés du compte.
+    branches-ignore: ["dependabot/**"]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -32,8 +34,10 @@ on:
 permissions:
   contents: read
 
+# Un groupe par branche, quel que soit l'événement : un push et sa demande de tirage le partagent,
+# le plus ancien est annulé au lieu de tourner deux fois en entier. Un lancement manuel garde le sien.
 concurrency:
-  group: tests-${{ github.event.pull_request.number || github.ref }}
+  group: tests-${{ github.event_name == 'workflow_dispatch' && 'manual-' || '' }}${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -177,6 +181,8 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # Les jobs simultanés du compte sont partagés avec les autres dépôts : ne jamais tous les prendre.
+      max-parallel: 8
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     name: e2e (${{ matrix.shard.name }})
