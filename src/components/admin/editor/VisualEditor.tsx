@@ -254,7 +254,7 @@ export default function VisualEditor({
   hasDraft: boolean;
   /** Adresses publiées de la page (la toile doit les afficher). */
   paths: Record<Locale, string>;
-  pages: { id: number; title: string }[];
+  pages: { id: number; title: string; titleEn?: string }[];
   catalog: BlockCatalogEntry[];
   editors: Record<string, React.ReactNode>;
   context: EditorContext;
@@ -3761,7 +3761,7 @@ export default function VisualEditor({
             <select className="a-input" value={pageId} onChange={(e) => void goToPage(Number(e.target.value))}>
               {pages.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title}
+                  {locale === "en" && p.titleEn ? p.titleEn : p.title}
                 </option>
               ))}
             </select>

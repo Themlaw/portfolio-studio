@@ -15,6 +15,8 @@ import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
 import { readOnboarding } from "./edit/onboarding";
 import { readSiteDraft } from "./edit/site";
+import { readPagesAdminOrder } from "./edit/pages-order";
+import { orderPages } from "./pages-order";
 import { parseJson } from "./json";
 import { asSiteName, NavSchema, NETWORKS, SiteSnapSchema, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
@@ -146,6 +148,7 @@ function blockUses(usages: Usage[], skipPage?: number): BlockUse[] {
 export type AdminPageRow = {
   id: number;
   title: string;
+  titleEn: string;
   slug: L;
   navOrder: number | null;
   published: boolean;
@@ -171,7 +174,7 @@ function pageRows(trashed: boolean): AdminPageRow[] {
     .all();
   const byPage = new Map(blocks.map((b) => [b.pageId, b.n]));
   const all = trashed ? [] : allBlocks();
-  return db
+  const rows = db
     .select()
     .from(schema.pages)
     .where(trashed ? isNotNull(schema.pages.deletedAt) : isNull(schema.pages.deletedAt))
@@ -180,6 +183,7 @@ function pageRows(trashed: boolean): AdminPageRow[] {
     .map((p) => ({
       id: p.id,
       title: p.title.fr,
+      titleEn: p.title.en || p.title.fr,
       slug: p.slug,
       navOrder: p.navOrder,
       published: p.published,
@@ -190,6 +194,10 @@ function pageRows(trashed: boolean): AdminPageRow[] {
       deletedAt: p.deletedAt ? p.deletedAt.getTime() : null,
       special: isSpecialPage(p),
     }));
+  if (trashed) return rows;
+  const orderedNormal = orderPages(rows.filter((p) => !p.special), readPagesAdminOrder());
+  const specials = rows.filter((p) => p.special).sort((a, b) => a.id - b.id);
+  return [...orderedNormal, ...specials];
 }
 
 /** Pages du site (hors corbeille). */

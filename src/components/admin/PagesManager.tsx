@@ -9,7 +9,9 @@ import { TextField } from "@/app/admin/_fields";
 import {
   createPageAction,
   deletePageAction,
+  renamePageAction,
   reorderMenuAction,
+  reorderPagesAction,
   restorePageAction,
   setInMenuAction,
   setPublishedAction,
@@ -212,15 +214,30 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
   const router = useRouter();
   const t = useTranslations("pagesMgr");
   // Pages spéciales (lot 89, « Page introuvable ») : rangées à part, à la fin ; ni menu, ni renommage, ni suppression.
-  const pages = allPages.filter((p) => !p.special);
+  const basePages = allPages.filter((p) => !p.special);
   const specials = allPages.filter((p) => p.special);
-  const menuSaved = pages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0));
+  const menuSaved = basePages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0));
   const [menu, setMenu] = useState(menuSaved);
   const [menuKey, setMenuKey] = useState(JSON.stringify(menuSaved.map((p) => p.id)));
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
+
+  // Ordre d'affichage des pages (indépendant du menu). État local pour Monter/Descendre.
+  const [pageOrder, setPageOrder] = useState(basePages);
+  const [pageSourceKey, setPageSourceKey] = useState(JSON.stringify(basePages.map((p) => p.id)));
+  const serverPageKey = JSON.stringify(basePages.map((p) => p.id));
+  if (serverPageKey !== pageSourceKey) {
+    setPageSourceKey(serverPageKey);
+    setPageOrder(basePages);
+  }
+  const pagesDirty = !same(pageOrder.map((p) => p.id), basePages.map((p) => p.id));
+
+  // Renommage en place.
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameFr, setRenameFr] = useState("");
+  const [renameEn, setRenameEn] = useState("");
 
   // Liste serveur rafraîchie (router.refresh) : on repart de l'ordre enregistré.
   const serverKey = JSON.stringify(menuSaved.map((p) => p.id));
@@ -320,24 +337,76 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
               </tr>
             </thead>
             <tbody>
-              {pages.map((p) => (
+              {pageOrder.map((p) => (
                 <tr key={p.id}>
                   <td data-label={t("colPage")}>
-                    {/* Entrée principale : l'éditeur visuel. */}
-                    <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
-                      {p.title}
-                    </Link>
-                    <span className="muted"> · {t("blocks", { count: p.blocks })}</span>
-                    {p.hasDraft && (
+                    {renamingId === p.id ? (
+                      <div className="pm-rename" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "0.35rem", maxWidth: "28rem" }}>
+                        <input
+                          className="a-input"
+                          data-testid="rename-fr"
+                          value={renameFr}
+                          onChange={(e) => setRenameFr(e.target.value)}
+                          aria-label={t("titleFr")}
+                          placeholder={t("titleFr")}
+                        />
+                        <input
+                          className="a-input"
+                          data-testid="rename-en"
+                          value={renameEn}
+                          onChange={(e) => setRenameEn(e.target.value)}
+                          aria-label={t("titleEn")}
+                          placeholder={t("titleEn")}
+                        />
+                        <div className="a-row-actions">
+                          <button
+                            type="button"
+                            className="a-btn a-btn-small a-btn-primary"
+                            data-testid="rename-save"
+                            disabled={busy}
+                            onClick={() =>
+                              start(async () => {
+                                const r = await renamePageAction(p.id, { title: { fr: renameFr, en: renameEn } });
+                                if (!r.ok) return toast(r.message ?? t("actionFailed"), "error");
+                                toast(t("renamed"));
+                                setRenamingId(null);
+                                router.refresh();
+                              })
+                            }
+                          >
+                            {t("renameConfirm")}
+                          </button>
+                          <button
+                            type="button"
+                            className="a-btn a-btn-small"
+                            data-testid="rename-cancel"
+                            disabled={busy}
+                            onClick={() => setRenamingId(null)}
+                          >
+                            {t("cancel")}
+                          </button>
+                        </div>
+                        <span className="a-sub mono">{addresses(p)}</span>
+                      </div>
+                    ) : (
                       <>
-                        {" "}
-                        <span className="a-tag a-tag-draft" title={t("unpublishedChangesTitle")}>
-                          {t("unpublishedChanges")}
-                        </span>
+                        {/* Entrée principale : l'éditeur visuel. */}
+                        <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
+                          {p.title}
+                        </Link>
+                        <span className="muted"> · {t("blocks", { count: p.blocks })}</span>
+                        {p.hasDraft && (
+                          <>
+                            {" "}
+                            <span className="a-tag a-tag-draft" title={t("unpublishedChangesTitle")}>
+                              {t("unpublishedChanges")}
+                            </span>
+                          </>
+                        )}
+                        {/* L'adresse reste visible, en petit : le titre est ce qu'on cherche. */}
+                        <span className="a-sub mono">{addresses(p)}</span>
                       </>
                     )}
-                    {/* L'adresse reste visible, en petit : le titre est ce qu'on cherche. */}
-                    <span className="a-sub mono">{addresses(p)}</span>
                   </td>
                   <td data-label={t("colState")}>
                     {p.published ? <span className="a-badge">{t("live")}</span> : <span className="a-tag">{t("notLive")}</span>}
@@ -380,6 +449,51 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                     </button>
                   </td>
                   <td className="a-row-actions">
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small"
+                      data-testid="page-up"
+                      disabled={busy || pageOrder[0]?.id === p.id}
+                      onClick={() => {
+                        const idx = pageOrder.findIndex((x) => x.id === p.id);
+                        if (idx <= 0) return;
+                        const next = [...pageOrder];
+                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                        setPageOrder(next);
+                      }}
+                      aria-label={t("moveUp")}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small"
+                      data-testid="page-down"
+                      disabled={busy || pageOrder[pageOrder.length - 1]?.id === p.id}
+                      onClick={() => {
+                        const idx = pageOrder.findIndex((x) => x.id === p.id);
+                        if (idx < 0 || idx >= pageOrder.length - 1) return;
+                        const next = [...pageOrder];
+                        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                        setPageOrder(next);
+                      }}
+                      aria-label={t("moveDown")}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small a-btn-quiet"
+                      data-testid="rename-page"
+                      disabled={busy}
+                      onClick={() => {
+                        setRenamingId(p.id);
+                        setRenameFr(p.title);
+                        setRenameEn(p.titleEn);
+                      }}
+                    >
+                      {t("rename")}
+                    </button>
                     <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}/editer`}>
                       {t("edit")}
                     </Link>
@@ -404,6 +518,39 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="a-savebar a-savebar-inline" data-dirty={pagesDirty}>
+          <p className="a-save-state" aria-live="polite">
+            {pagesDirty ? (
+              <>
+                <span className="a-dot" aria-hidden="true" /> {t("pagesOrderDirty")}
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">✓</span> {t("pagesOrderSaved")}
+              </>
+            )}
+          </p>
+          {pagesDirty && (
+            <button type="button" className="a-btn" onClick={() => setPageOrder(basePages)} disabled={busy}>
+              {t("cancel")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="a-btn a-btn-primary"
+            disabled={!pagesDirty || busy}
+            onClick={() =>
+              start(async () => {
+                const r = await reorderPagesAction(pageOrder.map((p) => p.id));
+                if (!r.ok) return toast(r.message ?? t("actionFailed"), "error");
+                toast(t("pagesOrderToast"));
+                router.refresh();
+              })
+            }
+          >
+            {t("savePagesOrder")}
+          </button>
         </div>
       </section>
 

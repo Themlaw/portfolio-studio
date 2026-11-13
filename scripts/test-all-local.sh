@@ -171,6 +171,7 @@ E2E=(
   "boards|node scripts/e2e-boards.mjs|chromium|"
   "admin|node scripts/e2e-admin.mjs|chromium|"
   "admin23|node scripts/e2e-admin23.mjs|chromium|"
+  "pagesordre|node scripts/e2e-pages-ordre.mjs|chromium|"
   "medias|node scripts/e2e-medias.mjs|chromium|"
   "medias-firefox|node scripts/e2e-medias.mjs|firefox|AB"
   "17b|node scripts/e2e-17b.mjs|chromium||MALLOC_ARENA_MAX=2 MALLOC_MMAP_THRESHOLD_=131072 MALLOC_TRIM_THRESHOLD_=131072"

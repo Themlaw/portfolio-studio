@@ -2889,7 +2889,19 @@
     "blockRef": "Bloc « {type} » de la page <l>{title}</l>",
     "inTrash": " (à la corbeille)",
     "deleteKeep": "Elle quitte le site et le menu, mais reste {days} jours dans la corbeille : tu peux l'y retrouver ou annuler juste après.",
-    "draftKept": "Son brouillon de l'éditeur est conservé ; ses modifications non publiées de projets ou de l'en-tête (réseaux, pied de page) sont abandonnées."
+    "draftKept": "Son brouillon de l'éditeur est conservé ; ses modifications non publiées de projets ou de l'en-tête (réseaux, pied de page) sont abandonnées.",
+    "rename": "Renommer",
+    "renameTitle": "Renommer la page",
+    "renameConfirm": "Enregistrer le nom",
+    "renamed": "Nom de la page modifié",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "pagesOrderHeading": "Ordre des pages",
+    "pagesOrderHelp": "Choisis l'ordre des pages ici : c'est aussi l'ordre du sélecteur de page dans l'éditeur visuel. L'ordre du menu du site ne change pas.",
+    "pagesOrderDirty": "Nouvel ordre non enregistré",
+    "pagesOrderSaved": "Ordre enregistré",
+    "savePagesOrder": "Enregistrer l’ordre des pages",
+    "pagesOrderToast": "Ordre des pages enregistré"
   },
   "palette": {
     "modeAuto": "auto",
