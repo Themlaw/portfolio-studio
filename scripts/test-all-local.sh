@@ -210,6 +210,7 @@ E2E=(
   "kit53|node scripts/e2e-kit53.mjs|chromium|"
   "partage52|node scripts/e2e-partage52.mjs|chromium|"
   "priseenmain57|node scripts/e2e-priseenmain57.mjs|chromium|"
+  "apercu-appareils|node scripts/e2e-apercu-appareils.mjs|chromium|"
   "cadremotif58|node scripts/e2e-cadremotif58.mjs|chromium|"
   "cadres62|node scripts/e2e-cadres62.mjs|chromium|"
   "cadres74|node scripts/e2e-cadres74.mjs|chromium|"
