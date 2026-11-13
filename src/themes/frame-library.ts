@@ -88,7 +88,8 @@ export function frameIdFor(name: string, taken: Iterable<string>): string {
   for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-const urlOf = (i: FrameEntry["image"]) => (i.svg ? `url("${i.svg}")` : `image-set(url("${i.avif}") type("image/avif"), url("${i.webp}") type("image/webp"))`);
+const urlOf = (i: FrameEntry["image"]) => (i.svg ? `url("${i.svg}")` : `url("${i.webp}")`);
+const urlOfSet = (i: FrameEntry["image"]) => (i.svg ? `url("${i.svg}")` : `image-set(url("${i.avif}") type("image/avif"), url("${i.webp}") type("image/webp"))`);
 
 /** Vignette : le fichier le plus simple à afficher (SVG, sinon WebP). */
 export const frameThumb = (e: Pick<FrameEntry, "image">): string => e.image.svg ?? e.image.webp ?? "";
@@ -103,15 +104,17 @@ export function frameRule(e: FrameEntry): string {
   const [st, sr, sb, sl] = e.slice;
   const max = Math.max(...w);
   const side = (n: number) => `round(calc(${n} * var(--cf-k)),1px)`;
-  return (
+  const base =
     `.media-frame[data-frame="custom"][data-frame-id="${e.id}"]{` +
     // Réduit sur petit écran / petite photo / peu de place autour : jamais plus de 4 % de la largeur, 16 % de la boîte, ni la place libre.
     `--cf-k:min(1px,calc(4vw / ${max}),calc(var(--cap-w,100vw) * 0.16 / ${max}),calc(var(--room,24px) / ${max}));` +
     `--fbt:${side(w[0])};--fbr:${side(w[1])};--fbb:${side(w[2])};--fbl:${side(w[3])};` +
     `border-style:solid;border-color:transparent;border-width:var(--fbt) var(--fbr) var(--fbb) var(--fbl);` +
     `border-image-source:${urlOf(e.image)};border-image-slice:${st} ${sr} ${sb} ${sl};border-image-repeat:round;` +
-    `clip-path:inset(0 round var(--media-radius,0px))}`
-  );
+    `clip-path:inset(0 round var(--media-radius,0px))}`;
+  // Repli universel (WebP) par défaut ; variante AVIF pour les navigateurs qui comprennent image-set(type()).
+  if (e.image.svg || !(e.image.avif && e.image.webp)) return base;
+  return base + `@supports (background-image: image-set(url("data:,") type("image/avif"))){.media-frame[data-frame="custom"][data-frame-id="${e.id}"]{border-image-source:${urlOfSet(e.image)}}}`;
 }
 
 /** Feuille de tous les cadres de la bibliothèque (vide sans cadre : une page sans cadre importé reste identique). */
