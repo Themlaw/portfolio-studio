@@ -10,6 +10,12 @@ const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 if (!EMAIL || !PASSWORD) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
 
+/** Liens du menu principal public, dans l'ordre (le reste de la page varie d'un chargement à l'autre). */
+const navLinks = (html) => {
+  const i = html.indexOf('aria-label="Navigation principale"');
+  const seg = i < 0 ? "" : html.slice(i, html.indexOf("</nav>", i));
+  return [...seg.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+};
 let failures = 0;
 function ok(label, cond, detail = "") {
   if (!cond) failures++;
@@ -86,10 +92,10 @@ await rowB.getByTestId("page-up").click();
 await page.getByRole("button", { name: "Enregistrer l’ordre des pages" }).click();
 await page.waitForTimeout(1000);
 await page.reload({ waitUntil: "networkidle" });
-const rows = page.locator("tbody tr");
-const firstText = await rows.nth(0).textContent();
-const secondText = await rows.nth(1).textContent();
-ok("ordre : page B avant page A après Monter", firstText.includes(titleB) && secondText.includes("Alpha renommée"));
+const rowTexts = await page.locator("tbody tr").allTextContents();
+const posB = rowTexts.findIndex((t) => t.includes(titleB));
+const posA = rowTexts.findIndex((t) => t.includes("Alpha renommée"));
+ok("ordre : page B juste avant page A après Monter (et enregistré)", posB >= 0 && posA === posB + 1, `B ${posB} A ${posA}`);
 
 // sélecteur de l'éditeur
 await page.goto(`${BASE}/admin/pages/${idA}/editer`, { waitUntil: "networkidle" });
@@ -100,7 +106,7 @@ ok("ordre : même ordre dans le sélecteur", idxB >= 0 && idxA >= 0 && idxB < id
 
 // ---- Menu public inchangé -----------------------------------------------
 const homeAfter = await (await fetch(`${BASE}/fr`)).text();
-ok("menu public inchangé", homeBefore === homeAfter);
+ok("menu public inchangé (liens de la navigation principale)", JSON.stringify(navLinks(homeBefore)) === JSON.stringify(navLinks(homeAfter)), `${navLinks(homeBefore)} / ${navLinks(homeAfter)}`);
 
 // ---- Nettoyage ----------------------------------------------------------
 for (const id of [idA, idB]) {
