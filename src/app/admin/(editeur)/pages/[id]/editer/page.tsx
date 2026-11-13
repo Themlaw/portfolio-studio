@@ -32,7 +32,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   if (!state) notFound();
   const everyPage = listPagesForAdmin();
   // Pages proposées aux liens : jamais une page spéciale (« Page introuvable », lot 89).
-  const pages = everyPage.filter((p) => !p.special).map((p) => ({ id: p.id, title: p.title || t("untitled"), slug: p.slug }));
+  const pages = everyPage.filter((p) => !p.special).map((p) => ({ id: p.id, title: p.title || t("untitled"), titleEn: p.titleEn || t("untitled"), slug: p.slug }));
   const self = everyPage.find((p) => p.id === Number(id));
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();
@@ -50,7 +50,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       corrupt={state.corrupt}
       overlaySlugs={overlayProjectSlugs(Number(id))}
       paths={{ fr: self ? pathOf("fr", self.slug.fr) : "/fr", en: self ? pathOf("en", self.slug.en) : "/en" }}
-      pages={pages.map(({ id, title }) => ({ id, title }))}
+      pages={pages.map(({ id, title, titleEn }) => ({ id, title, titleEn }))}
       catalog={blockCatalog(Boolean(self?.special), await getAdminT("blockReg"))}
       editors={blockEditors()}
       context={getEditorContext(Number(id))}

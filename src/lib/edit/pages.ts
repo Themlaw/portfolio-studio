@@ -552,3 +552,26 @@ export function restorePage(id: number): ActionResult<{ title: string; slugChang
   });
   return done({ title: page.title.fr, slugChanged, collectionDropped, ...(unpublished ? { unpublished } : {}) });
 }
+
+/**
+ * Renomme une page (titre court, FR et EN) depuis la liste des pages. Ne
+ * change ni l'adresse (slug), ni le menu, ni le contenu. Met aussi à jour
+ * le brouillon en attente, s'il y en a un, pour que l'éditeur suive.
+ */
+export function renamePage(id: number, input: unknown): ActionResult<null> {
+  const db = getDb();
+  const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus. Recharge la liste des pages.");
+  if (isSpecialPage(page)) return fail(`La page « ${NOT_FOUND_TITLE.fr} » ne se renomme pas.`);
+  const parsed = z.object({ title: titleSchema }).safeParse(input);
+  if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
+  const newTitle = parsed.data.title;
+  db.transaction((tx) => {
+    tx.update(schema.pages).set({ title: newTitle, updatedAt: new Date() }).where(eq(schema.pages.id, id)).run();
+    const draft = page.draft;
+    if (draft && typeof draft === "object" && !Array.isArray(draft)) {
+      tx.update(schema.pages).set({ draft: { ...(draft as Record<string, unknown>), title: newTitle } }).where(eq(schema.pages.id, id)).run();
+    }
+  });
+  return done(null);
+}

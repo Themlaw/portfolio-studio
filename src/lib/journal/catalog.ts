@@ -81,6 +81,8 @@ export const SPECS: Record<string, Spec> = {
   setInMenuAction: { label: "Présence de la page dans le menu modifiée", type: "modification", page: 0, values: [1], state: "publié" },
   addToMenuFromEditorAction: { label: "Page ajoutée au menu", type: "modification", page: 0, state: "publié" },
   reorderMenuAction: { label: "Ordre du menu modifié", type: "modification", state: "publié" },
+  renamePageAction: { label: "Page renommée", type: "modification", page: 0, state: "publié" },
+  reorderPagesAction: { label: "Ordre des pages modifié", type: "modification", state: "publié" },
   deletePageAction: { label: "Page mise à la corbeille", type: "suppression", page: 0 },
   restorePageAction: { label: "Page restaurée depuis la corbeille", type: "restauration", page: 0 },
   installFontAction: { label: "Police installée", type: "import" },

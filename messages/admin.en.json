@@ -2889,7 +2889,19 @@
     "blockRef": "“{type}” block on the page <l>{title}</l>",
     "inTrash": " (in the trash)",
     "deleteKeep": "It leaves the site and the menu, but stays in the trash for {days} days: you can find it there again or undo right afterwards.",
-    "draftKept": "Its editor draft is kept; its unpublished changes to projects or to the header (social links, footer) are discarded."
+    "draftKept": "Its editor draft is kept; its unpublished changes to projects or to the header (social links, footer) are discarded.",
+    "rename": "Rename",
+    "renameTitle": "Rename the page",
+    "renameConfirm": "Save the name",
+    "renamed": "Page name changed",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "pagesOrderHeading": "Page order",
+    "pagesOrderHelp": "Choose the order of the pages here: it is also the order of the page selector in the visual editor. The site menu order does not change.",
+    "pagesOrderDirty": "New order not saved",
+    "pagesOrderSaved": "Order saved",
+    "savePagesOrder": "Save the order",
+    "pagesOrderToast": "Page order saved"
   },
   "palette": {
     "modeAuto": "auto",
