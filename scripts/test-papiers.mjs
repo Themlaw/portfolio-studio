@@ -10,7 +10,7 @@
  *     (le fichier suit), papier d'une page enregistré par savePage sans effacer la couleur des boutons.
  * Usage : node --import tsx scripts/test-papiers.mjs
  */
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -164,7 +164,7 @@ const { savePage, createPage } = await import("../src/lib/edit/pages.ts");
 const { purgeTrash, purgeOne, purgeMedia } = await import("../src/lib/edit/trash.ts");
 const { listMediaForAdmin, getWallpaperUses, getPageForEdit, getAdminCounts, getEditorContext } = await import("../src/lib/admin.ts");
 const { wallpaperUsages, findWallpaperUsages } = await import("../src/lib/references.ts");
-const { listWallpapersForAdmin, entryOf } = await import("../src/lib/wallpapers.ts");
+const { listWallpapersForAdmin, entryOf, listWallpaperCatalog } = await import("../src/lib/wallpapers.ts");
 const { readDraft, saveDraft } = await import("../src/lib/edit/drafts.ts");
 console.log = log;
 
@@ -205,6 +205,21 @@ ok("rendu : le motif prêt a une entrée avec ses variantes WebP ; un fichier en
   const e = entryOf(row, media);
   const pending = entryOf(row, { ...media, variants: null });
   return e && e.files.length === 2 && e.files[0].url.endsWith("/480.webp") && e.w === 800 && pending === null;
+})());
+ok("N9 l'entrée de rendu (site public, flux RSC) n'a pas de nom : le nom vient du fichier envoyé", (() => {
+  const row = db.select().from(schema.wallpapers).where(eq(schema.wallpapers.id, wp)).get();
+  const media = db.select().from(schema.media).where(eq(schema.media.id, m1)).get();
+  const e = entryOf({ ...row, name: "client x confidentiel" }, media);
+  return e && !("name" in e) && !JSON.stringify(e).includes("confidentiel");
+})());
+ok("N9 la toile de l'éditeur garde les noms (catalogue de la vue brouillon)", (() => {
+  const cat = listWallpaperCatalog();
+  const mine = cat.find((c) => c.id === wp);
+  return mine && mine.name === listWallpapersForAdmin().find((w) => w.id === wp).name && mine.files.length === 2;
+})());
+ok("N9 le repère public des papiers peints n'est posé qu'en vue brouillon, avec le catalogue", (() => {
+  const src = readFileSync(new URL("../src/app/[locale]/[[...slug]]/layout.tsx", import.meta.url), "utf8");
+  return /\{edit && <span hidden data-edit-wallpapers=\{JSON\.stringify\(listWallpaperCatalog\(\)\)\}/.test(src);
 })());
 
 ok("renommer / régler : nom borné, taille et opacité bornées", W.renameWallpaper(wp, "  Fleurs  ").ok && listWallpapersForAdmin().find((w) => w.id === wp).name === "Fleurs" && !W.renameWallpaper(wp, "").ok && !W.renameWallpaper(wp, "x".repeat(61)).ok && !W.renameWallpaper(999, "a").ok && W.saveWallpaperPaint(wp, { size: 250, opacity: 0.4 }).ok && !W.saveWallpaperPaint(wp, { size: 10, opacity: 0.4 }).ok && !W.saveWallpaperPaint(wp, { size: 250, opacity: 2 }).ok && !W.saveWallpaperPaint(wp, { size: 250, opacity: 0.4, x: 1 }).ok && listWallpapersForAdmin().find((w) => w.id === wp).size === 250);

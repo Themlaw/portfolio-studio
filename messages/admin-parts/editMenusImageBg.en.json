@@ -1,0 +1,16 @@
+{
+  "none": "None",
+  "white": "White",
+  "card": "Card colour",
+  "custom": "Custom colour",
+  "noneTitle": "Transparent: the page colour shows through",
+  "whiteTitle": "White background",
+  "cardTitle": "The colour of the theme's cards",
+  "title": "Image background",
+  "colourEllipsis": "Colour…",
+  "colourGroup": "Image background colour",
+  "hintNone": "No background: a cut-out PNG shows the page colour.",
+  "hintName": "Background: {name}.",
+  "buttonTitle": "Background behind the image (handy for a cut-out PNG)",
+  "button": "Image background"
+}

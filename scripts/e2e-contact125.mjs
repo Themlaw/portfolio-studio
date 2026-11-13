@@ -211,7 +211,16 @@ if (run("E")) {
   const m = messages().at(-1);
   ok("E3 EN : message enregistré (libellés anglais, page À propos), confirmation en anglais", sent && m.page_id === ABOUT && JSON.parse(m.fields).some((f) => f.label === "Your message") && /Thank you, your message arrived/.test((await d.locator(".contact-form-status").textContent()) ?? ""), JSON.stringify(m));
   await pub.keyboard.press("Escape");
-  const post = (body) => fetch(`${BASE}/api/contact`, { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.25" }, body: JSON.stringify(body) });
+  // PR #23 : la route exige le jeton signé du formulaire (délivré par /api/contact/token, valable après 3 s) : un jeton par envoi.
+  const post = async (body) => {
+    let token;
+    try {
+      const t = await fetch(`${BASE}/api/contact/token?form=${encodeURIComponent(body.form)}`);
+      if (t.ok) token = (await t.json()).token;
+    } catch {}
+    if (token) await new Promise((r) => setTimeout(r, 3300));
+    return fetch(`${BASE}/api/contact`, { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.25" }, body: JSON.stringify({ ...body, ...(token ? { token } : {}) }) });
+  };
   const n = messages().length;
   const r1 = await post({ form: "contactdefaut", locale: "fr", values: { femail: "z@example.test", fmessage: "Page forgée" }, page: 999999 });
   ok("E4 route : page inconnue -> message enregistré SANS page", r1.status === 200 && messages().length === n + 1 && messages().at(-1).page_id === null);

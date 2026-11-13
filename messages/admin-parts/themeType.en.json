@@ -1,0 +1,50 @@
+{
+  "title": "Styles by role",
+  "intro": "Fine-tune the font, weight, italics, letter case and letter spacing of each text role. “Theme” keeps the original setting; site styles and the styles of one specific text always apply on top.",
+  "roles": {
+    "h1": {
+      "title": "Page title",
+      "help": "Only what differs from “Headings” for the main title of a page (leave “Theme” for it to follow the headings)."
+    },
+    "h2": {
+      "title": "Headings",
+      "help": "All the headings on the site: page title, sections, projects, collections."
+    },
+    "eyebrow": {
+      "title": "Label texts",
+      "help": "Small texts above the headings."
+    },
+    "body": {
+      "title": "Body text",
+      "help": "Paragraphs."
+    },
+    "caption": {
+      "title": "Captions",
+      "help": "Captions of the works, job title."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Navigation in the header and the footer."
+    },
+    "brand": {
+      "title": "Logo",
+      "help": "Site name in the header, when there is no image."
+    }
+  },
+  "fonts": {
+    "display": "Heading font",
+    "body": "Text font",
+    "caption": "Caption font"
+  },
+  "font": "Font",
+  "theme": "Theme",
+  "weight": "Weight",
+  "italic": "Italic",
+  "yes": "Yes",
+  "no": "No",
+  "case": "Letter case",
+  "caseNormal": "Normal",
+  "caseUpper": "Uppercase",
+  "tracking": "Letter spacing",
+  "resetRole": "Back to the theme's original"
+}

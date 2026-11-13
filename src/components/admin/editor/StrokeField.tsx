@@ -5,6 +5,8 @@
  * mélangées au dessin d'origine. Sans teinte : le dessin du thème, tel quel. Utilisé pour le réglage par défaut du site, pour le
  * soulignement de l'en-tête et pour chaque rangée d'images qui défilent.
  */
+import { useTranslations } from "next-intl";
+
 import AdminColorPicker from "@/components/admin/AdminColorPicker";
 import { rgbaToHex } from "@/lib/color";
 import { readTint, type StrokeTint } from "@/lib/look";
@@ -14,6 +16,7 @@ const START_OPACITY = 60;
 const START_COLOR = rgbaToHex({ r: 128, g: 128, b: 128, a: 1 });
 
 export function StrokeField({ title, help, value, onChange, testid }: { title: string; help: string; value: unknown; onChange: (next: StrokeTint | undefined) => void; testid: string }) {
+  const t = useTranslations("editorPanelsStroke");
   const tint = readTint(value);
   const opacity = tint?.opacity ?? START_OPACITY;
   return (
@@ -23,7 +26,7 @@ export function StrokeField({ title, help, value, onChange, testid }: { title: s
       <div className="ve-stroke-row" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <AdminColorPicker label={title} value={tint?.color ?? START_COLOR} onChange={(color) => onChange({ color, opacity })} />
         <label className="ve-box-range" style={{ flex: "1 1 8rem" }}>
-          <span>{tint ? `Opacité : ${opacity} %` : "Aucune couleur : le dessin d'origine"}</span>
+          <span>{tint ? t("opacity", { opacity }) : t("none")}</span>
           <input
             type="range"
             min={1}
@@ -31,13 +34,13 @@ export function StrokeField({ title, help, value, onChange, testid }: { title: s
             step={1}
             value={opacity}
             disabled={!tint}
-            aria-label={`${title} : opacité`}
+            aria-label={t("opacityLabel", { title })}
             data-testid={`${testid}-opacity`}
             onChange={(e) => tint && onChange({ color: tint.color, opacity: Number(e.target.value) })}
           />
         </label>
         <button type="button" className="a-btn a-btn-small" disabled={!tint} data-testid={`${testid}-reset`} onClick={() => onChange(undefined)}>
-          Revenir au dessin d&apos;origine
+          {t("reset")}
         </button>
       </div>
     </section>

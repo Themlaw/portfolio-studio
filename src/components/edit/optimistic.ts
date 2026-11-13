@@ -44,7 +44,7 @@ import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { parseMarked } from "@/lib/marked";
 
 import { parseColor, toHex } from "@/themes/palette";
-import type { WallpaperEntry } from "@/themes/wallpaper";
+import type { WallpaperCatalogEntry } from "@/themes/wallpaper";
 import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, type Background } from "@/themes/fond";
 import { borderVars, cardStyle, cardVars, FALLBACK_CARD, paperAttributes, paperSignature, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
@@ -659,13 +659,13 @@ export function previewZone(uid: string, surface: Surface | null, background: Ba
 /* ---- Papiers peints (lot 35) : la bibliothèque, telle que la page de la toile la porte (`data-edit-wallpapers`, layout du site) --------- */
 
 let catalogRaw = "";
-let catalog = new Map<number, WallpaperEntry>();
+let catalog = new Map<number, WallpaperCatalogEntry>();
 /** Motifs de la bibliothèque connus de la toile (relus quand le repère de la page change). */
-export function wallpaperCatalog(): Map<number, WallpaperEntry> {
+export function wallpaperCatalog(): Map<number, WallpaperCatalogEntry> {
   const raw = document.querySelector<HTMLElement>("[data-edit-wallpapers]")?.dataset.editWallpapers ?? "";
   if (raw !== catalogRaw) {
     catalogRaw = raw;
-    const list = parseData<WallpaperEntry[]>(raw);
+    const list = parseData<WallpaperCatalogEntry[]>(raw);
     catalog = new Map(Array.isArray(list) ? list.map((e) => [e.id, e]) : []);
   }
   return catalog;

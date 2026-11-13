@@ -1,8 +1,9 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
-import { ratioTip } from "./readability";
+import { useReadability } from "./useReadability";
 import { contrastRatio } from "@/themes/palette";
 
 /**
@@ -23,7 +24,7 @@ const GRID = [7, 3] as const;
 const MAX_SIDE = 192;
 
 type Rgb = [number, number, number];
-type Measure = { ratio: number; need: number; label: string; top: number; left: number };
+type Measure = { ratio: number; need: number; label: "name" | "role" | "scroll" | "tag"; top: number; left: number };
 type Verdict = (Measure & { all: Measure[] }) | null;
 
 const ctx2d = (() => {
@@ -138,7 +139,7 @@ export function measureHero(host: HTMLElement): Verdict {
     const size = parseFloat(style.fontSize);
     const bold = parseInt(style.fontWeight, 10) >= 700;
     const need = size >= 24 || (bold && size >= 18.66) ? 3 : 4.5;
-    const label = el.matches("h1") ? "le nom" : el.matches("[data-hero-text='role']") ? "le métier" : el.closest("[data-inline='scroll']") || el.matches("[data-inline='scroll']") ? "l'indicateur de défilement" : "l'étiquette";
+    const label = el.matches("h1") ? "name" : el.matches("[data-hero-text='role']") ? "role" : el.closest("[data-inline='scroll']") || el.matches("[data-inline='scroll']") ? "scroll" : "tag";
     all.push({ ratio: Math.round(p5 * 100) / 100, need, label, top: rects[0].top + window.scrollY, left: rects[0].left + window.scrollX });
   }
   if (!all.length) return null;
@@ -151,6 +152,8 @@ export function measureHero(host: HTMLElement): Verdict {
  * Remesure au chargement d'une image, au redimensionnement et à intervalle régulier.
  */
 export default function HeroContrast() {
+  const t = useTranslations("editMenusHero");
+  const read = useReadability();
   const [verdict, setVerdict] = useState<Verdict>(null);
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -194,8 +197,8 @@ export default function HeroContrast() {
 
   if (!verdict || !anchor) return null;
   return (
-    <p className="pe-hero-warn" role="status" data-testid="hero-contrast-warning" title={ratioTip(verdict.ratio, verdict.need)} data-measures={JSON.stringify(verdict.all.map((m) => [m.label, m.ratio, m.need]))} style={{ top: anchor.top + 12, left: anchor.left + 16 }}>
-      Sur ce fond, {verdict.label} est peu lisible. Choisis une image plus calme, plus sombre ou plus claire, ou recadre-la.
+    <p className="pe-hero-warn" role="status" data-testid="hero-contrast-warning" title={read.tip(verdict.ratio, verdict.need)} data-measures={JSON.stringify(verdict.all.map((m) => [m.label, m.ratio, m.need]))} style={{ top: anchor.top + 12, left: anchor.left + 16 }}>
+      {t("warning", { label: t(verdict.label) })}
     </p>
   );
 }

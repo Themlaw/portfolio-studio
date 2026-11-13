@@ -1,0 +1,5 @@
+{
+  "format": "Format",
+  "freeCrop": "Cadrage libre en place ({format}). Choisir un autre format le remplace.",
+  "ratio": "{ratio} : 1"
+}

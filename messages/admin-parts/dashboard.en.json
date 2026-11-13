@@ -1,0 +1,19 @@
+{
+  "title": "Dashboard",
+  "intro": "Your site at a glance: how it looks online and what it contains.",
+  "editHome": "Edit the home page",
+  "viewSite": "View site",
+  "liveTheme": "Live theme",
+  "noActiveTheme": "No valid active theme: the site is using the default look.",
+  "changeLook": "Change the look",
+  "messagesCard": "Messages",
+  "newMessages": "{count, plural, =0 {No new messages} one {# new message} other {# new messages}}",
+  "readMessages": "Read messages",
+  "openMessages": "Open messages",
+  "statPages": "Pages",
+  "statProjects": "Projects",
+  "statMedia": "Media",
+  "linkPages": "Organize pages",
+  "linkProjects": "View projects",
+  "linkMedia": "Open the media library"
+}

@@ -1,0 +1,19 @@
+{
+  "entry": "Entrée",
+  "up": "Monter l'entrée",
+  "down": "Descendre l'entrée",
+  "remove": "Retirer l'entrée",
+  "coverGroup": "Couverture de l'entrée « {title} »",
+  "coverTitle": "Choisir l'image de couverture de cette entrée dans la médiathèque, ou en envoyer une",
+  "coverChange": "Changer la couverture",
+  "coverClearTitle": "Reprendre la couverture de la collection",
+  "coverClear": "Couverture automatique",
+  "broken": "Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.",
+  "pageFallback": "Page {id}",
+  "noImage": "L'entrée « {title} » n'a pas d'image : elle n'apparaît pas sur le site tant que tu n'en as pas choisi une.",
+  "emptyHead": "Cette collection n'a encore aucune œuvre publiée.",
+  "emptyWhy": "La tuile « {tile} » n'apparaît pas sur le site tant que la collection est vide : publie une œuvre dans cette collection.",
+  "emptyWhyNamed": "La tuile « {tile} » n'apparaît pas sur le site tant que la collection « {collection} » est vide : publie une œuvre dans cette collection.",
+  "addEntry": "+ Ajouter une entrée",
+  "allUsed": "Toutes les pages publiées ont déjà une entrée."
+}

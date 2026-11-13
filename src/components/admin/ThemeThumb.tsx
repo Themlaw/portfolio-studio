@@ -1,4 +1,8 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element -- vignette statique déjà à sa taille (WebP généré par npm run theme:thumbs). */
+import { useTranslations } from "next-intl";
+
 import { FONT_STACKS } from "@/themes/font-stacks";
 import type { Theme } from "@/themes/schema";
 
@@ -10,6 +14,7 @@ import type { Theme } from "@/themes/schema";
  * à jour à chaque enregistrement.
  */
 export default function ThemeThumb({ theme, src }: { theme: Theme; src?: string | null }) {
+  const t = useTranslations("themeThumb");
   if (src) {
     // Aplat du fond du thème tant que l'image n'est pas arrivée (jamais un rectangle blanc vide).
     return <img className="a-theme-thumb" src={src} alt="" width={480} height={300} loading="lazy" decoding="async" style={{ background: theme.tokens.color.bg }} />;
@@ -21,18 +26,18 @@ export default function ThemeThumb({ theme, src }: { theme: Theme; src?: string 
   return (
     <div className="a-theme-thumb a-theme-mini" aria-hidden="true" style={{ background: c.bg, color: c.ink, fontFamily: FONT_STACKS[f.body].stack }}>
       <div className="a-theme-mini-bar" style={{ justifyContent: theme.variants.header === "centered" ? "center" : "space-between", borderColor: c.line }}>
-        <span style={{ fontFamily: display.stack, fontWeight: display.headingWeight }}>Atelier</span>
-        {theme.variants.header === "inline" && <span style={{ fontFamily: FONT_STACKS[f.caption].stack, color: c.inkSoft }}>œuvres · à propos</span>}
+        <span style={{ fontFamily: display.stack, fontWeight: display.headingWeight }}>{t("studio")}</span>
+        {theme.variants.header === "inline" && <span style={{ fontFamily: FONT_STACKS[f.caption].stack, color: c.inkSoft }}>{t("nav")}</span>}
       </div>
       <div className="a-theme-mini-hero" style={{ textAlign: dark ? "center" : "left", background: c.accentGlow && dark ? `radial-gradient(80% 120% at 50% -30%, color-mix(in srgb, ${c.accentGlow} 33%, transparent), transparent 70%)` : undefined }}>
         <span className="a-theme-mini-eyebrow" style={{ color: c.eyebrow ?? c.secondary, fontFamily: FONT_STACKS[f.caption].stack }}>
-          Personnages
+          {t("eyebrow")}
         </span>
         <span className="a-theme-mini-title" style={{ fontFamily: display.stack, fontWeight: display.headingWeight }}>
-          Des mondes à habiter
+          {t("title")}
         </span>
         <span className="a-theme-mini-btn" style={{ background: c.primary, color: c.onPrimary, borderRadius: theme.variants.button === "pill" ? "999px" : theme.tokens.radius.sm }}>
-          Voir
+          {t("view")}
         </span>
       </div>
       <div className="a-theme-mini-strip" style={{ background: c.bgDeep }}>

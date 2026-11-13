@@ -19,6 +19,7 @@
  * jusqu'à ce que le serveur ait rendu une révision au moins aussi récente :
  * jamais d'affichage intermédiaire de l'ancienne valeur.
  */
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
@@ -201,7 +202,7 @@ function crans(root: HTMLElement, side: "top" | "bottom"): Cran[] {
 function nearest(list: Cran[], px: number): Cran {
   return list.reduce((best, c) => (Math.abs(c.px - px) < Math.abs(best.px - px) - 0.5 ? c : best), list[0]);
 }
-const cranLabel = (c: Cran) => (c.key === "auto" ? "Auto (thème)" : SPACE_LABELS[c.key]);
+const cranLabel = (c: Cran, t: (k: string) => string) => (c.key === "auto" ? t("autoTheme") : SPACE_LABELS[c.key]);
 
 /** Aperçu d'un espace sur le DOM du site (hors rendu React de la couche). */
 function setPad(el: HTMLElement, prop: "paddingTop" | "paddingBottom", value: string) {
@@ -228,6 +229,7 @@ function keepPad(uid: string, prop: "paddingTop" | "paddingBottom", px: number, 
 }
 
 function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top" | "bottom"; look: Look; announce: (s: string) => void }) {
+  const t = useTranslations("editLook");
   const [drag, setDrag] = useState<{ px: number; cran: Cran } | null>(null);
   const root = rootOf(uid);
   if (!root) return null;
@@ -244,7 +246,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
     }
     const seq = sendLook(uid, { ...look, [side === "top" ? "spaceTop" : "spaceBottom"]: c.key === "auto" ? undefined : c.key });
     keepPad(uid, prop, c.px, seq);
-    announce(`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${cranLabel(c)}`);
+    announce(t("spaceAnnounce", { side: t(side === "top" ? "sideTop" : "sideBottom"), label: cranLabel(c, t) }));
   };
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
@@ -294,7 +296,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
   return (
     <>
       <div className="lk-space-zone" data-side={side} data-active={drag ? "" : undefined} style={{ top: zoneTop, left: r.left, width: r.width, height: Math.max(2, shown) }} aria-hidden="true">
-        {(drag || shown > 14) && <span className="lk-space-value">{drag ? `${cranLabel(drag.cran)} · ${Math.round(drag.cran.px)} px` : `${current === "auto" ? "Auto" : spaceLabel(current)} · ${Math.round(shown)} px`}</span>}
+        {(drag || shown > 14) && <span className="lk-space-value">{drag ? `${cranLabel(drag.cran, t)} · ${Math.round(drag.cran.px)} px` : `${current === "auto" ? t("auto") : spaceLabel(current)} · ${Math.round(shown)} px`}</span>}
       </div>
       <button
         type="button"
@@ -303,8 +305,8 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
         // Sur le bord de la zone qui suit le curseur : en haut, le bord côté contenu ;
         // en bas, le bord extérieur (le bloc grandit vers le bas, son contenu ne bouge pas).
         style={{ top: side === "top" ? r.top + shown - 5 : r.top + r.height - 5, left: r.left + r.width / 2 - 22 }}
-        aria-label={`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${current === "auto" ? "Auto" : spaceLabel(current)}. Glisser, ou flèches haut et bas.`}
-        title={`Espace ${side === "top" ? "au-dessus" : "en dessous"} (glisser : crans du thème)`}
+        aria-label={t("spaceAria", { side: t(side === "top" ? "sideTop" : "sideBottom"), value: current === "auto" ? t("auto") : spaceLabel(current) })}
+        title={t("spaceTitle", { side: t(side === "top" ? "sideTop" : "sideBottom") })}
         onPointerDown={onDown}
         onKeyDown={onKey}
       />
@@ -694,17 +696,18 @@ function previewProjectText(block: string, texts: Look["projectText"], seq: numb
 type Scope = "local" | "project" | "zone" | "role";
 
 /** Les mots de chaque portée selon le type du texte : « Cette étiquette », « Toutes les étiquettes du projet »… (lots 119 et 120). */
-function scopeWords(target: TextTarget, role: Role): { one: string; project: string; hint: string } {
+function scopeWords(target: TextTarget, role: Role, t: (k: string) => string): { one: string; project: string; hint: string } {
   const field = target.cap?.field;
+  const w = (kind: string) => ({ one: t(`scope_${kind}_one`), project: t(`scope_${kind}_project`), hint: t(`scope_${kind}_hint`) });
   // En-tête et pied de page (lot 124) : un lien, ou un texte (étiquette du pied : « Cette étiquette »).
-  if (target.hz && /^(n:|f:n:|f:s:)/.test(target.hz.key)) return { one: "Ce lien", project: "", hint: "" };
-  if (field === "title") return { one: "Ce titre", project: "Tous les titres de légende du projet", hint: "Les titres de légende de cette planche de projet" };
-  if (field === "legend") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
-  if (field === "date") return { one: "Cette date", project: "Toutes les dates du projet", hint: "Les dates de cette planche de projet" };
-  if (role === "h2") return { one: "Ce titre", project: "Tous les titres du projet", hint: "Les titres de cette planche de projet" };
-  if (role === "eyebrow") return { one: "Cette étiquette", project: "Toutes les étiquettes du projet", hint: "Les étiquettes de cette planche de projet" };
-  if (role === "caption") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
-  return { one: "Ce texte", project: "Tous les textes du projet", hint: "Les textes de cette planche de projet" };
+  if (target.hz && /^(n:|f:n:|f:s:)/.test(target.hz.key)) return { one: t("scope_link_one"), project: "", hint: "" };
+  if (field === "title") return w("capTitle");
+  if (field === "legend") return w("legend");
+  if (field === "date") return w("date");
+  if (role === "h2") return w("h2");
+  if (role === "eyebrow") return w("eyebrow");
+  if (role === "caption") return w("caption");
+  return w("text");
 }
 
 function TextBar({
@@ -720,6 +723,7 @@ function TextBar({
   onClose: () => void;
   tick: number;
 }) {
+  const t = useTranslations("editLook");
   const [scope, setScope] = useState<Scope>(target.local || target.hz ? "local" : target.proj ? "project" : "role");
   // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
   // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
@@ -839,38 +843,38 @@ function TextBar({
     }
   };
   const board = Boolean(target.proj);
-  const words = scopeWords(target, role);
+  const words = scopeWords(target, role, t);
   const has = { local: Object.keys(target.local ? localStyle : hzStyle).length > 0, project: Object.keys(projectStyle).length > 0, zone: Object.keys(zoneStyle).length > 0, role: Object.keys(roleStyle).length > 0 };
   const dot = (on: boolean) => (on ? <span className="lk-dot" aria-hidden="true" /> : null);
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(elementOf(target)?.contains(t)) || (t instanceof Element && Boolean(t.closest(".pe-text-editor")))} onPointerDown={(e) => e.stopPropagation()}>
+    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label={t("barLabel")} onClose={onClose} ignoreDismiss={(n) => Boolean(elementOf(target)?.contains(n)) || (n instanceof Element && Boolean(n.closest(".pe-text-editor")))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
-        <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
+        <span className="lk-seg" role="radiogroup" aria-label={t("applyTo")}>
           {hasOne && (
-            <button type="button" role="radio" aria-checked={level === "local"} data-scope="local" data-has-value={has.local ? "" : undefined} onClick={() => setScope("local")} title={target.hz ? `Réglage de ce texte seul (passe devant ${hzZone ? (hzZone === "menu" ? "le menu" : "le pied de page") : "le site"} et le site)` : "Réglage de cet élément seul (passe devant le projet et le site)"}>
+            <button type="button" role="radio" aria-checked={level === "local"} data-scope="local" data-has-value={has.local ? "" : undefined} onClick={() => setScope("local")} title={target.hz ? t(hzZone === "menu" ? "localMenu" : hzZone ? "localFooter" : "localSite") : t("localItem")}>
               {words.one}
               {dot(has.local)}
             </button>
           )}
           {target.proj && (
-            <button type="button" role="radio" aria-checked={level === "project"} data-scope="project" data-has-value={has.project ? "" : undefined} onClick={() => setScope("project")} title={`${words.hint} : tous les éléments de ce type dans cette planche, sur cette page (passe devant le site)`}>
+            <button type="button" role="radio" aria-checked={level === "project"} data-scope="project" data-has-value={has.project ? "" : undefined} onClick={() => setScope("project")} title={t("projectTitle", { hint: words.hint })}>
               {words.project}
               {dot(has.project)}
             </button>
           )}
           {hzZone && (
-            <button type="button" role="radio" aria-checked={level === "zone"} data-scope="zone" data-has-value={has.zone ? "" : undefined} onClick={() => setScope("zone")} title={hzZone === "menu" ? "Tous les liens du menu de l'en-tête (passe devant le site)" : "Tous les textes du pied de page (passe devant le site)"}>
+            <button type="button" role="radio" aria-checked={level === "zone"} data-scope="zone" data-has-value={has.zone ? "" : undefined} onClick={() => setScope("zone")} title={t(hzZone === "menu" ? "zoneMenuTitle" : "zoneFooterTitle")}>
               {HZ_ZONE_LABELS[hzZone]}
               {dot(has.zone)}
             </button>
           )}
-          <button type="button" role="radio" aria-checked={level === "role"} data-scope="role" data-has-value={has.role ? "" : undefined} onClick={() => setScope("role")} title={target.hz ? `Styles du site : toutes les pages (${role === "body" ? "le pied de page n'y reprend que la police du texte" : "publié avec la page"})` : "Styles du site : toutes les pages (publié avec la page)"}>
-            {board || target.hz ? "Tout le site" : role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
+          <button type="button" role="radio" aria-checked={level === "role"} data-scope="role" data-has-value={has.role ? "" : undefined} onClick={() => setScope("role")} title={target.hz && role === "body" ? t("roleTitleFooter") : t("roleTitle")}>
+            {board || target.hz ? t("allSite") : role === "h2" ? t("allHeadings") : t("allRole", { role: ROLE_LABELS[role] })}
             {dot(has.role)}
           </button>
         </span>
-        <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>
+        <button type="button" className="lk-close" aria-label={t("closeBar")} onClick={onClose}>
           ✕
         </button>
       </div>
@@ -884,7 +888,7 @@ function TextBar({
         swatch={swatch}
         themeNames={themeNames}
         compact
-        resetLabel={level === "local" ? (board ? "Revenir au style du projet" : target.hz ? (hzZone === "menu" ? "Revenir au style du menu" : hzZone === "footer" ? "Revenir au style du pied de page" : "Revenir au style du site") : "Revenir au style global") : level === "project" || level === "zone" ? "Revenir au style du site" : "Revenir au thème"}
+        resetLabel={level === "local" ? (board ? t("resetProject") : target.hz ? (hzZone === "menu" ? t("resetMenu") : hzZone === "footer" ? t("resetFooter") : t("resetSite")) : t("resetGlobal")) : level === "project" || level === "zone" ? t("resetSite") : t("resetTheme")}
         palette={canvasPalette()}
         backdropBlocked={BACKDROP_BLOCKED[role]}
         inheritedColor={level === "local" ? (target.hz ? (zoneStyle.color ?? roleStyle.color) : (projectStyle.color ?? roleStyle.color)) : level === "project" || level === "zone" ? roleStyle.color : undefined}
@@ -919,6 +923,7 @@ function PosIcon({ axis, v }: { axis: "h" | "v"; v: string }) {
  * position de départ (le projecteur est centré, les autres sont à gauche et en bas) : le bouton coché est celui qu'on voit.
  */
 function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string; inCell: boolean; rect: Rect }) {
+  const t = useTranslations("editLook");
   const look = lookOf(uid);
   const hero = type === "hero";
   // Titre de composant « sur l'image » (lot 128) : posé dans une grille 3 × 3 (centré en bas au départ) ; au-dessus ou dessous : alignement seulement.
@@ -928,23 +933,23 @@ function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string;
   const spot = hero && Boolean(wrapper?.querySelector(".hero-spotlight"));
   const defH = over ? "center" : spot ? "center" : "left";
   const defV = over ? "bottom" : hero ? (spot ? "middle" : "bottom") : "top";
-  const what = hero ? "Texte" : "Titre";
+  const what = hero ? "text" : "title";
   const H = [
-    ["left", `${what} à gauche`],
-    ["center", `${what} centré`],
-    ["right", `${what} à droite`],
+    ["left", t(`pos_${what}_left`)],
+    ["center", t(`pos_${what}_center`)],
+    ["right", t(`pos_${what}_right`)],
   ] as const;
   const V = [
-    ["top", `${what} en haut`],
-    ["middle", `${what} au milieu`],
-    ["bottom", `${what} en bas`],
+    ["top", t(`pos_${what}_top`)],
+    ["middle", t(`pos_${what}_middle`)],
+    ["bottom", t(`pos_${what}_bottom`)],
   ] as const;
   // Ouverture : au-dessus du texte déplacé (sa boîte est dans l'écran) ; sinon sous le bloc, comme avant.
   const anchor = hero ? wrapper?.querySelector<HTMLElement>(".hero-text") : null;
   const place = anchor ? { top: docRect(anchor).top + 12, left: docRect(anchor).left + 12 } : { top: rect.top + rect.height + 4, left: rect.left + 8 };
-  const label = hero ? "Position du texte" : "Position du titre";
+  const label = t(hero ? "posLabelText" : "posLabelTitle");
   return (
-    <div className="lk-pos" role="toolbar" aria-label={label} data-testid="title-position" data-what={hero ? "text" : "title"} title={hero ? "Où se place le texte de l'ouverture (étiquette, nom, accroche)" : "Où se place le titre"} style={place}>
+    <div className="lk-pos" role="toolbar" aria-label={label} data-testid="title-position" data-what={hero ? "text" : "title"} title={t(hero ? "posHintText" : "posHintTitle")} style={place}>
       {hero && <span className="lk-pos-label">{label}</span>}
       {H.map(([v, text]) => (
         <button key={v} type="button" aria-pressed={(look.titleH ?? defH) === v} aria-label={text} title={text} onClick={() => sendLook(uid, { ...look, titleH: v === defH ? undefined : v })}>
@@ -1038,13 +1043,14 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
 
 /** Onglets Libre / Cadre du bloc de la modale « Cadrer l'image ». */
 function CropTabs({ mode, onMode }: { mode: "free" | "frame"; onMode: (m: "free" | "frame") => void }) {
+  const t = useTranslations("editLook");
   return (
-    <div className="lk-crop-tabs" role="tablist" aria-label="Mode de cadrage">
+    <div className="lk-crop-tabs" role="tablist" aria-label={t("cropModes")}>
       <button type="button" role="tab" aria-selected={mode === "free"} onClick={() => onMode("free")}>
-        Libre
+        {t("cropFree")}
       </button>
-      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé au bloc">
-        Dans le cadre du bloc
+      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title={t("cropFrameHint")}>
+        {t("cropFrame")}
       </button>
     </div>
   );
@@ -1095,6 +1101,7 @@ function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => vo
 }
 
 function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClose: () => void; tabs?: React.ReactNode }) {
+  const t = useTranslations("editLook");
   const look = lookOf(target.uid);
   // Une tuile : le cadre est le parent de l'image (l'image zoomée déborde de sa boîte).
   const box = (target.tile ? target.media.closest("[data-edit-tile]") ?? target.media : target.media).getBoundingClientRect();
@@ -1169,7 +1176,7 @@ function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClos
         className="lk-crop"
         role="dialog"
         aria-modal="true"
-        aria-label="Cadrer l'image"
+        aria-label={t("cropTitle")}
         tabIndex={-1}
         onKeyDown={(e) => {
           const step = e.shiftKey ? 0.1 : 0.02;
@@ -1191,9 +1198,9 @@ function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClos
           }
         }}
       >
-        <p className="lk-crop-title">Cadrer l&apos;image</p>
+        <p className="lk-crop-title">{t("cropTitle")}</p>
         {tabs}
-        <p className="lk-crop-help">La zone claire est gardée sur la page. Glisse-la, zoome à la molette (ou + / −) ; flèches pour la déplacer.</p>
+        <p className="lk-crop-help">{t("cropHelp")}</p>
         <div
           ref={stage}
           className="lk-crop-stage"
@@ -1212,19 +1219,19 @@ function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClos
         </div>
         <div className="lk-crop-actions">
           <label className="lk-crop-zoom">
-            Zoom
-            <input type="range" min={1} max={4} step={0.05} value={crop.zoom} onChange={(e) => zoomTo(Number(e.target.value))} aria-label="Zoom" />
+            {t("zoom")}
+            <input type="range" min={1} max={4} step={0.05} value={crop.zoom} onChange={(e) => zoomTo(Number(e.target.value))} aria-label={t("zoom")} />
             <output>{Math.round(crop.zoom * 100)} %</output>
           </label>
           <button type="button" onClick={() => setCrop({ x: 50, y: 50, zoom: 1 })}>
-            Recentrer
+            {t("recenter")}
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>
-            Fermer sans enregistrer
+            {t("closeNoSave")}
           </button>
           <button type="button" className="lk-primary" onClick={save}>
-            Enregistrer le cadrage
+            {t("saveCrop")}
           </button>
         </div>
       </div>
@@ -1243,6 +1250,7 @@ export default function LookLayer({
   dragging: boolean;
   announce: (s: string) => void;
 }) {
+  const t = useTranslations("editLook");
   const [hoverText, setHoverText] = useState<{ el: HTMLElement; rect: Rect; anchor?: HTMLElement } | null>(null);
   const [bar, setBar] = useState<TextTarget | null>(null);
   // Texte en cours de saisie (lot 98) : la pastille « Aa » reste sur lui, quelle que soit la souris, jusqu'à la fin de la saisie.
@@ -1296,11 +1304,11 @@ export default function LookLayer({
       const img = cell?.querySelector<HTMLElement>("[data-edit-media] img") ?? null;
       const target = img ? cropTargetAt(img) : null;
       if (target) setCropOpen(target);
-      else announce("Cette image ne peut pas être cadrée.");
+      else announce(t("cannotCrop"));
     };
     window.addEventListener("pe:crop", onCrop);
     return () => window.removeEventListener("pe:crop", onCrop);
-  }, [announce]);
+  }, [announce, t]);
 
   // Saisie d'un texte (page : EditLayer ; planche : BoardLayer) : sa barre s'ouvre d'elle-même, sans prendre le focus ; elle se ferme avec la saisie
   // (Entrée, Échap, clic ailleurs). Un clic DANS la barre ne doit ni ôter le focus au texte ni fermer la saisie (la souris ne le « prend » pas).
@@ -1421,10 +1429,10 @@ export default function LookLayer({
           type="button"
           className="lk-aa"
           style={bar || active ? { top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 } : aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
-          aria-label="Style du texte"
+          aria-label={t("barLabel")}
           aria-expanded={bar ? true : undefined}
           data-pinned={bar || active ? "" : undefined}
-          title="Police, taille, couleur… de ce texte"
+          title={t("aaTitle")}
           onClick={() => (bar ? setBar(null) : setBar(active ?? targetOf(aaView.el)))}
         >
           Aa
@@ -1437,7 +1445,7 @@ export default function LookLayer({
         const look = lookOf(cropValid.uid);
         // Fond de l'ouverture : la barre « Changer le fond » occupe déjà le coin bas droit
         // de la partie visible ; « Cadrer » se pose juste à sa gauche, sur la même ligne.
-        const bar = !cropValid.tile && cropValid.field === "backgroundMediaId" ? document.querySelector<HTMLElement>('[role="toolbar"][aria-label="Fond de l\'ouverture"]') : null;
+        const bar = !cropValid.tile && cropValid.field === "backgroundMediaId" ? document.querySelector<HTMLElement>('.pe-media-tools[data-media-kind="background"]') : null;
         const barBox = bar ? docRect(bar) : null;
         const pos = barBox
           ? { top: barBox.top, left: Math.max(r.left + 8, barBox.left - 112) }
@@ -1448,9 +1456,9 @@ export default function LookLayer({
             className="lk-crop-btn"
             style={pos}
             onClick={() => setCropOpen(cropValid)}
-            title="Choisir la zone gardée de l'image"
+            title={t("cropPickTitle")}
           >
-            {(cropValid.tile ? look.tileCrop?.[cropValid.tile] : look.crop?.[cropValid.field]) ? "Recadrer" : "Cadrer"}
+            {t((cropValid.tile ? look.tileCrop?.[cropValid.tile] : look.crop?.[cropValid.field]) ? "recrop" : "crop")}
           </button>
         );
       })()}

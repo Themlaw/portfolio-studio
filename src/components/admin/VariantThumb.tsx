@@ -149,16 +149,20 @@ export const VARIANT_THUMBS: Record<string, Record<string, React.ReactNode>> = {
   },
 };
 
-export const VARIANT_LABELS: Record<string, { title: string; help: string; options: Record<string, string> }> = {
-  header: { title: "En-tête", help: "Disposition du nom et du menu en haut de page.", options: { inline: "Sur une ligne", centered: "Centré" } },
-  hero: {
-    title: "Ouverture de l'accueil",
-    help: "La forme du grand bandeau d'accueil.",
-    options: { "parallax-layers": "Calques en relief", spotlight: "Projecteur", "type-only": "Typographique" },
-  },
-  strip: { title: "Bandes de planches", help: "La présentation des images d'un projet.", options: { edge: "Bord à bord", taped: "Scotchées" } },
-  caption: { title: "Légendes", help: "Le style du texte sous les images.", options: { "mono-split": "Technique", handwritten: "Manuscrite" } },
-  lightbox: { title: "Visionneuse", help: "L'affichage d'une image agrandie.", options: { "passe-partout": "Passe-partout", "full-bleed": "Plein écran" } },
-  button: { title: "Boutons", help: "La forme des boutons.", options: { pill: "Arrondis", square: "Droits" } },
-  texture: { title: "Fond du site", help: "Un fond uni, ou un papier pointillé discret.", options: { none: "Fond uni", "paper-dots": "Papier pointillé" } },
+/** Les options de chaque réglage (les libellés viennent du catalogue `variants`). */
+const VARIANT_OPTIONS: Record<string, string[]> = {
+  header: ["inline", "centered"],
+  hero: ["parallax-layers", "spotlight", "type-only"],
+  strip: ["edge", "taped"],
+  caption: ["mono-split", "handwritten"],
+  lightbox: ["passe-partout", "full-bleed"],
+  button: ["pill", "square"],
+  texture: ["none", "paper-dots"],
 };
+
+/** Libellés des réglages de forme, dans la langue de `t` (`useTranslations("variants")`). */
+export function variantLabels(t: (key: string) => string): Record<string, { title: string; help: string; options: Record<string, string> }> {
+  return Object.fromEntries(
+    Object.entries(VARIANT_OPTIONS).map(([k, opts]) => [k, { title: t(`${k}.title`), help: t(`${k}.help`), options: Object.fromEntries(opts.map((o) => [o, t(`${k}.options.${o}`)])) }]),
+  );
+}

@@ -8,6 +8,7 @@ import { boardWorkCount, getProjectBoard } from "@/lib/gallery";
 import { ownLayoutOf, ownTextOf } from "./board-layout";
 import { boardRefs, countKey, pageCounts, type TreeBlock } from "./tree";
 import { inline, localized, localizedText, projectSlug, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const sectionTitleSchema = z.object({
   eyebrow: localized.optional(),
@@ -45,6 +46,7 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
   const ownText = props.linked && slug ? (boardRefs((ctx.pageBlocks ?? []) as TreeBlock[]).map((r) => (r.slug === slug ? ownTextOf(r.block.props) : null)).find(Boolean) ?? null) : null;
   const project = props.linked && slug ? await getProjectBoard(slug, ctx.locale, undefined, null, ownText) : null;
   if (props.linked && !project && !ctx.edit) return null;
+  const { ta } = await editI18n(ctx);
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   const main = props.main === true && !props.linked && !ctx.cell;
   const withCounts = props.counts === true && !props.linked;
@@ -87,20 +89,20 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
       {/* Étiquette, présentation, compteurs : des champs qui n'existent que s'ils ont été demandés (lot 19a, 22). */}
       {ctx.edit && own && (
         <div className="pe-field-ops" {...(ctx.cell ? { "data-cell": "" } : {})}>
-          {op("eyebrow", props.eyebrow !== undefined, "+ Ajouter une étiquette", "Retirer l'étiquette")}
-          {op("intro", props.intro !== undefined, "+ Ajouter une présentation", "Retirer la présentation")}
-          {op("counts", props.counts === true, "+ Ajouter les compteurs", "Retirer les compteurs")}
+          {op("eyebrow", props.eyebrow !== undefined, ta("addLabel"), ta("removeLabel"))}
+          {op("intro", props.intro !== undefined, ta("addIntro"), ta("removeIntro"))}
+          {op("counts", props.counts === true, ta("addCounts"), ta("removeCounts"))}
         </div>
       )}
       {(props.eyebrow || (ctx.edit && props.linked)) && (
-        <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
+        <Eyebrow {...inline(ctx, "eyebrow")} {...ph(ta("label"))}>
           {props.eyebrow ? tr(props.eyebrow, ctx.locale) : ""}
         </Eyebrow>
       )}
       <Heading
         className={`mt-4 font-display ${main ? "text-[clamp(2.75rem,8vw,6rem)]" : "text-[clamp(2rem,5vw,3.75rem)]"} text-ink`}
         {...(props.linked ? { ...(linkedEdit ? { "data-project-inline": "title", "data-look-key": "title" } : {}), ...textStyle(ctx, "title") } : inline(ctx, "title"))}
-        {...ph(props.linked ? (slug ? "Nom du projet" : "Choisis le projet du titre") : "Titre")}
+        {...ph(props.linked ? (slug ? ta("projectName") : ta("pickProjectTitle")) : ta("title"))}
       >
         {title}
       </Heading>
@@ -109,13 +111,13 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
         <p
           className={`${main ? "mt-6" : "mt-5"} text-base leading-relaxed text-ink-soft`}
           {...(props.linked ? { ...(linkedEdit ? { "data-project-inline": "description", "data-look-key": "intro" } : {}), ...textStyle(ctx, "intro") } : inline(ctx, "intro"))}
-          {...ph(props.linked ? "Présentation du projet" : "Présentation")}
+          {...ph(props.linked ? ta("projectIntro") : ta("intro"))}
         >
           {intro ?? ""}
         </p>
       )}
       {counts !== null && (
-        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les projets de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: ta("counterHint"), "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
           {counts}
         </p>
       )}

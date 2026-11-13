@@ -1,16 +1,18 @@
 "use client";
 
 import { Fragment, type CSSProperties, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import BoardBox from "@/components/BoardBox";
+import { useAdminTranslator } from "@/components/AdminIntl";
 import EditOnly from "@/components/EditOnly";
 import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import VideoSoundSeg from "@/components/edit/VideoSoundSeg";
-import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
-import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { captionCss, captionStylesOf, type CaptionStyles } from "@/blocks/caption-style";
+import { isVideoMode, VIDEO_MODES } from "@/blocks/video-mode";
+import { CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
+import { captionCss, type CaptionStyles } from "@/blocks/caption-style";
+import type { StripProject } from "@/blocks/strip-project";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import type { MediaLookData, Space, StrokeTint } from "@/lib/look";
@@ -86,7 +88,8 @@ export default function ProjectStrip({
   scope?: string;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
-  project: LocalizedProject;
+  /** Projet réduit à ce que la planche affiche (`stripProject` : ni la suite de composants brute, ni l'en-tête masqué ; N8). */
+  project: StripProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
   deep?: boolean;
   headingLevel?: "h2" | "h3";
@@ -115,6 +118,7 @@ export default function ProjectStrip({
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? project.artworks.filter((a) => !a.edit?.empty) : project.artworks;
   const tg = useTranslations("gallery");
+  const ta = useAdminTranslator("canvasStrip");
   const Heading = headingLevel;
   // La bande d'images est un composant facultatif de la planche : sans elle, ni compteur ni « Ajouter des images ».
   const hasStrip = !parts || parts.some((p) => p.type === "strip" && !p.artworks);
@@ -125,7 +129,7 @@ export default function ProjectStrip({
   });
 
   // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
-  const legacyCapStyles = captionStylesOf(project.layout);
+  const legacyCapStyles = project.captionStyles;
   const capStyles = captionStyles ?? legacyCapStyles;
   const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;
@@ -192,11 +196,11 @@ export default function ProjectStrip({
                 contexte et année se modifient en place. */}
             {editable ? (
               <>
-                <span data-project-inline="context" data-placeholder="Contexte" {...head("context")}>
+                <span data-project-inline="context" data-placeholder={ta?.("context")} {...head("context")}>
                   {project.context}
                 </span>
                 {" · "}
-                <span data-project-inline="year" data-placeholder="Année" {...head("year")}>
+                <span data-project-inline="year" data-placeholder={ta?.("year")} {...head("year")}>
                   {project.year}
                 </span>
               </>
@@ -218,14 +222,14 @@ export default function ProjectStrip({
           <Heading
             id={`project-${project.slug}`}
             className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
-            {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
+            {...(editable ? { "data-project-inline": "title", "data-placeholder": ta?.("projectName") } : {})}
             {...head("title")}
           >
             {project.title}
           </Heading>
           <p
             className="mt-4 text-base leading-relaxed text-ink-soft"
-            {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
+            {...(editable ? { "data-project-inline": "description", "data-placeholder": ta?.("projectDescription") } : {})}
             {...head("description")}
           >
             {project.description}
@@ -240,9 +244,9 @@ export default function ProjectStrip({
         )}
         {/* Toile de l'éditeur : « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche ; jamais en public. */}
         {edit && hasStrip && (
-          <button type="button" className="pe-board-add" data-edit-board-add="" lang="fr">
-            Ajouter des images
-          </button>
+          <EditOnly>
+            <BoardAddImages />
+          </EditOnly>
         )}
       </header>
 
@@ -260,13 +264,33 @@ export default function ProjectStrip({
 function BoardAdd({ board, index, last = false, empty = false, first = false }: { board: number; index: number; last?: boolean; empty?: boolean; first?: boolean }) {
   return (
     <EditOnly>
-    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} data-first={first || undefined} lang="fr">
+      <BoardAddInner board={board} index={index} last={last} empty={empty} first={first} />
+    </EditOnly>
+  );
+}
+
+/** Le bouton lui-même : rendu sous l'AdminIntlBoundary d'EditOnly (textes de l'admin, langue d'interface). */
+function BoardAddInner({ board, index, last, empty, first }: { board: number; index: number; last: boolean; empty: boolean; first: boolean }) {
+  const t = useTranslations("canvasStrip");
+  const lang = useLocale().slice(0, 2);
+  return (
+    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} data-first={first || undefined} lang={lang}>
       <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
-        <span aria-hidden="true">+</span> {empty ? "Ajouter un bloc" : "Ajouter"}
-        <span className="sr-only"> {index === 0 ? "en tête du projet" : last ? "en bas du projet" : `après le bloc ${index}`}</span>
+        <span aria-hidden="true">+</span> {empty ? t("addBlock") : t("add")}
+        <span className="sr-only"> {index === 0 ? t("atTop") : last ? t("atBottom") : t("afterBlock", { index })}</span>
       </button>
     </div>
-    </EditOnly>
+  );
+}
+
+/** « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche, dans l'en-tête du projet. */
+function BoardAddImages() {
+  const t = useTranslations("canvasStrip");
+  const lang = useLocale().slice(0, 2);
+  return (
+    <button type="button" className="pe-board-add" data-edit-board-add="" lang={lang}>
+      {t("addImages")}
+    </button>
   );
 }
 
@@ -278,7 +302,6 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
   // Une seule « Images qui défilent » pour l'artiste (lot 31f) : la source (images du projet ou liste propre) ne change ni le nom ni les outils.
   const projectStrip = part.type === "strip" && !part.artworks;
   const isStrip = part.type === "strip";
-  const label = BOARD_ITEM_LABELS[part.type];
   // Lecture de la vidéo (lot 36) : le composant Vidéo a son mode sur sa barre. Une bande n'en a plus (lot 38) : chaque vidéo se règle sur
   // son image (barre de l'image), `videoMode` de la bande reste lu au rendu mais n'est plus proposé.
   const videoKey = part.type === "video-single" ? "mode" : null;
@@ -296,11 +319,6 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       if ((JSON.parse(part.props) as { props?: Record<string, unknown> }).props?.sound === "off") soundNow = "off";
     } catch {}
   }
-  const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (
-    <button type="button" className="pe-bitem-btn" data-edit-bitem-op={name} data-uid={part.uid} data-board={board} disabled={disabled} aria-label={`${text} — ${label}`} title={text}>
-      <span aria-hidden="true">{glyph}</span>
-    </button>
-  );
   return (
     <div
       className="pe-bitem"
@@ -311,87 +329,112 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       data-board={board}
       {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
       {...(part.look ? { "data-edit-look": part.look } : {})}
-      lang="fr"
     >
       <EditOnly>
-      <div className="pe-bitem-bar" role="group" aria-label={`${label}, bloc ${index + 1} sur ${count}`}>
-        {/* Poignée : glisser pour déplacer le composant (BoardLayer) ; les flèches font la même chose au clavier. */}
-        <span className="pe-bitem-handle" data-edit-bitem-handle={part.uid} data-board={board} aria-hidden="true" title="Glisser pour déplacer">
-          ⠿
-        </span>
-        {/* Pas de bouton « Réglages » qui ne ferait que basculer le panneau de gauche (lot 38) : le nom du composant le choisit (ses réglages s'affichent à gauche). */}
-        {part.type === "grid" ? (
-          <span className="pe-bitem-name">{label}</span>
-        ) : (
-          <button type="button" className="pe-bitem-btn pe-bitem-name pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board} data-testid="bitem-name" title="Afficher les réglages dans le panneau de gauche">
-            {label}
-          </button>
-        )}
-        {/* Seule la grille garde « Réglages » : il ouvre une fenêtre sur la toile. */}
-        {part.type === "grid" && (
-          <button type="button" className="pe-bitem-btn pe-bitem-edit" data-grid-settings-button="" aria-haspopup="dialog" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
-            Réglages
-          </button>
-        )}
-        {isStrip && (
-          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="add-images" data-uid={part.uid} data-board={board} data-testid="bitem-add-images" title="Ajouter des images ou des vidéos de l'ordinateur à la fin du carrousel">
-            Ajouter des images
-          </button>
-        )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond et carte du composant : le fond de couleur ou papier peint, ou une carte en retrait (un seul des deux ici)">
-          Fond &amp; carte
-        </button>
-        {part.type === "image" && !part.empty && (
-          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title="Taille et place de l'image (la légende suit)">
-            Taille
-          </button>
-        )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title="Espace au-dessus de ce bloc">
-          Espace
-        </button>
-        {videoKey && !part.empty && (
-          <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="bitem-video-mode">
-            <span className="pe-seg-label" aria-hidden="true">
-              Lecture
-            </span>
-            {VIDEO_MODES.map((m) => (
-              <button key={m} type="button" className="pe-bitem-btn" data-edit-bitem-op={`video-${m}`} data-uid={part.uid} data-board={board} aria-pressed={videoNow === m} title={VIDEO_MODE_HINTS[m]}>
-                {VIDEO_MODE_LABELS[m]}
-              </button>
-            ))}
-          </span>
-        )}
-        {videoKey && !part.empty && part.hasAudio && (
-          <VideoSoundSeg now={soundNow} testId="bitem-video-sound" attr="data-edit-bitem-op" prefix="sound-" className="pe-bitem-btn" extra={{ "data-uid": part.uid, "data-board": board }} />
-        )}
-        {(part.type === "image" || (part.type === "video-single" && !part.empty)) && (
-          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title={part.type === "image" ? "Cadre autour de la photo" : "Cadre autour de la vidéo"}>
-            Cadre
-          </button>
-        )}
-        {part.type === "image" && (
-          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="imgbg" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)">
-            Fond image
-          </button>
-        )}
-        {op("up", "Monter", "↑", index === 0)}
-        {op("down", "Descendre", "↓", index === count - 1)}
-        {op("remove", "Supprimer", "✕")}
-      </div>
+        <BoardItemBar board={board} part={part} index={index} count={count} videoNow={videoNow} soundNow={soundNow} videoKey={videoKey} />
       </EditOnly>
       {/* Une grille vide montre ses places numérotées (lot 31d) : pas de cadre « rien à montrer ». */}
       {!projectStrip && part.empty && part.type !== "grid" && part.type !== "free-board" ? (
         <EditOnly fallback={children}>
-        <div className="pe-bitem-empty" data-edit-bitem-pick="">
-          <p>{label} : rien à montrer pour le moment.</p>
-          <button type="button" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
-            {part.type === "rich-text" ? "Écrire le texte" : part.type === "strip" ? "Choisir les images" : part.type === "image" ? "Choisir une image" : "Choisir une vidéo"}
-          </button>
-        </div>
+          <BoardItemEmpty part={part} board={board} />
         </EditOnly>
       ) : (
         children
       )}
+    </div>
+  );
+}
+
+/** Barre d'un composant de la planche (rendue sous l'AdminIntlBoundary d'EditOnly : textes de l'admin, langue d'interface). */
+function BoardItemBar({ board, part, index, count, videoNow, soundNow, videoKey }: { board: number; part: BoardPart; index: number; count: number; videoNow: string | undefined; soundNow: "on" | "off"; videoKey: string | null }) {
+  const t = useTranslations("canvasStrip");
+  const tl = useTranslations("blockRegLabels");
+  const label = tl(`boardItem.label.${part.type}`);
+  const lang = useLocale().slice(0, 2);
+  const isStrip = part.type === "strip";
+  const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (
+    <button type="button" className="pe-bitem-btn" data-edit-bitem-op={name} data-uid={part.uid} data-board={board} disabled={disabled} aria-label={t("opLabel", { text, label })} title={text}>
+      <span aria-hidden="true">{glyph}</span>
+    </button>
+  );
+  return (
+    <div className="pe-bitem-bar" role="group" aria-label={t("barLabel", { label, position: index + 1, total: count })} lang={lang}>
+      {/* Poignée : glisser pour déplacer le composant (BoardLayer) ; les flèches font la même chose au clavier. */}
+      <span className="pe-bitem-handle" data-edit-bitem-handle={part.uid} data-board={board} aria-hidden="true" title={t("grip")}>
+        ⠿
+      </span>
+      {/* Pas de bouton « Réglages » qui ne ferait que basculer le panneau de gauche (lot 38) : le nom du composant le choisit (ses réglages s'affichent à gauche). */}
+      {part.type === "grid" ? (
+        <span className="pe-bitem-name">{label}</span>
+      ) : (
+        <button type="button" className="pe-bitem-btn pe-bitem-name pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board} data-testid="bitem-name" title={t("showSettings")}>
+          {label}
+        </button>
+      )}
+      {/* Seule la grille garde « Réglages » : il ouvre une fenêtre sur la toile. */}
+      {part.type === "grid" && (
+        <button type="button" className="pe-bitem-btn pe-bitem-edit" data-grid-settings-button="" aria-haspopup="dialog" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+          {t("settings")}
+        </button>
+      )}
+      {isStrip && (
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="add-images" data-uid={part.uid} data-board={board} data-testid="bitem-add-images" title={t("addImagesTitle")}>
+          {t("addImages")}
+        </button>
+      )}
+      <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title={t("fondTitle")}>
+        {t("fond")}
+      </button>
+      {part.type === "image" && !part.empty && (
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title={t("sizeTitle")}>
+          {t("size")}
+        </button>
+      )}
+      <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title={t("spaceTitle")}>
+        {t("space")}
+      </button>
+      {videoKey && !part.empty && (
+        <span className="pe-seg" role="group" aria-label={t("videoPlayback")} data-testid="bitem-video-mode">
+          <span className="pe-seg-label" aria-hidden="true">
+            {t("playback")}
+          </span>
+          {VIDEO_MODES.map((m) => (
+            <button key={m} type="button" className="pe-bitem-btn" data-edit-bitem-op={`video-${m}`} data-uid={part.uid} data-board={board} aria-pressed={videoNow === m} title={tl(`videoMode.hint.${m}`)}>
+              {tl(`videoMode.label.${m}`)}
+            </button>
+          ))}
+        </span>
+      )}
+      {videoKey && !part.empty && part.hasAudio && (
+        <VideoSoundSeg now={soundNow} testId="bitem-video-sound" attr="data-edit-bitem-op" prefix="sound-" className="pe-bitem-btn" extra={{ "data-uid": part.uid, "data-board": board }} />
+      )}
+      {(part.type === "image" || (part.type === "video-single" && !part.empty)) && (
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title={part.type === "image" ? t("framePhoto") : t("frameVideo")}>
+          {t("frame")}
+        </button>
+      )}
+      {part.type === "image" && (
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="imgbg" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-imgbg-button" title={t("imageBgTitle")}>
+          {t("imageBg")}
+        </button>
+      )}
+      {op("up", t("up"), "↑", index === 0)}
+      {op("down", t("down"), "↓", index === count - 1)}
+      {op("remove", t("remove"), "✕")}
+    </div>
+  );
+}
+
+/** Cadre « rien à montrer pour le moment » d'un composant de la planche sans contenu (même enveloppe). */
+function BoardItemEmpty({ part, board }: { part: BoardPart; board: number }) {
+  const t = useTranslations("canvasStrip");
+  const label = useTranslations("blockRegLabels")(`boardItem.label.${part.type}`);
+  return (
+    <div className="pe-bitem-empty" data-edit-bitem-pick="">
+      <p>{t("nothing", { label })}</p>
+      <button type="button" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+        {part.type === "rich-text" ? t("writeText") : part.type === "strip" ? t("pickImages") : part.type === "image" ? t("pickImage") : t("pickVideo")}
+      </button>
     </div>
   );
 }

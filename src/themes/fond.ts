@@ -45,7 +45,7 @@ export const fondRound = (bg: Background | undefined): FondStep | undefined => b
  * Composants qui reçoivent un fond (lot 105 : tous, y compris l'Ouverture et les anciens types encore rendus ; les cellules d'une grille aussi,
  * le fond habille alors la case).
  */
-export const FOND_TYPES: readonly string[] = ["project-board", "video-single", "grid", "image", "free-board", "cv", "section-title", "collection-tiles", "rich-text", "contact", "page-link", "profile", "exit", "random-work"];
+export const FOND_TYPES: readonly string[] = ["project-board", "video-single", "grid", "image", "free-board", "steps", "cv", "section-title", "collection-tiles", "rich-text", "contact", "page-link", "profile", "exit", "random-work"];
 export const supportsFond = (type: string): boolean => FOND_TYPES.includes(type);
 
 /** Lecture tolérante : une valeur illisible est ignorée (jamais le bloc). */

@@ -73,6 +73,17 @@
     "open": "Enlarge page {index}",
     "pages": "Résumé pages"
   },
+  "steps": {
+    "before": "Before",
+    "after": "After",
+    "slider": "Compare before and after: move the slider",
+    "prev": "Previous view",
+    "next": "Next view",
+    "views": "Views",
+    "steps": "Steps",
+    "view": "View",
+    "chooseImages": "Choose this block's images in the right-hand panel."
+  },
   "footer": {
     "eyebrow": "Contact",
     "rights": "All rights reserved.",

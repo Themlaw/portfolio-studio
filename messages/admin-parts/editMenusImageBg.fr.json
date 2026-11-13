@@ -1,0 +1,16 @@
+{
+  "none": "Aucun",
+  "white": "Blanc",
+  "card": "Couleur de la carte",
+  "custom": "Couleur libre",
+  "noneTitle": "Transparent : on voit la couleur de la page",
+  "whiteTitle": "Fond blanc",
+  "cardTitle": "La couleur des cartes du thème",
+  "title": "Fond de l'image",
+  "colourEllipsis": "Couleur…",
+  "colourGroup": "Couleur du fond de l'image",
+  "hintNone": "Aucun fond : un PNG détouré montre la couleur de la page.",
+  "hintName": "Fond : {name}.",
+  "buttonTitle": "Fond derrière l'image (utile pour un PNG détouré)",
+  "button": "Fond image"
+}

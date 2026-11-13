@@ -1,0 +1,6 @@
+{
+  "title": "Theme frame on all photos",
+  "help": "Your theme draws a frame. On “No”, your photos do not have one: you add it photo by photo, with the “Frame” button in an image's toolbar. On “Yes”, all the photos with no choice made get it.",
+  "no": "No",
+  "yes": "Yes"
+}

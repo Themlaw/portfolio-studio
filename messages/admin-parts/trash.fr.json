@@ -1,0 +1,15 @@
+{
+  "viewLabel": "Vue",
+  "trash": "Corbeille",
+  "purge": "Supprimer définitivement",
+  "purgeConfirm": "« {name} » sera supprimé pour de bon : {lost} Cette action ne s'annule pas.",
+  "purged": "« {name} » supprimé définitivement",
+  "partPages": "{count, plural, one {# page} other {# pages}}",
+  "partProjects": "{count, plural, one {# projet} other {# projets}}",
+  "partMedia": "{count, plural, one {# média} other {# médias}}",
+  "withSlots": "{count, plural, one {avec # emplacement} other {avec # emplacements}}",
+  "withoutSlot": "sans emplacement",
+  "empty": "Vider la corbeille",
+  "emptyConfirm": "{total, plural, one {# élément sera supprimé} other {# éléments seront supprimés}} pour de bon : {parts}.{keepsImages, plural, =0 {} other { Les images des projets restent dans la médiathèque.}} Cette action ne s'annule pas.",
+  "emptied": "Corbeille vidée · {count, plural, one {# élément supprimé} other {# éléments supprimés}}{kept, plural, =0 {} one { · # encore utilisé, gardé} other { · # encore utilisés, gardés}}"
+}

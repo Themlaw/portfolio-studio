@@ -8,6 +8,7 @@
  * rouge sinon. Clavier : ↑ ↓ (monter, descendre), ⇱ (sortir du conteneur),
  * flèches gauche / droite pour replier / déplier.
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import type { BlockCatalogEntry } from "@/blocks/editor-types";
@@ -36,6 +37,8 @@ export default function StructureTree({
   onMove: (uid: string, parent: string | null, index: number) => void;
   onOp: (op: Op, uid: string) => void;
 }) {
+  const tr = useTranslations("editorPanelsTree");
+  const tl = useTranslations("blockRegLabels");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [drag, setDrag] = useState<{ uid: string; target: Target | null } | null>(null);
   const toggle = (uid: string, open?: boolean) =>
@@ -114,7 +117,7 @@ export default function StructureTree({
   const render = (list: DraftBlock[], depth: number, parent: DraftBlock | null) =>
     list.map((b, i) => {
       const meta = own(byType, b.type);
-      const summary = meta ? renderSummary(meta.summary, b.props) : "";
+      const summary = meta ? renderSummary(meta.summary, b.props, tl) : "";
       const kids = childrenOf(b) as DraftBlock[];
       const container = isContainer(b.type);
       const open = !collapsed.has(b.uid);
@@ -138,11 +141,11 @@ export default function StructureTree({
             data-dragging={drag?.uid === b.uid || undefined}
             style={{ paddingLeft: depth * 18 }}
           >
-            <button type="button" className="ve-tree-grip" aria-label={`Glisser « ${meta?.label ?? b.type} »`} title="Glisser (dans un bloc : au milieu de sa ligne)" onPointerDown={(e) => onGrip(e, b.uid)}>
+            <button type="button" className="ve-tree-grip" aria-label={tr("grip", { label: meta?.label ?? b.type })} title={tr("gripTitle")} onPointerDown={(e) => onGrip(e, b.uid)}>
               ⠿
             </button>
             {container ? (
-              <button type="button" className="ve-tree-toggle" aria-label={open ? "Replier" : "Déplier"} onClick={() => toggle(b.uid)}>
+              <button type="button" className="ve-tree-toggle" aria-label={open ? tr("collapse") : tr("expand")} onClick={() => toggle(b.uid)}>
                 {open ? "▾" : "▸"}
               </button>
             ) : (
@@ -171,17 +174,17 @@ export default function StructureTree({
                 <strong>{meta?.label ?? b.type}</strong>
                 {summary && <span className="ve-row-sum">{summary}</span>}
               </span>
-              {invalid.has(b.uid) && <span className="a-tag a-tag-danger">À corriger</span>}
+              {invalid.has(b.uid) && <span className="a-tag a-tag-danger">{tr("toFix")}</span>}
             </button>
             <span className="ve-tree-tools">
-              <button type="button" className="a-icon-btn" aria-label={`Monter « ${meta?.label ?? b.type} »`} disabled={i === 0} onClick={() => onOp("up", b.uid)}>
+              <button type="button" className="a-icon-btn" aria-label={tr("up", { label: meta?.label ?? b.type })} disabled={i === 0} onClick={() => onOp("up", b.uid)}>
                 ↑
               </button>
-              <button type="button" className="a-icon-btn" aria-label={`Descendre « ${meta?.label ?? b.type} »`} disabled={i === list.length - 1} onClick={() => onOp("down", b.uid)}>
+              <button type="button" className="a-icon-btn" aria-label={tr("down", { label: meta?.label ?? b.type })} disabled={i === list.length - 1} onClick={() => onOp("down", b.uid)}>
                 ↓
               </button>
               {parent && (
-                <button type="button" className="a-icon-btn" aria-label={`Sortir « ${meta?.label ?? b.type} » du bloc`} title="Sortir du bloc" onClick={() => onOp("out", b.uid)}>
+                <button type="button" className="a-icon-btn" aria-label={tr("out", { label: meta?.label ?? b.type })} title={tr("outTitle")} onClick={() => onOp("out", b.uid)}>
                   ⇱
                 </button>
               )}
@@ -189,8 +192,8 @@ export default function StructureTree({
                 <button
                   type="button"
                   className="a-icon-btn"
-                  aria-label={`Entrer « ${meta?.label ?? b.type} » dans « ${own(byType, enterTarget(list, i)!.type)?.label ?? "le bloc"} »`}
-                  title="Entrer dans le bloc voisin"
+                  aria-label={tr("enter", { label: meta?.label ?? b.type, target: own(byType, enterTarget(list, i)!.type)?.label ?? tr("enterFallback") })}
+                  title={tr("enterTitle")}
                   onClick={() => onOp("in", b.uid)}
                 >
                   ⇲
@@ -200,7 +203,7 @@ export default function StructureTree({
           </div>
           {container && open && (
             <ul role="group" className="ve-tree-group">
-              {kids.length ? render(kids, depth + 1, b) : <li className="ve-tree-empty" style={{ paddingLeft: (depth + 1) * 18 + 30 }}>Vide : glisse un bloc dedans.</li>}
+              {kids.length ? render(kids, depth + 1, b) : <li className="ve-tree-empty" style={{ paddingLeft: (depth + 1) * 18 + 30 }}>{tr("empty")}</li>}
             </ul>
           )}
         </li>
@@ -209,11 +212,11 @@ export default function StructureTree({
 
   return (
     <>
-      <ul className="ve-tree" role="tree" aria-label="Structure de la page">
+      <ul className="ve-tree" role="tree" aria-label={tr("treeLabel")}>
         {render(blocks, 0, null)}
       </ul>
       <p className="ve-hint">
-        Glisse une ligne par sa poignée : entre deux lignes, ou au milieu d&apos;un bloc pour l&apos;y ranger ({MAX_NESTING} niveaux de blocs au plus).
+        {tr("hint", { max: MAX_NESTING })}
       </p>
     </>
   );

@@ -8,7 +8,10 @@
  *   réglage que « Espace en haut » du panneau et que la poignée de la page), sans nouveau champ.
  * Chaque choix part aussitôt (`sendLook` : page, composant de planche ou case, annulable).
  */
+import { useTranslations } from "next-intl";
 import { useState, type ReactNode } from "react";
+
+import type { AdminT } from "@/i18n/admin-lang";
 
 import { cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, spaceLabel, widthLabel, type ImageAlign, type Look, type Space } from "@/lib/look";
 
@@ -44,34 +47,35 @@ function writeLook(uid: string, look: Look) {
 }
 
 /** Valeur courte affichée à côté du libellé de la barre (lot 90), seulement quand le bloc a son propre réglage ; sinon rien (le thème décide). */
-export function spaceValue(look: Look): string | undefined {
-  if (look.spaceTop === undefined) return look.padTop !== undefined || look.padBottom !== undefined ? "intérieur" : undefined;
-  return look.spaceTop === "none" ? "aucun" : spaceLabel(look.spaceTop);
+export function spaceValue(look: Look, t: AdminT): string | undefined {
+  if (look.spaceTop === undefined) return look.padTop !== undefined || look.padBottom !== undefined ? t("inner") : undefined;
+  return look.spaceTop === "none" ? t("none") : spaceLabel(look.spaceTop);
 }
-export function sizeValue(look: Look): string | undefined {
-  const parts = [look.imageSize === "large" ? "grande" : undefined, look.imageAlign && look.imageAlign !== "center" ? IMAGE_ALIGN_LABELS[look.imageAlign].toLowerCase() : undefined].filter(Boolean);
+export function sizeValue(look: Look, t: AdminT): string | undefined {
+  const parts = [look.imageSize === "large" ? t("large") : undefined, look.imageAlign && look.imageAlign !== "center" ? IMAGE_ALIGN_LABELS[look.imageAlign].toLowerCase() : undefined].filter(Boolean);
   return parts.length ? parts.join(", ") : undefined;
 }
 
 export function SizeControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
+  const t = useTranslations("editMenusQuick");
   const large = look.imageSize === "large";
   const align: ImageAlign = look.imageAlign ?? "center";
   return (
     <div data-testid="size-controls" className="tc" style={{ gap: 8 }}>
       <div className="tc-row">
-        <span className="sm-label">Taille</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Taille de l'image">
+        <span className="sm-label">{t("size")}</span>
+        <span className="tc-seg" role="radiogroup" aria-label={t("imageSize")}>
           <button type="button" role="radio" aria-checked={!large} data-image-size="normal" onClick={() => onChange({ imageSize: undefined })}>
-            Normale
+            {t("normal")}
           </button>
           <button type="button" role="radio" aria-checked={large} data-image-size="large" onClick={() => onChange({ imageSize: "large" })}>
-            Grande
+            {t("largeCap")}
           </button>
         </span>
       </div>
       <div className="tc-row">
-        <span className="sm-label">Alignement</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Alignement de l'image">
+        <span className="sm-label">{t("alignment")}</span>
+        <span className="tc-seg" role="radiogroup" aria-label={t("imageAlignment")}>
           {IMAGE_ALIGNS.map((a) => (
             <button key={a} type="button" role="radio" aria-checked={align === a} data-image-align={a} onClick={() => onChange({ imageAlign: a })}>
               {IMAGE_ALIGN_LABELS[a]}
@@ -79,37 +83,39 @@ export function SizeControls({ look, onChange }: { look: Look; onChange: (patch:
           ))}
         </span>
       </div>
-      <p className="sm-hint">{large ? "Grande : l'image prend toute la largeur disponible. " : "Normale : l'image ne dépasse pas la hauteur de l'écran. "}La légende suit l&apos;image.</p>
+      <p className="sm-hint">{large ? t("hintLarge") : t("hintNormal")}{t("hintCaption")}</p>
     </div>
   );
 }
 
 /** `topOnly` : la bande d'images d'une planche n'a que l'espace au-dessus (l'écriture de planche refuse le reste). */
 export function SpaceControls({ look, onChange, topOnly = false }: { look: Look; onChange: (patch: Partial<Look>) => void; topOnly?: boolean }) {
+  const t = useTranslations("editMenusQuick");
   return (
     <div data-testid="space-controls" className="tc" style={{ gap: 8 }}>
-      <SpaceSlider label="Haut" testId="slider-spaceTop" attr="data-space-top" value={look.spaceTop} onChange={(v) => onChange({ spaceTop: v })} />
-      {!topOnly && <SpaceSlider label="Bas" testId="slider-spaceBottom" attr="data-space-bottom" value={look.spaceBottom} onChange={(v) => onChange({ spaceBottom: v })} />}
-      {!topOnly && <SidesSlider label="Côtés" testId="slider-spaceSides" attr="data-space-sides" value={look.spaceSides} onChange={(v) => onChange({ spaceSides: v })} />}
-      {!topOnly && <SpaceSlider label="Intérieur haut" testId="slider-padTop" attr="data-pad-top" value={look.padTop} onChange={(v) => onChange({ padTop: v })} />}
-      {!topOnly && <SpaceSlider label="Intérieur bas" testId="slider-padBottom" attr="data-pad-bottom" value={look.padBottom} onChange={(v) => onChange({ padBottom: v })} />}
-      <p className="sm-hint">Espacement intérieur : la distance DANS le fond et la carte, que leur couleur et leur papier peint couvrent. « Intérieur haut / bas » : entre le bord de la carte (ou du fond) et le contenu, « Aucun » les colle ; « Haut / Bas » s&apos;ajoutent à cette distance. Auto : l&apos;espace du thème. La distance à l&apos;extérieur est dans « Marge ».</p>
+      <SpaceSlider label={t("spaceTop")} testId="slider-spaceTop" attr="data-space-top" value={look.spaceTop} onChange={(v) => onChange({ spaceTop: v })} />
+      {!topOnly && <SpaceSlider label={t("spaceBottom")} testId="slider-spaceBottom" attr="data-space-bottom" value={look.spaceBottom} onChange={(v) => onChange({ spaceBottom: v })} />}
+      {!topOnly && <SidesSlider label={t("spaceSides")} testId="slider-spaceSides" attr="data-space-sides" value={look.spaceSides} onChange={(v) => onChange({ spaceSides: v })} />}
+      {!topOnly && <SpaceSlider label={t("padTop")} testId="slider-padTop" attr="data-pad-top" value={look.padTop} onChange={(v) => onChange({ padTop: v })} />}
+      {!topOnly && <SpaceSlider label={t("padBottom")} testId="slider-padBottom" attr="data-pad-bottom" value={look.padBottom} onChange={(v) => onChange({ padBottom: v })} />}
+      <p className="sm-hint">{t("spaceHint")}</p>
     </div>
   );
 }
 
 /** Largeur du bloc (lot 107) : Pleine (rien d'écrit) / Large / Moyenne / Étroite. Le fond et la carte du bloc suivent ; ils ne se règlent pas ici. */
-export function widthValue(look: Look): string | undefined {
-  const parts = [look.width !== undefined ? widthLabel(look.width).toLowerCase() : undefined, look.marginTop !== undefined ? `haut ${spaceLabel(look.marginTop)}` : undefined, look.marginBottom !== undefined ? `bas ${spaceLabel(look.marginBottom)}` : undefined].filter(Boolean);
+export function widthValue(look: Look, t: AdminT): string | undefined {
+  const parts = [look.width !== undefined ? widthLabel(look.width).toLowerCase() : undefined, look.marginTop !== undefined ? t("top", { value: spaceLabel(look.marginTop) }) : undefined, look.marginBottom !== undefined ? t("bottom", { value: spaceLabel(look.marginBottom) }) : undefined].filter(Boolean);
   return parts.length ? parts.join(", ") : undefined;
 }
 export function WidthControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
+  const t = useTranslations("editMenusQuick");
   return (
     <div data-testid="width-controls" className="tc" style={{ gap: 8 }}>
-      <WidthSlider label="Largeur" testId="slider-width" attr="data-block-width" value={look.width} onChange={(v) => onChange({ width: v })} />
-      <SpaceSlider label="Haut" testId="slider-marginTop" attr="data-margin" prefix="top-" value={look.marginTop} onChange={(v) => onChange({ marginTop: v })} />
-      <SpaceSlider label="Bas" testId="slider-marginBottom" attr="data-margin" prefix="bottom-" value={look.marginBottom} onChange={(v) => onChange({ marginBottom: v })} />
-      <p className="sm-hint">Marge extérieure : la distance HORS du fond et de la carte, on y voit la page (jamais le papier peint). Largeur pleine : le bloc prend toute la largeur ; sinon il est centré, décollé des bords, avec son fond et sa carte. L&apos;espace à l&apos;intérieur se règle dans « Espacement ».</p>
+      <WidthSlider label={t("width")} testId="slider-width" attr="data-block-width" value={look.width} onChange={(v) => onChange({ width: v })} />
+      <SpaceSlider label={t("spaceTop")} testId="slider-marginTop" attr="data-margin" prefix="top-" value={look.marginTop} onChange={(v) => onChange({ marginTop: v })} />
+      <SpaceSlider label={t("spaceBottom")} testId="slider-marginBottom" attr="data-margin" prefix="bottom-" value={look.marginBottom} onChange={(v) => onChange({ marginBottom: v })} />
+      <p className="sm-hint">{t("marginHint")}</p>
     </div>
   );
 }
@@ -118,6 +124,7 @@ export type QuickKind = "size" | "space" | "width";
 
 /** Fenêtre « Taille » ou « Espacement » d'un bloc de la page ou d'un composant de la planche (`uid`), ancrée au bouton `anchor`. */
 export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { uid: string; kind: QuickKind; anchor: PopoverAnchor; onClose: () => void; onChanged?: () => void }) {
+  const t = useTranslations("editMenusQuick");
   const [look, setLook] = useState<Look>(() => currentLook(uid));
   const change = (patch: Partial<Look>) => {
     const next = { ...look, ...patch };
@@ -128,7 +135,7 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
   };
   const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : kind === "width" ? <WidthControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} topOnly={Boolean(stripFrame(uid))} />;
   return (
-    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : kind === "width" ? "Marge extérieure du bloc" : "Espacement intérieur"} testId={`${kind}-menu`} onClose={onClose}>
+    <Popover anchor={anchor} align="center" label={kind === "size" ? t("menuSize") : kind === "width" ? t("menuWidth") : t("menuSpace")} testId={`${kind}-menu`} onClose={onClose}>
       {body}
     </Popover>
   );
@@ -136,14 +143,15 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
 
 /** Bouton « Taille » / « Espacement » de la barre : le libellé, puis la valeur posée (texte gris court, rien si le thème décide) d'un bloc de la page. */
 export function QuickButton({ uid, kind, open, onToggle }: { uid: string; kind: QuickKind; open: boolean; onToggle: () => void }) {
+  const t = useTranslations("editMenusQuick");
   const look = lookOf(uid);
-  const value = kind === "size" ? sizeValue(look) : kind === "width" ? widthValue(look) : spaceValue(look);
-  const label = kind === "size" ? "Taille" : kind === "width" ? "Marge" : "Espacement";
+  const value = kind === "size" ? sizeValue(look, t) : kind === "width" ? widthValue(look, t) : spaceValue(look, t);
+  const label = kind === "size" ? t("btnSize") : kind === "width" ? t("btnWidth") : t("btnSpace");
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : kind === "width" ? "Marge extérieure : largeur du bloc et distance hors du fond et de la carte" : "Espacement intérieur : distance dans le fond et la carte"} onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? t("titleSize") : kind === "width" ? t("titleWidth") : t("titleSpace")} onClick={onToggle}>
       {label}{" "}
       {value && (
-        <span className="sm-value" data-testid={`${kind}-value`} title={`${label} : ${value}`}>
+        <span className="sm-value" data-testid={`${kind}-value`} title={t("valueTitle", { label, value })}>
           · {value}
         </span>
       )}

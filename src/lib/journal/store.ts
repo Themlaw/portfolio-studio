@@ -8,7 +8,9 @@
  * LAISSE INTACT, ce qui permet justement de savoir ce qui s'est passé avant et après la restauration.
  *
  * Rétention : 30 jours ou 20 000 lignes (la plus stricte), purge automatique (à l'ouverture, puis toutes les 500 écritures
- * ou 10 minutes). Jamais de contenu de média, de mot de passe, de jeton ni de corps de message (voir summary.ts).
+ * ou 10 minutes). JAMAIS une entrée de moins de 7 jours (docs/SECURITE.md P5) : noyer le journal ne peut plus effacer les
+ * traces récentes d'une intrusion. Plafond dur de HARD_MAX_ROWS lignes (disque) : au-delà, les NOUVELLES entrées ne sont plus
+ * écrites (les anciennes, celles qui comptent après une intrusion, restent) ; stdout garde tout. Jamais de contenu de média, de mot de passe, de jeton ni de corps de message (voir summary.ts).
  * Toutes les fonctions d'écriture avalent leurs erreurs : le journal ne doit jamais casser une action.
  */
 import path from "node:path";
@@ -20,24 +22,13 @@ import { dataDir } from "@/lib/db";
 export const LOG_FILE = "edit-log.db";
 export const MAX_ROWS = 20_000;
 export const MAX_DAYS = 30;
+/** Âge en dessous duquel une entrée n'est jamais purgée, ni par l'ancienneté ni par le nombre de lignes. */
+export const MIN_KEEP_DAYS = 7;
+/** Plafond dur du nombre de lignes (une semaine d'écritures en rafale ne doit pas remplir le disque). */
+export const HARD_MAX_ROWS = 200_000;
 
 export type EntryResult = "ok" | "refus" | "conflit" | "erreur";
-export type EntryType = "modification" | "creation" | "suppression" | "publication" | "abandon" | "restauration" | "import" | "theme" | "reglage" | "compte" | "erreur";
-export const TYPE_LABELS: Record<EntryType, string> = {
-  modification: "Modification",
-  creation: "Création",
-  suppression: "Suppression",
-  publication: "Publication",
-  abandon: "Abandon du brouillon",
-  restauration: "Restauration",
-  import: "Envoi ou import",
-  theme: "Thème",
-  reglage: "Réglage",
-  compte: "Compte",
-  erreur: "Erreur du navigateur",
-};
-export const RESULT_LABELS: Record<EntryResult, string> = { ok: "Réussi", refus: "Refusé", conflit: "Conflit", erreur: "Erreur" };
-
+export type EntryType = "modification" | "creation" | "suppression" | "publication" | "abandon" | "restauration" | "import" | "theme" | "reglage" | "compte" | "telechargement" | "erreur";
 export type NewEntry = {
   kind: "action" | "client";
   action: string;
@@ -84,12 +75,13 @@ CREATE INDEX IF NOT EXISTS edit_log_type ON edit_log (type, t);
 CREATE INDEX IF NOT EXISTS edit_log_result ON edit_log (result, t);
 `;
 
-type State = { db: Database.Database; file: string; inserts: number; lastPurge: number; insert: Database.Statement };
+type State = { db: Database.Database; file: string; inserts: number; lastPurge: number; insert: Database.Statement; full: boolean; fullWarned: number };
 const g = globalThis as unknown as { __editLog?: State };
 
 const limits = () => ({
   rows: Math.max(1, Number(process.env.EDIT_LOG_MAX_ROWS) || MAX_ROWS),
   days: Math.max(0.0001, Number(process.env.EDIT_LOG_MAX_DAYS) || MAX_DAYS),
+  hard: Math.max(1, Number(process.env.EDIT_LOG_HARD_MAX) || HARD_MAX_ROWS),
 });
 
 function open(): State {
@@ -108,7 +100,7 @@ function open(): State {
   const insert = db.prepare(
     "INSERT INTO edit_log (t, kind, action, type, user, page_id, page, target, rev_from, rev_to, result, ms, version, label, summary) VALUES (@t, @kind, @action, @type, @user, @page_id, @page, @target, @rev_from, @rev_to, @result, @ms, @version, @label, @summary)",
   );
-  g.__editLog = { db, file, inserts: 0, lastPurge: 0, insert };
+  g.__editLog = { db, file, inserts: 0, lastPurge: 0, insert, full: false, fullWarned: 0 };
   purgeLog();
   return g.__editLog;
 }
@@ -121,8 +113,11 @@ export function purgeLog(now = Date.now(), opts: { rows?: number; days?: number 
     const rows = opts.rows ?? l.rows;
     const days = opts.days ?? l.days;
     s.lastPurge = now;
-    const a = s.db.prepare("DELETE FROM edit_log WHERE t < ?").run(now - days * 86_400_000).changes;
-    const b = s.db.prepare("DELETE FROM edit_log WHERE id <= (SELECT MAX(id) FROM edit_log) - ?").run(rows).changes;
+    // Rien de plus récent que MIN_KEEP_DAYS ne part, quelle que soit la limite demandée.
+    const keepFrom = now - MIN_KEEP_DAYS * 86_400_000;
+    const a = s.db.prepare("DELETE FROM edit_log WHERE t < ?").run(Math.min(now - days * 86_400_000, keepFrom)).changes;
+    const b = s.db.prepare("DELETE FROM edit_log WHERE id <= (SELECT MAX(id) FROM edit_log) - ? AND t < ?").run(rows, keepFrom).changes;
+    s.full = (s.db.prepare("SELECT COUNT(*) AS n FROM edit_log").get() as { n: number }).n >= l.hard;
     return a + b;
   } catch {
     return 0;
@@ -135,6 +130,15 @@ const clip = (v: string | null, n: number) => (v === null ? null : v.length > n 
 export function writeEntry(e: NewEntry, at = Date.now()): number | null {
   try {
     const s = open();
+    if (s.full) {
+      if (at - s.fullWarned > 600_000) {
+        s.fullWarned = at;
+        console.error(`[journal] plafond de ${limits().hard} lignes atteint (rien de moins de ${MIN_KEEP_DAYS} jours n'est purgé) : nouvelles entrées non écrites (stdout seulement)`);
+      }
+      s.inserts++;
+      if (s.inserts % 500 === 0 || at - s.lastPurge > 600_000) purgeLog(at);
+      return null;
+    }
     const r = s.insert.run({
       t: at,
       kind: e.kind,

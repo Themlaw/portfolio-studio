@@ -1,0 +1,7 @@
+{
+  "sizeAria": "Logo size: up and down arrows, drag downwards to enlarge",
+  "sizeTitle": "Logo size: drag downwards to enlarge it",
+  "posAria": "Logo position: left and right arrows, drag sideways to move it",
+  "posTitle": "Logo position: drag sideways to move it",
+  "pixels": "{count, plural, one {# pixel} other {# pixels}}"
+}

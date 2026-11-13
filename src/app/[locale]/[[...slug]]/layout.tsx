@@ -9,7 +9,7 @@ import { alternatesFor, getNav } from "@/lib/pages";
 import { logoCss, siteStylesCss } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 import { getCardWallpaper, getFontFacesCss, getFrameLibrary, getSiteView, getThemeFrameAll } from "@/lib/settings";
-import { getWallpapers } from "@/lib/wallpapers";
+import { getWallpapers, listWallpaperCatalog } from "@/lib/wallpapers";
 import { getActiveTheme } from "@/lib/theme";
 import { sitePaletteCss } from "@/themes/css";
 import { pagePalette } from "@/themes/site-palette";
@@ -79,7 +79,8 @@ export default async function SiteLayout({
       {paper && <div className="page-wallpaper" aria-hidden="true" data-mode={paper.mode} {...(Object.keys(paperVars).length ? { style: paperVars as React.CSSProperties } : {})} />}
       {(frames.length > 0 || edit) && <style id="site-frames" dangerouslySetInnerHTML={{ __html: frameLibraryCss(frames) }} />}
       {edit && <span hidden data-edit-frames={JSON.stringify(frames.map(frameChoiceOf))} />}
-      {edit && library && <span hidden data-edit-wallpapers={JSON.stringify([...library.values()])} />}
+      {/* Vue brouillon seulement : la bibliothèque avec les noms des motifs (le rendu public n'en a pas, N9). */}
+      {edit && <span hidden data-edit-wallpapers={JSON.stringify(listWallpaperCatalog())} />}
       {(paletteCss || edit) && <style id="site-palette" dangerouslySetInnerHTML={{ __html: paletteCss }} {...(edit ? { "data-edit-theme": JSON.stringify({ color: theme.tokens.color, palette: theme.tokens.palette ?? null }) } : {})} />}
       {(logoRules || edit) && <style id="site-logo" dangerouslySetInnerHTML={{ __html: logoRules }} />}
       {(siteCss || edit) && <style id="site-styles" dangerouslySetInnerHTML={{ __html: siteCss }} {...(edit ? { "data-edit-styles": JSON.stringify(view.styles ?? {}) } : {})} />}

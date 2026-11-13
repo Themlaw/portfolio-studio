@@ -45,6 +45,38 @@ PORT=3001 node verify.mjs   # harnais de régression Playwright (serveur dev lan
 
 Les scripts Playwright ponctuels (captures, contrôles) sont dans `scripts/`.
 
+### Scripts d'installation des paquets désactivés (`.npmrc`)
+
+Le `.npmrc` du dépôt pose `ignore-scripts=true` : `npm ci` / `npm install` n'exécutent
+**aucun** script `preinstall` / `install` / `postinstall` des paquets (un paquet compromis
+ne tourne pas en root sur la VM au moment de l'installation). Comme en CI et dans l'image.
+
+Vérifié par un `npm ci` complet sous ce `.npmrc` (dossier vide) : **rien à reconstruire**.
+Les paquets qui déclarent un script fonctionnent sans lui :
+
+| Paquet | Pourquoi ça marche sans script |
+|---|---|
+| `better-sqlite3` | binaires N-API précompilés dans `prebuilds/` (le script ne ferait qu'un `node-gyp rebuild`) |
+| `esbuild` (direct, `tsx`, `drizzle-kit`) | `bin/esbuild` reste le lanceur JS, qui appelle le binaire du paquet optionnel `@esbuild/linux-x64` (le script ne fait que le recopier, pour gagner quelques ms au démarrage) |
+| `@swc/core` (via `next-intl`), `@parcel/watcher`, `unrs-resolver` | binaire du paquet optionnel de la plateforme (`@swc/core-linux-x64-gnu`…), chargé directement |
+| `fsevents` | macOS seulement |
+
+`sharp`, `lightningcss`, `@tailwindcss/oxide`, `@next/swc-*`, `@neplex/vectorizer` n'ont pas
+de script (paquets optionnels par plateforme).
+
+Si un paquet en a vraiment besoin un jour, le reconstruire **explicitement**, en levant le
+drapeau pour cette seule commande (sans lui, `npm rebuild` ne fait que relier les binaires
+et n'exécute rien) :
+
+```bash
+npm rebuild <paquet> --ignore-scripts=false     # ex. npm rebuild esbuild --ignore-scripts=false
+```
+
+et ajouter l'étape équivalente au Dockerfile (`RUN npm rebuild <paquet>`, l'image passe
+`--ignore-scripts`) et à la CI. `npm run <script>` n'est pas concerné (les scripts du
+projet tournent) ; seuls les scripts `pre…` / `post…` du projet seraient ignorés (il n'y en a
+aucun : ne pas en ajouter).
+
 ## Thèmes
 
 Le rendu est piloté par un thème (tokens + variantes + assets), voir
@@ -185,7 +217,8 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 | Variable | Rôle |
 |---|---|
 | `MAX_IMAGE_MB` | Taille maximale d'une image envoyée (défaut 200). La lecture s'arrête dès le dépassement. |
-| `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. |
+| `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. Absent = sans limite (comportement d'avant). **Recommandé en production** : sans lui, un compte admin compromis ou un script qui boucle remplit `/data` (base, sauvegardes, journal). Le régler en laissant la place des sauvegardes. |
+| `UPLOAD_MIN_FREE_MB` | Espace laissé libre sur le disque des données (défaut 512 Mo, `0` = aucune garde) : un envoi, ou un morceau d'envoi, qui le consommerait est refusé (507 « Le disque du serveur est presque plein… »), avec ou sans quota. Un administrateur a au plus 10 envois par morceaux ouverts à la fois. |
 | `UPLOAD_IDLE_TIMEOUT_S` | Abandon d'un envoi qui ne reçoit plus rien (défaut 30 s), fichier temporaire supprimé. |
 | `UPLOAD_MAX_DURATION_S` | Durée totale maximale d'un envoi (défaut 600 s). |
 | `JOB_MAX_DURATION_S` | Durée maximale d'un traitement d'image (défaut 120 s) ; au-delà, l'image passe en échec. |
@@ -348,6 +381,18 @@ aussi ses sessions en cours.
   l'admin) reste fixé en bas du site tant que l'aperçu dure ; il n'existe que dans
   les requêtes en draft mode, jamais dans le HTML en cache public. Fin de l'aperçu
   à la déconnexion. `/api/theme-preview` n'existe qu'en développement.
+- Sessions (audit de sécurité P3) : expiration après **3 jours sans utilisation**, et au plus tard **7 jours après la
+  connexion** (vérifié par la garde de l'admin, même pour une session utilisée chaque jour). Admin → Réglages →
+  **Sécurité du compte** (`/admin/compte`) : changer le mot de passe (déconnecte TOUJOURS les autres appareils, forcé
+  côté serveur, même par un appel direct à `/api/auth/change-password`), liste des appareils connectés (navigateur, IP,
+  dates), « Déconnecter les autres sessions ».
+- Mot de passe perdu ou intrusion : `reset-password.mjs` est dans l'image (ni shell ni sqlite3) ; il pose un nouveau mot
+  de passe (lu sur l'entrée standard, ou tiré au hasard et affiché une fois) et **coupe toutes les sessions** :
+  ```sh
+  docker compose run --rm --no-deps -T --entrypoint /nodejs/bin/node portfolio reset-password.mjs moi@exemple.fr < /dev/null
+  printf '%s\n' 'nouvelle phrase de passe' | docker compose run --rm --no-deps -T --entrypoint /nodejs/bin/node portfolio reset-password.mjs moi@exemple.fr
+  ```
+  Changer aussi `BETTER_AUTH_SECRET` invalide d'un coup toutes les sessions (voir docs/SAUVEGARDES.md, « Déménager »).
 
 Tests : `npm test` (statique, inclut la garde des server actions) ;
 `npm run build:local && npm run test:auth` (intégration sur le build standalone, faux
@@ -384,6 +429,29 @@ compose), modèle commenté : `.env.example`. Seul `BETTER_AUTH_SECRET` est
 obligatoire (`openssl rand -base64 48`) ; `PORTFOLIO_TAG` épingle une version
 (`sha-1a2b3c4`, `v0.8.0`, `da-pro`… ; défaut `latest`).
 
+#### Épingler l'image de prod (recommandé)
+
+`latest` + `pull_policy: always` déploie **n'importe quelle** image poussée sous
+ce nom : si un jour une image piégée arrivait sur GHCR (jeton de CI volé,
+dépendance compromise), le redeploy suivant la mettrait en ligne. Mieux vaut
+déployer une image précise, choisie à la main :
+
+- par étiquette de commit : `PORTFOLIO_TAG=sha-1a2b3c4` (les 7 premiers caractères
+  du commit de `main`, visibles dans l'onglet *Actions* ou par `git rev-parse --short
+  HEAD`). La CI ne repousse jamais une étiquette `sha-…` vers un autre contenu ;
+- encore plus strict, par **digest** (immuable : l'image ne peut pas changer sous
+  ce nom) : `PORTFOLIO_TAG=sha-1a2b3c4@sha256:<digest>`. Le digest se lit dans le
+  journal du job `image` (étape *Build and push*, ligne `digest:`), sur la page du
+  paquet GHCR, ou par `docker buildx imagetools inspect
+  ghcr.io/themlaw/portfolio:sha-1a2b3c4` (ligne `Digest:`). Docker vérifie alors le
+  contenu tiré contre ce digest.
+
+Mise à jour : changer `PORTFOLIO_TAG` dans l'onglet *Environment* de la stack puis
+redéployer ; revenir en arrière = remettre l'ancienne valeur. Les actions GitHub
+des workflows sont, elles aussi, épinglées par SHA de commit (version en
+commentaire) : pour en monter une, `git ls-remote --tags
+https://github.com/<propriétaire>/<action>` donne le SHA de la nouvelle version.
+
 ### Premier démarrage
 
 Le volume nommé `portfolio-data` (nom réel `<projet>_portfolio-data`, voir
@@ -405,7 +473,10 @@ avec un message qui donne la commande exacte, nom du volume compris :
 ```
 
 Le service `fix-permissions` (profil `setup`, jamais lancé par défaut) fait ce
-`chown -R 1000:1000 /data` en root avec la seule capacité `CHOWN`, sans réseau.
+`chown -R 1000:1000 /data` en root avec les seules capacités `CHOWN` et
+`DAC_READ_SEARCH` (sans elle, un dossier `0700` d'un autre propriétaire n'est pas
+traversé et le `chown -R` reste partiel), sans réseau, image `alpine` épinglée par
+digest. Le `chown -R` de busybox ne suit pas les liens symboliques.
 Sur l'hôte, dans le dossier de la stack : `docker compose --profile setup run
 --rm fix-permissions`, puis redéployer. Pour un bind mount :
 `sudo chown -R 1000:1000 <dossier>`.

@@ -10,6 +10,7 @@
  * Lot 70 : « Récentes » en tête (les 6 dernières polices choisies, mémorisées par le
  * serveur) ; leurs aperçus se chargent comme ceux du catalogue, à la demande.
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { fontLabel, fontStack, THEME_FONTS } from "@/lib/look";
@@ -40,6 +41,7 @@ function loadPreview(family: string): Promise<boolean> {
 }
 
 function GoogleItem({ family, installed, current, onPick, eager, recent }: { family: string; installed: boolean; current: boolean; onPick: () => void; eager: boolean; recent?: boolean }) {
+  const t = useTranslations("editMenusFont");
   const ref = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -67,7 +69,7 @@ function GoogleItem({ family, installed, current, onPick, eager, recent }: { fam
       <span className="fm-name" style={ready ? { fontFamily: `"pv ${family}", system-ui` } : undefined}>
         {family}
       </span>
-      {installed && <span className="fm-badge">sur le site</span>}
+      {installed && <span className="fm-badge">{t("onSite")}</span>}
     </button>
   );
 }
@@ -93,6 +95,7 @@ export default function FontMenu({
   useEffect(() => {
     anchorRef.current = anchor;
   });
+  const t = useTranslations("editMenusFont");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<GoogleCategory | "all">("all");
   const [shown, setShown] = useState(PAGE);
@@ -182,7 +185,7 @@ export default function FontMenu({
       ref={root}
       className="fm"
       role="dialog"
-      aria-label="Choisir une police"
+      aria-label={t("choose")}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -196,18 +199,18 @@ export default function FontMenu({
           ref={input}
           className="fm-search"
           type="search"
-          placeholder={`Rechercher parmi ${GOOGLE_FONTS.length + local.length} polices`}
-          aria-label="Rechercher une police"
+          placeholder={t("searchPlaceholder", { count: GOOGLE_FONTS.length + local.length })}
+          aria-label={t("search")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setShown(PAGE);
           }}
         />
-        <div className="fm-cats" role="group" aria-label="Catégorie">
+        <div className="fm-cats" role="group" aria-label={t("category")}>
           {(["all", "sans", "serif", "display", "handwriting", "mono"] as const).map((c) => (
             <button key={c} type="button" aria-pressed={cat === c} onClick={() => (setCat(c), setShown(PAGE))}>
-              {c === "all" ? "Toutes" : CATEGORY_LABELS[c]}
+              {c === "all" ? t("all") : CATEGORY_LABELS[c]}
             </button>
           ))}
         </div>
@@ -215,18 +218,18 @@ export default function FontMenu({
       <div
         className="fm-list"
         role="listbox"
-        aria-label="Polices"
+        aria-label={t("list")}
         onScroll={(e) => {
           const el = e.currentTarget;
           if (el.scrollTop + el.clientHeight > el.scrollHeight - 200 && shown < google.length) setShown((n) => n + PAGE);
         }}
       >
         <button type="button" role="option" aria-selected={!value} className="fm-item fm-reset" onClick={() => onPick(undefined)}>
-          <span className="fm-name">Police par défaut (style global)</span>
+          <span className="fm-name">{t("default")}</span>
         </button>
         {recents.length > 0 && (
-          <div className="fm-recent" role="group" aria-label="Polices récentes">
-            <p className="fm-group">Récentes</p>
+          <div className="fm-recent" role="group" aria-label={t("recentGroup")}>
+            <p className="fm-group">{t("recent")}</p>
             {recents.map((ref) =>
               ref.startsWith("g:") ? (
                 <GoogleItem key={ref} recent eager={false} family={ref.slice(2)} installed={installedSet.has(ref.slice(2))} current={value === ref} onPick={() => choose(ref)} />
@@ -243,7 +246,7 @@ export default function FontMenu({
         )}
         {cat === "all" && local.length > 0 && (
           <>
-            <p className="fm-group">Thème et polices du site</p>
+            <p className="fm-group">{t("themeFonts")}</p>
             {local.map((ref) => (
               <button key={ref} type="button" role="option" aria-selected={value === ref} className="fm-item" data-font={ref} onClick={() => choose(ref)}>
                 <span className="fm-name" style={{ fontFamily: fontStack(ref) ?? undefined }}>
@@ -254,11 +257,11 @@ export default function FontMenu({
             ))}
           </>
         )}
-        <p className="fm-group">Google Fonts · téléchargée par le site au premier choix</p>
+        <p className="fm-group">{t("google")}</p>
         {google.slice(0, shown).map((f, i) => (
           <GoogleItem key={f.family} eager={i < 10} family={f.family} installed={installedSet.has(f.family)} current={value === `g:${f.family}`} onPick={() => choose(`g:${f.family}`)} />
         ))}
-        {google.length === 0 && <p className="fm-empty">Aucune police ne correspond.</p>}
+        {google.length === 0 && <p className="fm-empty">{t("empty")}</p>}
       </div>
     </div>
   );

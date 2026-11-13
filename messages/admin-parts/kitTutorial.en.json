@@ -1,0 +1,15 @@
+{
+  "zoomImage": "Enlarge the image: {alt}",
+  "zoomHint": "Tap the image to enlarge it.",
+  "label": "Kit tutorial",
+  "kicker": "Photoshop kit tutorial",
+  "close": "Close",
+  "sendKit": "Send the kit back",
+  "zoomedImage": "Enlarged image: {alt}",
+  "closeImage": "Close the image",
+  "prev": "← Previous",
+  "progress": "Tutorial progress",
+  "slideLabel": "Slide {n}: {title}",
+  "next": "Next →",
+  "finish": "Finish"
+}

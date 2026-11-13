@@ -1,0 +1,17 @@
+{
+  "grip": "Drag “{label}”",
+  "gripTitle": "Drag (into a block: drop on the middle of its row)",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "toFix": "To fix",
+  "up": "Move “{label}” up",
+  "down": "Move “{label}” down",
+  "out": "Move “{label}” out of the block",
+  "outTitle": "Move out of the block",
+  "enter": "Move “{label}” into “{target}”",
+  "enterFallback": "the block",
+  "enterTitle": "Move into the neighbouring block",
+  "empty": "Empty: drag a block into it.",
+  "treeLabel": "Page structure",
+  "hint": "Drag a row by its handle: between two rows, or onto the middle of a block to put it inside ({max} block levels at most)."
+}

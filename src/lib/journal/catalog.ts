@@ -67,6 +67,9 @@ export const SPECS: Record<string, Spec> = {
   createPageAction: { label: "Page créée", type: "creation" },
   savePageInfoAction: { label: "Infos de la page modifiées", type: "modification", page: 0, rev: 2, values: [1], state: "brouillon" },
   saveDraftAction: { label: "Brouillon modifié", type: "modification", page: 0, rev: 2, state: "brouillon", diff: { arg: 1, capture: captureDraft, resolve: resolveDraft } },
+  // Copier / coller (lot 133) : le contenu collé n'est jamais journalisé (seulement la page).
+  pasteBlocksAction: { label: "Blocs collés dans le brouillon", type: "creation", page: 0, values: [], state: "brouillon" },
+  pasteStyleAction: { label: "Style collé dans le brouillon", type: "modification", page: 0, values: [], state: "brouillon" },
   publishDraftAction: { label: "Page publiée", type: "publication", page: 0, rev: 1, values: [2], state: "publié" },
   discardDraftAction: { label: "Brouillon abandonné", type: "abandon", page: 0, rev: 1, state: "brouillon" },
   boardAction: { label: "Planche d'un projet modifiée", type: "modification", page: 0, rev: 3, values: [1, 2], state: "brouillon" },
@@ -144,10 +147,17 @@ export const SPECS: Record<string, Spec> = {
   // Sauvegardes, compte, premiers pas
   saveBackupSettingsAction: { label: "Réglages des sauvegardes modifiés", type: "reglage" },
   backupNowAction: { label: "Sauvegarde lancée à la main", type: "creation" },
+  // Audit P2 : trace du déverrouillage des téléchargements (le mot de passe n'est jamais résumé : aucun argument).
+  unlockBackupDownloadAction: { label: "Téléchargement des sauvegardes déverrouillé", type: "compte", values: [] },
   setOnboardingHiddenAction: { label: "Premiers pas masqués ou affichés", type: "modification" },
   signOutAction: { label: "Déconnexion", type: "compte" },
+  setAdminLangAction: { label: "Langue de l'interface d'administration changée", type: "compte", values: [0] },
+  // Audit P3 : jamais de résumé des arguments (mots de passe).
+  changePasswordAction: { label: "Mot de passe changé (autres sessions déconnectées)", type: "compte", values: [] },
+  revokeOtherSessionsAction: { label: "Autres sessions déconnectées", type: "compte", values: [] },
   // Routes d'écriture
   "route:upload": { label: "Fichier envoyé", type: "import", values: [] },
+  "route:animation": { label: "Animation image par image envoyée", type: "import", values: [] },
   "route:upload-complete": { label: "Envoi par morceaux terminé", type: "import", values: [] },
   "route:upload-cancel": { label: "Envoi annulé", type: "suppression", values: [] },
   "route:theme-import": { label: "Thème importé (archive)", type: "import", values: [] },

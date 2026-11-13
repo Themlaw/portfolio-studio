@@ -44,7 +44,12 @@ export function emptyTrashParts(s: { pages: number; projects: number; media: num
 export const willBeDeleted = (n: number) => `${n} ${plural(n, "élément", "éléments")} ${plural(n, "sera supprimé", "seront supprimés")}`;
 
 /** Toast d'une page restaurée : l'adresse reprise et la collection reprise sont dites. */
-export function restoredMessage(title: string, r: { slugChanged: boolean; collectionDropped: boolean }): string {
-  const notes = [r.slugChanged ? "son adresse était prise, elle en a une nouvelle" : "", r.collectionDropped ? "sa collection est maintenant celle d'une autre page, elle ne la présente plus" : ""].filter(Boolean);
+export function restoredMessage(title: string, r: { slugChanged: boolean; collectionDropped: boolean; unpublished?: string }): string {
+  const notes = [
+    r.slugChanged ? "son adresse était prise, elle en a une nouvelle" : "",
+    r.collectionDropped ? "sa collection est maintenant celle d'une autre page, elle ne la présente plus" : "",
+    // Contrôles de publication rejoués (N11) : la page revient hors ligne, avec la raison.
+    r.unpublished ? `elle revient hors ligne : ${r.unpublished.replace(/\.$/, "")}` : "",
+  ].filter(Boolean);
   return `« ${title} » restaurée${notes.length ? ` · ${notes.join(" ; ")}` : ""}`;
 }

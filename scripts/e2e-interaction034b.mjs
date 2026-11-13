@@ -535,7 +535,7 @@ if (run("W"))
     const rc = await fsFallback("chromium", () => chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2"] }));
     ok("W1 chromium, API standard retirée : le bouton plein écran de la boucle est là et son clic appelle `webkitEnterFullscreen` sur la vidéo", rc.n === 1 && rc.hasApi === "undefined" && rc.calls?.length === 1 && rc.calls[0].tag === "VIDEO", JSON.stringify(rc));
     const rw = await fsFallback("webkit", () => webkit.launch());
-    if (rw.skipped) info(`W2 WebKit non lançable ici (${rw.skipped}) : repli vérifié seulement dans chromium (W1). WebKit réel : image pf-pw (machine-de-test), ONLY=W.`);
+    if (rw.skipped) info(`W2 WebKit non lançable ici (${rw.skipped}) : repli vérifié seulement dans chromium (W1). WebKit réel : image pf-pw (machine de test), ONLY=W.`);
     else ok("W2 WebKit RÉEL, API standard retirée : le clic sur le bouton plein écran appelle `webkitEnterFullscreen` sur la vidéo", rw.n === 1 && rw.hasApi === "undefined" && rw.calls?.length === 1 && rw.calls[0].tag === "VIDEO", JSON.stringify(rw));
   });
 

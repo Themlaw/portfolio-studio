@@ -8,6 +8,8 @@
  *  BACKUP_KEEP        nombre de dernières sauvegardes gardées (3)
  *  BACKUP_KEEP_DAYS   et la dernière de chaque jour (heure de Paris) sur N jours (7)
  *  BACKUP_MEDIA       0 / false : base seule, sans les médias (1)
+ *  BACKUP_MAX_DISK_PCT  place totale des sauvegardes, en % de la taille du disque (30, entre 5 et 90). Volontairement absent de
+ *                     l'écran de l'admin : une session volée ne doit pas pouvoir s'en servir (audit de sécurité, P6).
  *
  * Lot 76 : l'admin peut surcharger ces réglages (ligne `backup` de la table settings, voir settings.ts). Un réglage de l'admin
  * PRIME sur l'environnement, qui reste la valeur par défaut ; `sources` dit d'où vient chaque valeur.
@@ -27,6 +29,8 @@ export type BackupConfig = {
   /** Lot 118 : jours (Paris) dont on garde la dernière sauvegarde, en plus des `keep` dernières. */
   keepDays: number;
   media: boolean;
+  /** Place totale des sauvegardes, en % de la taille du disque (environnement seul). */
+  maxDiskPct: number;
   /** Intervalle de la minuterie (ms) : fin par rapport au délai de quiétude le plus court. */
   pollMs: number;
   warnings: string[];
@@ -34,7 +38,8 @@ export type BackupConfig = {
   sources: BackupSources;
 };
 
-export const DEFAULTS = { quietMin: 10, maxHours: 1, keep: 3, keepDays: 7 } as const;
+export const DEFAULTS = { quietMin: 10, maxHours: 1, keep: 3, keepDays: 7, maxDiskPct: 30 } as const;
+export const DISK_PCT = { min: 5, max: 90 } as const;
 
 const on = (v: string | undefined) => v !== undefined && ["1", "true", "yes", "oui", "on"].includes(v.trim().toLowerCase());
 const off = (v: string | undefined) => v !== undefined && ["0", "false", "no", "non", "off"].includes(v.trim().toLowerCase());
@@ -78,6 +83,11 @@ export function readBackupConfig(env: Record<string, string | undefined> = proce
   const envKeep = positive("BACKUP_KEEP", env.BACKUP_KEEP, DEFAULTS.keep, warnings, true);
   const keepDays = positive("BACKUP_KEEP_DAYS", env.BACKUP_KEEP_DAYS, DEFAULTS.keepDays, warnings, true);
   const envMedia = !off(env.BACKUP_MEDIA);
+  let maxDiskPct = positive("BACKUP_MAX_DISK_PCT", env.BACKUP_MAX_DISK_PCT, DEFAULTS.maxDiskPct, warnings);
+  if (maxDiskPct < DISK_PCT.min || maxDiskPct > DISK_PCT.max) {
+    warnings.push(`BACKUP_MAX_DISK_PCT=${JSON.stringify(env.BACKUP_MAX_DISK_PCT)} hors bornes (${DISK_PCT.min} à ${DISK_PCT.max}) : valeur par défaut (${DEFAULTS.maxDiskPct}) utilisée`);
+    maxDiskPct = DEFAULTS.maxDiskPct;
+  }
 
   const given = (v: string | undefined) => v !== undefined && v.trim() !== "";
   const sources: BackupSources = {
@@ -99,11 +109,11 @@ export function readBackupConfig(env: Record<string, string | undefined> = proce
   const media = overrides.media ?? envMedia;
   // Une vérification par quart du délai de quiétude, entre 0,5 s et 30 s : une lecture de PRAGMA, quasi gratuite.
   const pollMs = Math.min(30_000, Math.max(500, Math.floor(Math.min(quietMs, maxMs) / 4)));
-  return { enabled, quietMs, maxMs, keep, keepDays, media, pollMs, warnings, sources };
+  return { enabled, quietMs, maxMs, keep, keepDays, media, maxDiskPct, pollMs, warnings, sources };
 }
 
 export function describeConfig(c: BackupConfig, dir: string): string {
   const quiet = c.quietMs % 60_000 === 0 ? `${c.quietMs / 60_000} min` : `${c.quietMs / 1000} s`;
   const max = c.maxMs % 3_600_000 === 0 ? `${c.maxMs / 3_600_000} h` : `${Math.round(c.maxMs / 60_000)} min`;
-  return `sauvegardes activées : après ${quiet} sans modification ou au plus ${max} de modifications en attente, ${c.keep} dernière(s) gardée(s) + la dernière de chacun des ${c.keepDays} derniers jours, ${c.media ? "médias inclus" : "base seule (BACKUP_MEDIA=0)"}, dossier ${dir}`;
+  return `sauvegardes activées : après ${quiet} sans modification ou au plus ${max} de modifications en attente, ${c.keep} dernière(s) gardée(s) + la dernière de chacun des ${c.keepDays} derniers jours (plus la plus récente de plus de 48 h et 3 manuelles, ${c.maxDiskPct} % du disque au plus), ${c.media ? "médias inclus" : "base seule (BACKUP_MEDIA=0)"}, dossier ${dir}`;
 }

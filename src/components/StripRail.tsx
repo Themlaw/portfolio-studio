@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
+import { useAdminTranslator } from "@/components/AdminIntl";
+
 import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
@@ -84,6 +86,7 @@ export default function StripRail({
 }) {
   const t = useTranslations("projects");
   const tg = useTranslations("gallery");
+  const ta = useAdminTranslator("canvasRail");
   const styleOf = (slug: string, field: CaptionField): CSSProperties | undefined => (capOwn && Object.hasOwn(capOwn, slug) ? capOwn[slug][field] : undefined) ?? capBase?.[field];
   /** Habillage enregistré de la place `slug` (vide sans réglage). */
   const mineOf = (slug: string): MediaLookData => (slotLook && Object.hasOwn(slotLook, slug) ? slotLook[slug] : undefined) ?? {};
@@ -304,11 +307,11 @@ export default function StripRail({
                 data-empty=""
                 tabIndex={0}
                 role="group"
-                aria-label={slot.pending ? "Image en cours de conversion" : "Place gardée, sans image"}
+                aria-label={slot.pending ? ta?.("pending") : ta?.("kept")}
               >
                 <span className="strip-media">
                   <span className="pe-empty-box rounded-strip" style={{ width: `calc(var(--strip-h) * ${slot.aspect.toFixed(4)})` }}>
-                    {slot.pending ? "Conversion…" : "Dépose une image ici"}
+                    {slot.pending ? ta?.("converting") : ta?.("dropHere")}
                   </span>
                 </span>
                 {caption}

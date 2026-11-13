@@ -1,0 +1,151 @@
+{
+  "types": {
+    "project-board": {
+      "label": "Projet",
+      "description": "Un projet et ses images en bande : crée-le sur la page, ou reprends un projet existant.",
+      "summary": "Projet · {project}"
+    },
+    "featured-project": {
+      "label": "Projet mis en avant (ancien)",
+      "description": "Ancien bloc, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Projet…).",
+      "summary": "{project} · {children} blocs"
+    },
+    "video-single": {
+      "label": "Vidéo",
+      "description": "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
+      "summary": "Vidéo · {title}"
+    },
+    "grid": {
+      "label": "Grille",
+      "description": "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
+      "summary": "Grille {layout} · {children} blocs"
+    },
+    "image": {
+      "label": "Image",
+      "description": "Une image seule, avec une légende facultative.",
+      "summary": "Image · {caption}"
+    },
+    "free-board": {
+      "label": "Planche libre",
+      "description": "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
+      "summary": "Planche libre · {items} images"
+    },
+    "cv": {
+      "label": "CV",
+      "description": "Ton CV : ses pages en images, lisibles et agrandissables, et un bouton pour télécharger le PDF.",
+      "summary": "CV · {title}"
+    },
+    "section-title": {
+      "label": "Titre",
+      "description": "Un titre, avec une étiquette, une présentation et des compteurs facultatifs ; peut être le titre principal de la page ; peut reprendre le nom et la présentation d'un projet.",
+      "summary": "{title}"
+    },
+    "hero": {
+      "label": "Ouverture",
+      "description": "Le grand bandeau d'accueil : ton nom, ton métier et une accroche, dans la forme choisie par le thème.",
+      "summary": "{eyebrow}",
+      "single": "Il y a déjà une Ouverture sur cette page : une page n'en porte qu'une."
+    },
+    "collection-tiles": {
+      "label": "Entrées des collections",
+      "description": "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
+      "summary": "{title} · {items} entrées"
+    },
+    "collection-intro": {
+      "label": "En-tête de collection (ancien)",
+      "description": "Ancien bloc, remplacé par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
+      "summary": "{title} · {collection}"
+    },
+    "rich-text": {
+      "label": "Texte",
+      "description": "Un paragraphe de texte ; un titre peut s'ajouter au survol sur la page.",
+      "summary": "{title} · {paragraphs} paragraphes"
+    },
+    "contact": {
+      "label": "Contact",
+      "description": "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
+      "summary": "{title} · {fields} champs"
+    },
+    "contact-form": {
+      "label": "Formulaire de contact (ancien)",
+      "description": "Ancien bloc, remplacé par « Contact » avec l'option formulaire.",
+      "summary": "{title} · {fields} champs"
+    },
+    "page-link": {
+      "label": "Lien vers une page",
+      "description": "Un lien « Texte → » vers une page du site, entre deux blocs.",
+      "summary": "{label}"
+    },
+    "exit": {
+      "label": "Sortie",
+      "description": "Le titre, le message et le bouton qui ramènent le visiteur sur le site ; avec plusieurs messages, un est tiré au hasard à chaque visite.",
+      "summary": "{title}",
+      "locked": "Ce bloc ne peut pas être supprimé : c'est lui qui ramène le visiteur sur le site. Tu peux le déplacer et le mettre en forme.",
+      "single": "Il y a déjà un bloc Sortie sur cette page : une page n'en porte qu'un."
+    },
+    "random-work": {
+      "label": "Une œuvre au hasard",
+      "description": "Une œuvre publiée tirée au hasard à chaque visite, avec son image, son titre et un lien vers sa page.",
+      "summary": "Une œuvre au hasard"
+    },
+    "profile": {
+      "label": "Profil",
+      "description": "Ton portrait, ta présentation, ton contact et tes réseaux.",
+      "summary": "{eyebrow} · {paragraphs} paragraphes"
+    },
+    "featured-projects": {
+      "label": "Projets mis en avant (ancien)",
+      "description": "Ancien bloc, remplacé par « Projet mis en avant ».",
+      "summary": "{title} · {limit} projets"
+    },
+    "collection-projects": {
+      "label": "Projets d'une collection (ancien)",
+      "description": "Ancien bloc, remplacé par des blocs « Projet » posés un à un.",
+      "summary": "Projets · {collection}"
+    },
+    "video": {
+      "label": "Vidéos (ancien)",
+      "description": "Ancienne vitrine, remplacée par des « Vidéo » dans une « Grille ».",
+      "summary": "Demoreel · {cardsTitle}"
+    },
+    "steps": {
+      "label": "Étapes",
+      "description": "Un avant / après à curseur, un making-of en étapes (croquis, valeurs, couleur, final) ou un turnaround à faire tourner.",
+      "summary": "Étapes {mode} · {items} images"
+    }
+  },
+  "presets": {
+    "grid-videos": {
+      "label": "Grille de vidéos",
+      "short": "Avec des vidéos",
+      "description": "Une grande vidéo et deux petites dessous (l'agencement se change ensuite)."
+    },
+    "grid-images": {
+      "label": "Grille d'images",
+      "short": "Avec 3 images",
+      "description": "Trois images côte à côte (l'agencement se change ensuite)."
+    },
+    "contact-with-form": {
+      "label": "Contact avec formulaire",
+      "short": "Avec un formulaire",
+      "description": "Un formulaire pour t'écrire : champs au choix, message de confirmation."
+    }
+  },
+  "publish": {
+    "projectName": "Nomme ce projet, ou choisis-en un existant.",
+    "morePage": "Choisis la page du lien « voir plus ».",
+    "video": "Choisis une vidéo (dépose-la, ou prends-la dans la médiathèque).",
+    "image": "Choisis une image (dépose-la, ou prends-la dans la médiathèque).",
+    "freeBoard": "Ajoute au moins une image à la planche libre (glisse-la sur la zone, ou « + Image »).",
+    "cv": "Choisis le PDF de ton CV (dépose-le sur le bloc, ou prends-le dans la médiathèque).",
+    "titleProject": "Choisis le projet repris par ce titre.",
+    "heroStatement": "Phrase d'accroche : {problem}",
+    "contactNoId": "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire.",
+    "contactIncomplete": "Ce formulaire est incomplet : {detail}.",
+    "invalidSettings": "réglages invalides",
+    "formNoId": "Ce formulaire n'a pas d'identifiant : supprime-le et ajoute-le à nouveau.",
+    "pageLink": "Choisis la page de destination de ce lien.",
+    "randomCategory": "Choisis la catégorie d'où tirer l'œuvre.",
+    "randomWorks": "Choisis au moins une œuvre dans la sélection."
+  }
+}

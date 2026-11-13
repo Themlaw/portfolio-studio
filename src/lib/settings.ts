@@ -10,7 +10,8 @@ import { fontFaceCss, readLibrary } from "./fonts/faces";
 import { readThemeFrameAll, SiteStylesSchema, type SiteStyles } from "./look";
 import { readCardWallpaper, type CardWallpaper } from "@/themes/wallpaper";
 import { readFrameLibrary, type FrameEntry } from "@/themes/frame-library";
-import { readSeo, type SeoStored } from "./seo-schema";
+import { isReadyImage } from "./media-alive";
+import { readSeo, withLiveFavicon, type SeoStored } from "./seo-schema";
 import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
@@ -65,7 +66,12 @@ export async function getSocials(): Promise<Social[]> {
 
 /** Partage et référencement du site (lot 52, réglage `seo`) : description, image de partage, icône. Absent = rien de réglé. */
 export async function getSeoSettings(): Promise<SeoStored> {
-  return readSeo((await getRawSettings()).seo);
+  const seo = readSeo((await getRawSettings()).seo);
+  const id = seo.favicon?.mediaId;
+  if (id === undefined) return seo;
+  // Icône « image » : son média doit exister encore (sinon monogramme / logo, jamais des fichiers supprimés).
+  const alive = await cached(["seo-favicon-alive", String(id)], [TAGS.settings, TAGS.media], () => isReadyImage(id));
+  return withLiveFavicon(seo, () => alive);
 }
 
 /** Menu publié (réglage `nav`, v0.13), ou null avant la migration. */

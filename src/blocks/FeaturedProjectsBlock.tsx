@@ -7,6 +7,7 @@ import { getFeaturedProjects } from "@/lib/gallery";
 import { claimEager } from "@/lib/eager";
 import { hrefForPage } from "@/lib/pages";
 
+import { stripProject } from "./strip-project";
 import { inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const featuredProjectsSchema = z.object({
@@ -45,7 +46,7 @@ export default async function FeaturedProjectsBlock({
       </section>
 
       {projects.map((project, index) => (
-        <ProjectStrip key={project.slug} project={project} eager={index === 0 ? eager : 0} deep={index % 2 === 0} />
+        <ProjectStrip key={project.slug} project={stripProject(project)} eager={index === 0 ? eager : 0} deep={index % 2 === 0} />
       ))}
 
       {props.more && moreHref && (

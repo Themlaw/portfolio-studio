@@ -86,7 +86,7 @@ const allow = (opt("--allow") ? readLines(opt("--allow")) : []).map((l) => {
 const allowed = (cls, file, sha) => allow.some((a) => a.cls === cls && (a.blob ? a.blob === sha : a.re.test(file)));
 
 /* ------------------------------------------------------------------ règles */
-const PLACEHOLDER = /(example|exemple|test|dummy|fake|factice|changeme|change-me|placeholder|xxxx|0123456789|abcdef|your[_-]|<[^>]+>|\$\{|\$\(|process\.env|env\.|secret-ci|ci-secret|redacted|\.\.\.|not-a-real|synthet|mem-secret|local-dev|dev-secret|aaaa|1234)/i;
+const PLACEHOLDER = /(example|exemple|test|dummy|fake|factice|changeme|change-me|placeholder|xxxx|0123456789|abcdef|your[_-]|<[^>]+>|\$\{|\$\(|process\.env|env\.|secret-ci|ci-secret|redacted|\.\.\.|not-a-real|synthet|mem-secret|local-dev|dev-secret|aaaa|1234|mot-de-passe|synth|SYNTH)/i;
 
 /** Secrets : [id, expression, (valeur) => faux positif ?]. */
 const SECRET_RULES = [
@@ -104,6 +104,8 @@ const SECRET_RULES = [
     /\b[A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|passwd|api[_-]?key|private[_-]?key|client[_-]?secret|auth[_-]?key)[A-Za-z0-9_]*["'`]?\s*[:=]\s*["'`]([A-Za-z0-9+/=_.~-]{16,})["'`]/i,
     (m, g1) => PLACEHOLDER.test(m) || PLACEHOLDER.test(g1 ?? "") || /^[a-z]+(?:-[a-z]+)+$/i.test(g1 ?? "") || /^(?:[A-Za-z]+\.){1,}[A-Za-z]+$/.test(g1 ?? ""),
   ],
+  // .npmrc : interdit seulement s'il porte un jeton ou des identifiants (celui du dépôt ne contient que ignore-scripts=true).
+  ["npmrc-auth", /^\s*(?:\/\/\S+:)?_(?:authToken|auth|password)\s*=\s*\S+/m],
   [
     "env-assignment",
     /^\s*(?:export\s+)?(?:BETTER_AUTH_SECRET|AUTH_SECRET|OIDC_CLIENT_SECRET|[A-Z0-9_]*(?:SECRET|PASSWORD|TOKEN|API_KEY))\s*=\s*["']?([^\s"'#$][^\s"'#]{11,})/m,
@@ -117,7 +119,7 @@ const FORBIDDEN_NAME = [
   ["private-key-file", /(^|\/)(id_(rsa|dsa|ecdsa|ed25519)|[^/]+\.(pem|key|p12|pfx|jks|kdbx|ppk))$/, (p) => /(\.pub|-public\.pem)$/.test(p)],
   ["database-file", /\.(sqlite3?|db|db-wal|db-shm)$/, () => false],
   ["fichier-de-travail-d-artiste", /\.(psd|psb|xcf|kra|ai|clip|procreate)$/i, () => false],
-  ["credentials-file", /(^|\/)(\.npmrc|\.netrc|\.pgpass|kubeconfig|credentials\.json|service-account[^/]*\.json|wg[0-9]*\.conf|\.htpasswd)$/, () => false],
+  ["credentials-file", /(^|\/)(\.netrc|\.pgpass|kubeconfig|credentials\.json|service-account[^/]*\.json|wg[0-9]*\.conf|\.htpasswd)$/, () => false],
   ["infra-config", /(^|\/)(terraform\.tfstate[^/]*|[^/]+\.tfvars|ansible-vault[^/]*|komodo[^/]*\.toml|\.docker\/config\.json)$/, () => false],
 ];
 

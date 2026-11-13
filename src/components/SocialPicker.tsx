@@ -10,6 +10,7 @@
  * Aucun style propre : chaque écran passe ses classes (`classes`), la toile
  * celles de la couche d'édition, l'admin les siennes (jetons --admin-*).
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { detectNetwork, NETWORK_LABELS, NETWORKS, safeSocialHref, type Network } from "@/lib/site-schema";
@@ -48,6 +49,7 @@ export default function SocialPicker({
   classes: SocialPickerClasses;
   onDone: (value: SocialPicked) => void;
 }) {
+  const t = useTranslations("canvasPicker");
   const [network, setNetwork] = useState<Network | null>(mode === "edit" ? (detectNetwork(initialHref) ?? "other") : null);
   const [href, setHref] = useState(initialHref === "#" ? "" : initialHref);
   const [label, setLabel] = useState(initialLabel);
@@ -62,8 +64,8 @@ export default function SocialPicker({
   if (mode === "add" && !network) {
     return (
       <>
-        <p className={classes.title}>Ajouter un réseau</p>
-        <ul className={classes.grid} role="menu" aria-label="Réseaux">
+        <p className={classes.title}>{t("addNetwork")}</p>
+        <ul className={classes.grid} role="menu" aria-label={t("networks")}>
           {CLASSIC_NETWORKS.map((n) => (
             <li key={n} role="none">
               <button type="button" role="menuitem" onClick={() => setNetwork(n)}>
@@ -73,7 +75,7 @@ export default function SocialPicker({
           ))}
           <li role="none">
             <button type="button" role="menuitem" onClick={() => setNetwork("other")}>
-              <SocialIcon kind="other" /> Autre lien
+              <SocialIcon kind="other" /> {t("otherLink")}
             </button>
           </li>
         </ul>
@@ -89,7 +91,7 @@ export default function SocialPicker({
     <div
       className={classes.form}
       role="group"
-      aria-label={mode === "edit" ? "Modifier le lien" : "Nouveau réseau"}
+      aria-label={mode === "edit" ? t("editLink") : t("newNetwork")}
       onKeyDown={(e) => {
         if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
           e.preventDefault();
@@ -99,36 +101,36 @@ export default function SocialPicker({
       }}
     >
       <p className={classes.title}>
-        {effective && <SocialIcon kind={effective} />} {mode === "edit" ? "Modifier le lien" : effective && effective !== "other" ? NETWORK_LABELS[effective] : "Autre lien"}
+        {effective && <SocialIcon kind={effective} />} {mode === "edit" ? t("editLink") : effective && effective !== "other" ? NETWORK_LABELS[effective] : t("otherLink")}
       </p>
       <label className={classes.field}>
-        <span>{effective === "email" ? "Adresse e-mail" : "Adresse du profil"}</span>
+        <span>{effective === "email" ? t("emailAddress") : t("profileAddress")}</span>
         <input
           type="text"
           autoFocus
           maxLength={300}
-          placeholder={effective === "email" ? "nom@domaine.fr" : "https://…"}
+          placeholder={effective === "email" ? t("emailPlaceholder") : "https://…"}
           value={href}
           onChange={(e) => setHref(e.target.value)}
           aria-invalid={href.trim() !== "" && !ok}
         />
       </label>
-      {detected && detected !== "website" && network === "other" && <small className={classes.hint}>Reconnu : {NETWORK_LABELS[detected]}</small>}
+      {detected && detected !== "website" && network === "other" && <small className={classes.hint}>{t("recognized", { network: NETWORK_LABELS[detected] })}</small>}
       {withLabel && (
         <label className={classes.field}>
-          <span>Nom affiché{effective && effective !== "other" ? " (facultatif)" : ""}</span>
-          <input type="text" maxLength={40} placeholder={effective && effective !== "other" ? NETWORK_LABELS[effective] : "Ex. Mon blog"} value={label} onChange={(e) => setLabel(e.target.value)} />
+          <span>{effective && effective !== "other" ? t("displayNameOptional") : t("displayName")}</span>
+          <input type="text" maxLength={40} placeholder={effective && effective !== "other" ? NETWORK_LABELS[effective] : t("namePlaceholder")} value={label} onChange={(e) => setLabel(e.target.value)} />
         </label>
       )}
-      {href.trim() && !ok && <small className={classes.error}>Adresse invalide : https://… seulement (ou une adresse e-mail).</small>}
+      {href.trim() && !ok && <small className={classes.error}>{t("invalidAddress")}</small>}
       <span>
         {mode === "add" && classes.back !== undefined && (
           <button type="button" className={classes.back} onClick={() => setNetwork(null)}>
-            ← Autre réseau
+            {t("otherNetwork")}
           </button>
         )}
         <button type="button" className={classes.button} disabled={!ok || (withLabel && !name)} onClick={submit}>
-          {mode === "edit" ? "Enregistrer le lien" : "Ajouter"}
+          {mode === "edit" ? t("saveLink") : t("add")}
         </button>
       </span>
     </div>

@@ -1,0 +1,7 @@
+{
+  "sizeAria": "Taille du logo : flèches haut et bas, glisser vers le bas pour agrandir",
+  "sizeTitle": "Taille du logo : glisse vers le bas pour l'agrandir",
+  "posAria": "Position du logo : flèches gauche et droite, glisser de côté pour le déplacer",
+  "posTitle": "Position du logo : glisse de côté pour le déplacer",
+  "pixels": "{count, plural, one {# pixel} other {# pixels}}"
+}

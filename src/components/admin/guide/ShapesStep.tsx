@@ -9,12 +9,14 @@
  * plus proche ; seul un clic sur un cran écrit les rayons de ce cran (src/themes/guided.ts). Les curseurs précis et la forme des
  * boutons restent sous « Affiner (avancé) ».
  */
+import { useTranslations } from "next-intl";
+
 import type { SitePalette } from "@/lib/look";
 import { applyRoundLevel, px, ROUND_LEVELS, roundLevelOf } from "@/themes/guided";
 import type { Theme } from "@/themes/schema";
 
 import CardSettings from "../CardSettings";
-import { VARIANT_LABELS, VARIANT_THUMBS } from "../VariantThumb";
+import { variantLabels, VARIANT_THUMBS } from "../VariantThumb";
 import { Advanced, Levels, Slider } from "./controls";
 
 /** Formes à vignettes de cette étape : les boutons (dérivés de l'arrondi) et la texture du fond (étape 4) n'y sont pas. */
@@ -31,19 +33,21 @@ export default function ShapesStep({
   setTheme: (fn: (t: Theme) => Theme) => void;
   setTokens: <K extends keyof Theme["tokens"]>(k: K, v: Partial<Theme["tokens"][K]>) => void;
 }) {
+  const t = useTranslations("guide");
+  const labels = variantLabels(useTranslations("variants"));
   const round = roundLevelOf(theme.tokens.radius, theme.variants.button);
   const r = theme.tokens.radius;
   const buttonKey = "button" as const;
-  const meta = VARIANT_LABELS[buttonKey];
+  const meta = labels[buttonKey];
   return (
     <>
-      <p className="a-help a-step-intro">Choisis la forme des éléments du site, puis à quel point les coins sont ronds.</p>
+      <p className="a-help a-step-intro">{t("shapesIntro")}</p>
       <section aria-labelledby="t-formes" className="a-guide-block">
         <h3 id="t-formes" className="a-subhead">
-          Formes
+          {t("shapes")}
         </h3>
         {SHAPE_KEYS.map((key) => {
-          const m = VARIANT_LABELS[key];
+          const m = labels[key];
           return (
             <fieldset key={key} className="a-fieldset">
               <legend>{m.title}</legend>
@@ -66,22 +70,22 @@ export default function ShapesStep({
           );
         })}
         {theme.variants.hero === "parallax-layers" && !theme.assets.heroLayers?.length && !theme.assets.kit?.plans?.length && (
-          <p className="a-help">Ce thème n&apos;a pas de calques : l&apos;ouverture « Calques en relief » s&apos;affiche sans relief.</p>
+          <p className="a-help">{t("noLayers")}</p>
         )}
       </section>
 
       <section aria-labelledby="t-arrondi" className="a-guide-block" data-testid="round-block" data-exact={round.exact}>
         <h3 id="t-arrondi" className="a-subhead">
-          Arrondi
+          {t("round")}
         </h3>
-        <p className="a-help">Un seul réglage pour les coins des boutons, des cartes, des blocs et des images : de carré à très rond.</p>
+        <p className="a-help">{t("roundHelp")}</p>
         <div className="a-round-demo" aria-hidden="true" style={{ ["--rd-sm" as string]: r.sm, ["--rd-md" as string]: r.md, ["--rd-lg" as string]: r.lg, ["--rd-btn" as string]: theme.variants.button === "pill" ? r.btn : r.sm }}>
-          <span className="a-round-btn">Bouton</span>
-          <span className="a-round-card">Carte</span>
-          <span className="a-round-block">Bloc</span>
+          <span className="a-round-btn">{t("demoButton")}</span>
+          <span className="a-round-card">{t("demoCard")}</span>
+          <span className="a-round-block">{t("demoBlock")}</span>
         </div>
         <Levels
-          label="Arrondi"
+          label={t("round")}
           levels={ROUND_LEVELS}
           current={round.exact ? round.index : null}
           testId="round-level"
@@ -92,8 +96,8 @@ export default function ShapesStep({
         />
         <p className="a-help" data-testid="round-note">
           {round.exact
-            ? `Arrondi « ${ROUND_LEVELS[round.index].label} ».`
-            : `Ce thème a des arrondis précis (affinés ci-dessous), proches de « ${ROUND_LEVELS[round.index].label} ». Ils sont gardés tels quels : choisis un cran pour les remplacer.`}
+            ? t("roundExact", { label: ROUND_LEVELS[round.index].label })
+            : t("roundPrecise", { label: ROUND_LEVELS[round.index].label })}
         </p>
       </section>
 
@@ -113,16 +117,16 @@ export default function ShapesStep({
         }
       />
 
-      <Advanced id="cartes" count={round.exact ? 0 : 1} hint="Les arrondis un par un, en pixels, et la forme des boutons.">
+      <Advanced id="cartes" count={round.exact ? 0 : 1} hint={t("roundAdvancedHint")}>
         {(
           [
-            ["sm", "Petits éléments", 0, 16],
-            ["md", "Cartes", 0, 32],
-            ["lg", "Grands blocs", 0, 40],
-            ["strip", "Images des planches", 0, 16],
+            ["sm", "small", 0, 16],
+            ["md", "cards", 0, 32],
+            ["lg", "bigBlocks", 0, 40],
+            ["strip", "stripImages", 0, 16],
           ] as const
         ).map(([k, label, min, max]) => (
-          <Slider key={k} label={label} min={min} max={max} step={1} unit="px" value={px(r[k])} onChange={(v) => setTokens("radius", { [k]: `${v}px` })} />
+          <Slider key={k} label={t(`radius.${label}`)} min={min} max={max} step={1} unit="px" value={px(r[k])} onChange={(v) => setTokens("radius", { [k]: `${v}px` })} />
         ))}
         <fieldset className="a-fieldset">
           <legend>{meta.title}</legend>

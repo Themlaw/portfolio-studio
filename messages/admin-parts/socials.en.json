@@ -1,0 +1,12 @@
+{
+  "none": "No social links yet.",
+  "missingHref": "Address missing",
+  "placeholder": "Link to complete: this network does not appear on the site while its address is empty.",
+  "edit": "Edit",
+  "editLabel": "Edit {label}",
+  "moveUp": "Move {label} up",
+  "moveDown": "Move {label} down",
+  "remove": "Remove {label}",
+  "cancel": "Cancel",
+  "add": "+ Social link"
+}

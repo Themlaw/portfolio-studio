@@ -1,17 +1,25 @@
+"use client";
+
 /**
  * Étendue et coins d'un aplat (lots 43 et 47b) : les MÊMES boutons, avec leurs pictogrammes, dans la fenêtre « Fond » d'un composant
  * (FondMenu.tsx, lot 66 : la fenêtre « Carte » a été fusionnée au « Fond »). Présentation seule : l'appelant dit ce qui est coché et
  * ce qu'un clic enregistre. `attr` ajoute des attributs de repère (`data-width`, `data-corners`…) à chaque bouton.
  */
+import { useTranslations } from "next-intl";
+
+import type { AdminT } from "@/i18n/admin-lang";
 import type { FondStep } from "@/themes/fond";
 
 type Attr = Record<string, string>;
 
+/** `label` : repli français (données) ; à l'écran, shapeStepLabel(step, t) avec le traducteur de l'espace editMenusShape. */
 export const SHAPE_STEPS: { step: FondStep; label: string; radius: number }[] = [
   { step: "s", label: "Petit", radius: 4 },
   { step: "m", label: "Moyen", radius: 6 },
   { step: "l", label: "Grand", radius: 8 },
 ];
+
+export const shapeStepLabel = (step: FondStep, t: AdminT) => t(`step_${step}`);
 
 /** Mini-schéma : le cadre de la carte, l'aplat en couleur, avec ou sans marge, coins droits ou arrondis. */
 export function Mini({ inset, round }: { inset: boolean; round: number }) {
@@ -24,16 +32,17 @@ export function Mini({ inset, round }: { inset: boolean; round: number }) {
 }
 
 /** « Étendue » : Bord à bord / Avec marge. */
-export function ExtentRow({ inset, onPick, label, testid, attr, fullLabel = "Bord à bord", insetLabel = "Avec marge" }: { inset: boolean; onPick: (inset: boolean) => void; label: string; testid: string; attr?: (inset: boolean) => Attr; fullLabel?: string; insetLabel?: string }) {
+export function ExtentRow({ inset, onPick, label, testid, attr, fullLabel, insetLabel }: { inset: boolean; onPick: (inset: boolean) => void; label: string; testid: string; attr?: (inset: boolean) => Attr; fullLabel?: string; insetLabel?: string }) {
+  const t = useTranslations("editMenusShape");
   return (
     <div className="tc-row">
-      <span className="sm-label">Étendue</span>
+      <span className="sm-label">{t("extent")}</span>
       <span className="tc-seg" role="radiogroup" aria-label={label} data-testid={testid}>
         <button type="button" role="radio" aria-checked={!inset} data-extent="full" {...attr?.(false)} onClick={() => onPick(false)}>
-          <Mini inset={false} round={0} /> {fullLabel}
+          <Mini inset={false} round={0} /> {fullLabel ?? t("full")}
         </button>
         <button type="button" role="radio" aria-checked={inset} data-extent="margin" {...attr?.(true)} onClick={() => onPick(true)}>
-          <Mini inset round={0} /> {insetLabel}
+          <Mini inset round={0} /> {insetLabel ?? t("inset")}
         </button>
       </span>
     </div>
@@ -42,16 +51,17 @@ export function ExtentRow({ inset, onPick, label, testid, attr, fullLabel = "Bor
 
 /** « Coins » : Droits / Petit / Moyen / Grand (`value` « none » = droits). */
 export function CornersRow({ value, onPick, label, testid, attr }: { value: "none" | FondStep; onPick: (v: "none" | FondStep) => void; label: string; testid: string; attr?: (v: "none" | FondStep) => Attr }) {
+  const t = useTranslations("editMenusShape");
   return (
     <div className="tc-row">
-      <span className="sm-label">Coins</span>
+      <span className="sm-label">{t("corners")}</span>
       <span className="tc-seg" role="radiogroup" aria-label={label} data-testid={testid}>
         <button type="button" role="radio" aria-checked={value === "none"} data-step="none" {...attr?.("none")} onClick={() => onPick("none")}>
-          <Mini inset round={0} /> Droits
+          <Mini inset round={0} /> {t("square")}
         </button>
         {SHAPE_STEPS.map((st) => (
           <button key={st.step} type="button" role="radio" aria-checked={value === st.step} data-step={st.step} {...attr?.(st.step)} onClick={() => onPick(st.step)}>
-            <Mini inset round={st.radius} /> {st.label}
+            <Mini inset round={st.radius} /> {shapeStepLabel(st.step, t)}
           </button>
         ))}
       </span>

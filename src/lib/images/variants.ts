@@ -16,6 +16,8 @@ export type ImageVariants = {
   originalRemoved?: boolean;
   /** PDF : nombre de pages. */
   pages?: number;
+  /** Lot 132 : animation image par image (la bande WebP est la seule variante) : nombre d'images et taille d'une image. */
+  anim?: { frames: number; fw: number; fh: number };
 };
 
 export const ORIGINALS_PREFIX = "originals/";
@@ -113,7 +115,8 @@ export function pictureSources(variants: ImageVariants, urlOf: (key: string) => 
   return {
     avif: srcset("avif"),
     webp: srcset("webp"),
-    largest: { avif: urlOf(top("avif").key), webp: urlOf(top("webp").key), w: top("webp").w, h: top("webp").h },
+    // Lot 132 : la bande d'une animation n'existe qu'en WebP (pas d'AVIF) : adresse vide, comme l'affiche d'une vidéo.
+    largest: { avif: by("avif").length ? urlOf(top("avif").key) : "", webp: urlOf(top("webp").key), w: top("webp").w, h: top("webp").h },
     color,
   };
 }

@@ -334,12 +334,23 @@ try {
   }
   await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
-  r = await anon("/fr/decors");
+  const expectedC2 = ["Mention modifiée par le test", "https://example.com/reseau-1"];
+  const startC2 = Date.now();
+  do {
+    r = await anon("/fr/decors");
+    if (expectedC2.every((s) => r.html.includes(s))) break;
+    await new Promise((res) => setTimeout(res, 250));
+  } while (Date.now() - startC2 < 15000);
   ok("C2 le pied de page public change", r.html.includes("Mention modifiée par le test") && r.html.includes("https://example.com/reseau-1"));
   await credit.locator("input").fill(originalCredit);
   await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
-  r = await anon("/fr/decors");
+  const startC3 = Date.now();
+  do {
+    r = await anon("/fr/decors");
+    if (r.html.includes(originalCredit)) break;
+    await new Promise((res) => setTimeout(res, 250));
+  } while (Date.now() - startC3 < 15000);
   ok("C3 mention d'origine restaurée", r.html.includes(originalCredit));
 
   // ---- D. Polices téléchargées ---------------------------------------------

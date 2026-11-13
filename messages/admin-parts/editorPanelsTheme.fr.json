@@ -1,0 +1,14 @@
+{
+  "changeFailed": "Le thème n'a pas pu être changé. Réessaie.",
+  "buttonLabel": "Thème : {name}",
+  "caption": "Thème",
+  "colon": " : ",
+  "choose": "Choisir un thème",
+  "search": "Chercher un thème",
+  "searchPlaceholder": "Chercher un thème…",
+  "list": "Thèmes",
+  "none": "Aucun thème ne correspond.",
+  "version": " · version {version}",
+  "old": " · ancien thème",
+  "live": "En ligne"
+}

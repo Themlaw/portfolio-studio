@@ -6,6 +6,8 @@
  * rapport détecté. Choisir un format remplace le cadrage libre (il suit son propre rapport, il
  * masquerait sinon le choix).
  */
+import { useFormatter, useTranslations } from "next-intl";
+
 import { Select } from "@/app/admin/_fields";
 import { detectFormat, FORMAT_LABELS, formatOptions } from "@/lib/images/formats";
 import { cleanLook, readLook } from "@/lib/look";
@@ -13,7 +15,7 @@ import { cleanLook, readLook } from "@/lib/look";
 import { useBlockEditor } from "./editor-context";
 
 export default function FormatSelect({
-  label = "Format",
+  label,
   help,
   ratioProp = "ratio",
   mediaProp,
@@ -28,6 +30,8 @@ export default function FormatSelect({
   /** « Libre » est écrit « auto » (grille) au lieu d'être retiré. */
   explicitAuto?: boolean;
 }) {
+  const t = useTranslations("blockFormat");
+  const format = useFormatter();
   const { value, onChange, errors, context } = useBlockEditor();
   const current = (value[ratioProp] as string | undefined) ?? "auto";
   const look = readLook(value.look);
@@ -37,11 +41,11 @@ export default function FormatSelect({
   const detected = freeRatio ? detectFormat(freeRatio) : null;
   const shown = freeRatio ? (detected ?? "auto") : current;
   const note = freeRatio
-    ? `Cadrage libre en place (${detected ? FORMAT_LABELS[detected] : `${freeRatio.toFixed(2).replace(".", ",")} : 1`}). Choisir un autre format le remplace.`
+    ? t("freeCrop", { format: detected ? FORMAT_LABELS[detected] : t("ratio", { ratio: format.number(freeRatio, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }) })
     : undefined;
   return (
     <Select
-      label={label}
+      label={label ?? t("format")}
       help={[help, note].filter(Boolean).join(" ") || undefined}
       value={shown}
       options={formatOptions(shown)}

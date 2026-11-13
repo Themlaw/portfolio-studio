@@ -73,6 +73,17 @@
     "open": "Agrandir la page {index}",
     "pages": "Pages du CV"
   },
+  "steps": {
+    "before": "Avant",
+    "after": "Après",
+    "slider": "Comparer avant et après : déplace le curseur",
+    "prev": "Vue précédente",
+    "next": "Vue suivante",
+    "views": "Vues",
+    "steps": "Étapes",
+    "view": "Vue",
+    "chooseImages": "Choisis les images de ce bloc dans le panneau de droite."
+  },
   "footer": {
     "eyebrow": "Contact",
     "rights": "Tous droits réservés.",

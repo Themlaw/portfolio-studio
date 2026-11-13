@@ -6,6 +6,7 @@
  * que la toile (`SocialPicker` : réseaux classiques, « Autre lien », adresse
  * reconnue) ; liens « à compléter » signalés, jamais publiés.
  */
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import SocialIcon from "@/components/SocialIcon";
@@ -39,6 +40,7 @@ export default function SocialsEditor({
   error?: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("socials");
   /** « add » : nouveau réseau ; un nombre : modification de ce lien. */
   const [open, setOpen] = useState<"add" | number | null>(null);
   const moved = (from: number, to: number) => {
@@ -49,7 +51,7 @@ export default function SocialsEditor({
   };
   return (
     <div className="a-socials" data-testid="socials-editor">
-      {items.length === 0 && <p className="a-help">Aucun réseau pour l&apos;instant.</p>}
+      {items.length === 0 && <p className="a-help">{t("none")}</p>}
       <ol className="a-socials-list">
         {items.map((s, i) => {
           const placeholder = isPlaceholderHref(s.href);
@@ -61,28 +63,28 @@ export default function SocialsEditor({
               </span>
               <span className="a-socials-main">
                 <strong>{s.label}</strong>
-                <span className="a-socials-href">{placeholder ? "Adresse manquante" : s.href.replace(/^mailto:/, "")}</span>
+                <span className="a-socials-href">{placeholder ? t("missingHref") : s.href.replace(/^mailto:/, "")}</span>
                 {placeholder && (
                   <span className="a-field-error" data-testid="social-placeholder">
-                    Lien à compléter : ce réseau n&apos;apparaît pas sur le site tant que son adresse est vide.
+                    {t("placeholder")}
                   </span>
                 )}
                 {err && <span className="a-field-error">{err}</span>}
               </span>
               <span className="a-list-tools">
-                <button type="button" className="a-icon-btn" aria-label={`Modifier ${s.label}`} title="Modifier" disabled={disabled} aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
+                <button type="button" className="a-icon-btn" aria-label={t("editLabel", { label: s.label })} title={t("edit")} disabled={disabled} aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
                   ✎
                 </button>
-                <button type="button" className="a-icon-btn" aria-label={`Monter ${s.label}`} disabled={disabled || i === 0} onClick={() => onChange(moved(i, i - 1))}>
+                <button type="button" className="a-icon-btn" aria-label={t("moveUp", { label: s.label })} disabled={disabled || i === 0} onClick={() => onChange(moved(i, i - 1))}>
                   ↑
                 </button>
-                <button type="button" className="a-icon-btn" aria-label={`Descendre ${s.label}`} disabled={disabled || i === items.length - 1} onClick={() => onChange(moved(i, i + 1))}>
+                <button type="button" className="a-icon-btn" aria-label={t("moveDown", { label: s.label })} disabled={disabled || i === items.length - 1} onClick={() => onChange(moved(i, i + 1))}>
                   ↓
                 </button>
                 <button
                   type="button"
                   className="a-icon-btn a-danger-text"
-                  aria-label={`Retirer ${s.label}`}
+                  aria-label={t("remove", { label: s.label })}
                   disabled={disabled}
                   onClick={() => {
                     setOpen(null);
@@ -107,7 +109,7 @@ export default function SocialsEditor({
                     }}
                   />
                   <button type="button" className="a-link-btn" onClick={() => setOpen(null)}>
-                    Annuler
+                    {t("cancel")}
                   </button>
                 </div>
               )}
@@ -127,12 +129,12 @@ export default function SocialsEditor({
             }}
           />
           <button type="button" className="a-link-btn" onClick={() => setOpen(null)}>
-            Annuler
+            {t("cancel")}
           </button>
         </div>
       ) : (
         <button type="button" className="a-btn a-btn-small" data-testid="social-add" disabled={disabled || items.length >= MAX} onClick={() => setOpen("add")}>
-          + Réseau
+          {t("add")}
         </button>
       )}
     </div>

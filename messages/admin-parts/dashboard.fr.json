@@ -1,0 +1,19 @@
+{
+  "title": "Tableau de bord",
+  "intro": "Ton site en un coup d'œil : l'apparence en ligne et ce qu'il contient.",
+  "editHome": "Modifier la page d'accueil",
+  "viewSite": "Voir le site",
+  "liveTheme": "Thème en ligne",
+  "noActiveTheme": "Aucun thème actif valide : le site utilise l'apparence par défaut.",
+  "changeLook": "Changer d'apparence",
+  "messagesCard": "Messages",
+  "newMessages": "{count, plural, =0 {Aucun nouveau message} one {# nouveau message} other {# nouveaux messages}}",
+  "readMessages": "Lire les messages",
+  "openMessages": "Ouvrir les messages",
+  "statPages": "Pages",
+  "statProjects": "Projets",
+  "statMedia": "Médias",
+  "linkPages": "Organiser les pages",
+  "linkProjects": "Voir les projets",
+  "linkMedia": "Ouvrir la médiathèque"
+}

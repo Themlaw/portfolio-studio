@@ -10,6 +10,7 @@
  * Souris, tactile (touch-action: none) et clavier (flèches, + / −, Entrée, Échap).
  * `square` (lot 83, icône de l'onglet) : le même outil, verrouillé sur un carré ; seul le format « Carré 1:1 » est proposé.
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
@@ -17,16 +18,6 @@ import { fromUnits, isWholeImage, MIN_SIDE, toUnits, type Rect } from "@/lib/ima
 
 type Handle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
-const HANDLE_LABELS: Record<Handle, string> = {
-  n: "bord haut",
-  s: "bord bas",
-  e: "bord droit",
-  w: "bord gauche",
-  ne: "coin haut droit",
-  nw: "coin haut gauche",
-  se: "coin bas droit",
-  sw: "coin bas gauche",
-};
 
 /** Libre, Original, puis la liste de formats commune à tous les réglages (src/lib/images/formats.ts). */
 export const FORMATS: { id: string; label: string; ratio: number | null }[] = [
@@ -105,6 +96,7 @@ export default function FreeCropDialog({
   onSave: (rect: Rect | null) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations("editMenusCrop");
   const ir = px.w / px.h;
   const [rect, setRect] = useState<Rect>(initial ?? (square ? fitAspect({ x: 0, y: 0, w: 1, h: 1 }, 1 / ir) : { x: 0, y: 0, w: 1, h: 1 }));
   // Format verrouillé : rapport en pixels (l/h) ; null = libre.
@@ -178,7 +170,7 @@ export default function FreeCropDialog({
         className="lk-crop"
         role="dialog"
         aria-modal="true"
-        aria-label={square ? "Cadrer l'icône" : "Cadrer l'image"}
+        aria-label={square ? t("cropIcon") : t("cropImage")}
         tabIndex={-1}
         onKeyDown={(e) => {
           const big = e.shiftKey ? 0.1 : 0.02;
@@ -200,12 +192,12 @@ export default function FreeCropDialog({
           }
         }}
       >
-        <p className="lk-crop-title">{square ? "Cadrer l'icône" : "Cadrer l'image"}</p>
+        <p className="lk-crop-title">{square ? t("cropIcon") : t("cropImage")}</p>
         {tabs}
         <p className="lk-crop-help">
-          Tire les poignées (coins et bords) pour choisir la partie à garder ; glisse le rectangle pour le déplacer. {square ? "L'icône est carrée : " : "Le cadre de la page prend son format. "}L&apos;image d&apos;origine n&apos;est pas modifiée.
+          {t("help", { square: String(square) })}
         </p>
-        <div className="lk-crop-formats" role="group" aria-label="Format du recadrage">
+        <div className="lk-crop-formats" role="group" aria-label={t("formats")}>
           {FORMATS.filter((f) => !square || f.id === "1:1").map((f) => (
             <button key={f.id} type="button" aria-pressed={format === f.id} data-format={f.id} onClick={() => choose(f)}>
               {f.label}
@@ -221,7 +213,7 @@ export default function FreeCropDialog({
             onPointerDown={begin("move")}
           >
             {HANDLES.filter((h) => !aspect || h.length === 2).map((h) => (
-              <span key={h} className="lk-crop-handle" data-handle={h} role="presentation" title={HANDLE_LABELS[h]} onPointerDown={begin(h)} />
+              <span key={h} className="lk-crop-handle" data-handle={h} role="presentation" title={t(`h_${h}`)} onPointerDown={begin(h)} />
             ))}
           </div>
         </div>
@@ -237,14 +229,14 @@ export default function FreeCropDialog({
               setFormat(square ? "1:1" : "libre");
             }}
           >
-            {square ? "Recentrer" : "Image entière"}
+            {square ? t("recenter") : t("whole")}
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>
-            Fermer sans enregistrer
+            {t("closeNoSave")}
           </button>
           <button type="button" className="lk-primary" onClick={save}>
-            Enregistrer le cadrage
+            {t("save")}
           </button>
         </div>
       </div>

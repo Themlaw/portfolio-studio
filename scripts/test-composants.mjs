@@ -15,7 +15,10 @@ import Database from "better-sqlite3";
 
 import { BLOCKS, blockCatalog } from "../src/blocks/registry.ts";
 import { BLOCK_GROUPS, groupEntries, matchesSearch, pickerGroups } from "../src/blocks/groups.ts";
-import { STARTER_LIST } from "../src/blocks/help-text.ts";
+import { starterList } from "../src/blocks/help-text.ts";
+import { frT } from "./lib/admin-fr.mjs";
+
+const STARTER_LIST = starterList(frT("blockHelp"));
 import { treeProblem } from "../src/blocks/tree.ts";
 import { expandContainer, unwrapContainers, unwrapList } from "../src/lib/db/unwrap.ts";
 import { seedLegacyPage } from "./lib/legacy-containers.mjs";
@@ -60,7 +63,7 @@ test("regroupement : ordre Texte, Projets, Images et vidéos, Grilles, Autres ; 
   const names = (g) => [...g.starters, ...g.entries].map((e) => e.label);
   assert.deepEqual(names(groups[0]), ["Texte", "Titre", "Titre + texte"]);
   assert.deepEqual(names(groups[1]), ["Projet"]);
-  assert.deepEqual(names(groups[2]), ["Image", "Vidéo", "Planche libre"]);
+  assert.deepEqual(names(groups[2]), ["Image", "Vidéo", "Planche libre", "Étapes"]);
   // Lot 27 : « Grille » et « Contact » proposent leurs modèles sous leur carte (pas de cartes à part).
   assert.deepEqual(names(groups[3]), ["Grille"]);
   assert.deepEqual(groups[3].entries[0].models.map((m) => m.short), ["Avec 3 images", "Avec des vidéos"]);

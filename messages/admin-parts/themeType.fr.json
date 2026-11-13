@@ -1,0 +1,50 @@
+{
+  "title": "Styles par rôle",
+  "intro": "Affine la police, la graisse, l'italique, la casse et l'espacement des lettres de chaque rôle de texte. « Thème » garde le réglage d'origine ; les styles du site et ceux d'un texte précis passent toujours par-dessus.",
+  "roles": {
+    "h1": {
+      "title": "Titre de page",
+      "help": "Seulement ce qui diffère des « Titres » pour le grand titre d'une page (laisse « Thème » pour qu'il suive les titres)."
+    },
+    "h2": {
+      "title": "Titres",
+      "help": "Tous les titres du site : titre de page, sections, projets, collections."
+    },
+    "eyebrow": {
+      "title": "Petits textes d'étiquette",
+      "help": "Petits textes au-dessus des titres."
+    },
+    "body": {
+      "title": "Texte courant",
+      "help": "Paragraphes."
+    },
+    "caption": {
+      "title": "Légendes",
+      "help": "Légendes des œuvres, métier."
+    },
+    "menu": {
+      "title": "Menu",
+      "help": "Navigation de l'en-tête et du pied."
+    },
+    "brand": {
+      "title": "Logo",
+      "help": "Nom du site dans l'en-tête, quand il n'y a pas d'image."
+    }
+  },
+  "fonts": {
+    "display": "Police des titres",
+    "body": "Police du texte",
+    "caption": "Police des légendes"
+  },
+  "font": "Police",
+  "theme": "Thème",
+  "weight": "Graisse",
+  "italic": "Italique",
+  "yes": "Oui",
+  "no": "Non",
+  "case": "Casse",
+  "caseNormal": "Normale",
+  "caseUpper": "Majuscules",
+  "tracking": "Espacement des lettres",
+  "resetRole": "Revenir au thème d'origine"
+}

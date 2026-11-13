@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 
+import { revealAttrs } from "./reveal";
 import { getTranslations } from "next-intl/server";
 
+import AnimatedSheet from "@/components/AnimatedSheet";
 import { LoopClick } from "@/components/LoopVideo";
 import MediaFrame from "@/components/MediaFrame";
 import Picture from "@/components/Picture";
@@ -15,6 +17,7 @@ import { BlockCaption, capHost, captionPart } from "./caption";
 import { cropStyle, freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
 import { soundAttrs, withSound } from "./video-sound";
+import { editI18n } from "./edit-i18n";
 
 export { freeBoardSchema };
 
@@ -34,6 +37,7 @@ export { freeBoardSchema };
  */
 export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType<typeof freeBoardSchema.parse>; ctx: BlockContext }) {
   const eager = claimEager(2);
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.freeCanvas) });
   const canvas = Boolean(ctx.edit || ctx.freeCanvas);
   const list = freeItems(props);
   const rows = await Promise.all(list.map((it) => getMedia(it.media)));
@@ -73,9 +77,11 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
           const viewer =
-            zoom && !m.video
+            zoom && !m.video && !m.anim
               ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, [alt, openLabel].filter(Boolean).join(" — "))
               : {};
+          // Apparition au défilement de l'image (lot 133) : jamais sur la toile, ni dans le premier bloc.
+          const rv = revealAttrs(it.reveal, { first: Boolean(ctx.noReveal), edit: canvas });
           const style = {
             "--x": it.x,
             "--y": it.y,
@@ -89,10 +95,11 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           return (
             <figure
               key={it.id}
-              className="free-item"
+              className={rv ? `free-item ${rv.className}` : "free-item"}
+              {...(rv ? { "data-reveal": rv["data-reveal"], "data-rv-d": rv["data-rv-d"] } : {})}
               style={style}
               {...viewer}
-              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
+              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), ...(m.anim ? { "data-free-fps": String(it.fps ?? 8), "data-free-loop": it.loop === false ? "once" : "loop" } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
               {m.video && modeOf(it) === "player" ? (
                 <PlayerFrame
@@ -121,6 +128,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
                 <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio} {...(m.video ? { "data-video-mode": "loop", ...soundAttrs(video) } : {})}>
                   {m.video ? (
                     <LoopClick video={video!} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} poster={poster?.url} />
+                  ) : m.anim ? (
+                    <AnimatedSheet src={m.url} meta={m.anim} fps={it.fps} loop={it.loop} alt={alt} />
                   ) : (
                     <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
                   )}
@@ -132,11 +141,11 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
         {/* Titre « sur l'image » (lot 128) : posé sur la zone, au-dessus des images (z-index), sans prendre de place. */}
         {ctx.overHead}
         {canvas && !shown.length && (
-          <div className="pe-free-empty" lang="fr" data-edit-free-empty="">
+          <div className="pe-free-empty" lang={lang} data-edit-free-empty="">
             <button type="button" className="pe-empty-action" data-edit-free-add="">
-              <span aria-hidden="true">+</span> Image
+              <span aria-hidden="true">+</span> {ta("image")}
             </button>
-            <span>ou glisse des images ici</span>
+            <span>{ta("dragImages")}</span>
           </div>
         )}
       </div>

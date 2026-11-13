@@ -1,0 +1,10 @@
+{
+  "empty": "No wallpaper yet. Import your patterns in “Themes” → “Wallpapers” (left menu), then reload this page.",
+  "label": "Wallpaper",
+  "missing": "This wallpaper is no longer in the library: choose another one.",
+  "size": "Size",
+  "patternSize": "Pattern size",
+  "opacity": "Opacity",
+  "patternOpacity": "Pattern opacity",
+  "reset": "Use the pattern's own settings"
+}

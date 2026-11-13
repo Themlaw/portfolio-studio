@@ -1,0 +1,6 @@
+{
+  "sv": "Saturation et luminosité : flèches gauche et droite pour la saturation, haut et bas pour la luminosité, Maj pour aller plus vite",
+  "svText": "Saturation {s} %, luminosité {v} %",
+  "hue": "Teinte : flèches haut et bas, Maj pour aller plus vite",
+  "hueText": "Teinte {h}°"
+}

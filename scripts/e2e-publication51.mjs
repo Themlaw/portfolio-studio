@@ -130,14 +130,14 @@ ok("A7 le bouton Publier se grise (rien à publier)", await publishBtn.isDisable
 await page.screenshot({ path: `${SHOTS}/A7-apres.png` });
 await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
 const tr = () => page.locator("tr", { hasText: "Carnets 51" });
-ok("A8 liste : « En ligne », pas « Pas encore en ligne »", (await tr().getByText("En ligne", { exact: true }).count()) === 1 && (await tr().getByText("Pas encore en ligne").count()) === 0);
+ok("A8 liste : « En ligne », pas « Pas encore en ligne »", await waitFor(async () => (await tr().getByText("En ligne", { exact: true }).count()) === 1 && (await tr().getByText("Pas encore en ligne").count()) === 0, 15000));
 await page.screenshot({ path: `${SHOTS}/A8-liste.png` });
 
 console.log("== B. Retirer du site");
 await tr().getByRole("button", { name: "Retirer du site" }).click();
 await toastOf("retirée du site");
 ok("B1 public : 404", await waitFor(async () => (await anon("/fr/carnets-51")).status === 404));
-ok("B2 liste : « Pas encore en ligne » et bouton « Mettre en ligne »", (await tr().getByText("Pas encore en ligne").count()) === 1 && (await tr().getByRole("button", { name: "Mettre en ligne" }).count()) === 1);
+ok("B2 liste : « Pas encore en ligne » et bouton « Mettre en ligne »", await waitFor(async () => (await tr().getByText("Pas encore en ligne").count()) === 1 && (await tr().getByRole("button", { name: "Mettre en ligne" }).count()) === 1, 15000));
 await page.goto(`${BASE}/admin/pages/${id}/editer`, { waitUntil: "domcontentloaded" });
 await canvas();
 await sleep(1000);

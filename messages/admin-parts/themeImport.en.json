@@ -1,0 +1,15 @@
+{
+  "failedStatus": "The import failed (error {status}).",
+  "importedVersion": "Imported: version {version} of My theme. Preview it before publishing",
+  "importedApart": "“{name}” imported as a separate theme (under “My old themes”)",
+  "failedNetwork": "The import failed: check your connection and try again.",
+  "busy": "Importing…",
+  "open": "Import a theme…",
+  "title": "Import a theme",
+  "chooseFile": "Choose the .zip file…",
+  "where": "Where should it go?",
+  "asVersion": "As a new version of my theme (recommended)",
+  "asMine": "As my theme (version 1)",
+  "asApart": "As a separate theme (under “My old themes”)",
+  "nothingLive": "Nothing goes online: you preview first, then publish."
+}

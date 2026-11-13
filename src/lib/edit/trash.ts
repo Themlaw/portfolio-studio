@@ -7,9 +7,12 @@
  *
  * Module léger (ni registre de blocs ni éditeur) : le worker du serveur le charge au démarrage.
  */
+import { readdir, rm } from "node:fs/promises";
+import path from "node:path";
+
 import { and, eq, isNotNull, isNull, like, lt, or } from "drizzle-orm";
 
-import { getDb, schema } from "@/lib/db";
+import { dataDir, getDb, schema } from "@/lib/db";
 import { purgeCrops } from "@/lib/images/crop-cache";
 import { parseVariants } from "@/lib/images/variants";
 import { findMediaUsages, findPageReferences, findProjectReferences } from "@/lib/references";
@@ -94,7 +97,27 @@ export async function purgeMedia(id: number): Promise<boolean> {
   }
   // Recadrages gardés sur disque (variantes extraites de l'original) : plus de média, plus de recadrage.
   await purgeCrops(id);
+  // Icône de l'onglet déclinée depuis ce média (favicon.ts) : servie par /site-icon tant qu'elle existe, elle part avec lui.
+  await purgeIcons(id);
   return true;
+}
+
+/**
+ * Dossiers `icons/<média>-<empreinte>[-c<recadrage>]/` (favicon.ts, `imageMaster`) d'un média purgé. Le média n'est plus cité (icône
+ * comprise : `mediaUsagesByMedia`), aucun réglage ne pointe donc vers ces fichiers.
+ */
+export async function purgeIcons(id: number): Promise<void> {
+  const root = path.join(/* turbopackIgnore: true */ dataDir(), "media", "icons");
+  let names: string[];
+  try {
+    names = await readdir(root);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!name.startsWith(`${id}-`)) continue;
+    await rm(path.join(/* turbopackIgnore: true */ root, name), { recursive: true, force: true }).catch((e) => console.error(`[media] suppression de l'icône ${name} impossible`, e));
+  }
 }
 
 export async function purgeTrash(now: number = Date.now()): Promise<PurgeReport> {

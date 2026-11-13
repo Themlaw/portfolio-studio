@@ -1,0 +1,7 @@
+{
+  "name": "le nom",
+  "role": "le métier",
+  "scroll": "l'indicateur de défilement",
+  "tag": "l'étiquette",
+  "warning": "Sur ce fond, {label} est peu lisible. Choisis une image plus calme, plus sombre ou plus claire, ou recadre-la."
+}

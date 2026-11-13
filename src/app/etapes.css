@@ -1,0 +1,47 @@
+/* Étapes (lot 131) : comparer / étapes / tourner. Couleurs par les tokens du thème, aucune transition, aucun mouvement automatique. */
+.steps { position: relative; margin-top: clamp(1.25rem, 3vw, 2rem); }
+.steps [hidden] { display: none; }
+.steps-stage { position: relative; aspect-ratio: var(--sr, 3 / 2); width: 100%; overflow: hidden; background: var(--color-surface, transparent); touch-action: pan-y; }
+.steps-stage-solo { cursor: default; }
+.steps-stage picture, .steps-stage img, .steps-layer picture, .steps-layer img, .steps-frame picture, .steps-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.steps-layer { position: absolute; inset: 0; }
+.steps-stage img { -webkit-user-drag: none; user-select: none; }
+[data-steps-mode="compare"] .steps-stage, [data-steps-mode="turn"] .steps-stage { user-select: none; }
+/* Comparer : la couche « après » est découpée à partir de --pos (moitié / moitié sans JavaScript). */
+[data-steps-mode="compare"] [data-steps-after] { clip-path: inset(0 0 0 var(--pos, 50%)); }
+.steps-tag { position: absolute; top: 0.75rem; padding: 0.25rem 0.6rem; font-size: 0.8125rem; background: var(--color-bg, transparent); color: var(--color-ink, inherit); pointer-events: none; }
+.steps-tag-before { left: 0.75rem; }
+.steps-tag-after { right: 0.75rem; }
+.steps-handle { position: absolute; top: 0; bottom: 0; left: var(--pos, 50%); width: 3px; margin-left: -1.5px; background: var(--color-bg, currentColor); box-shadow: 0 0 0 1px var(--color-ink, currentColor); pointer-events: none; }
+.steps-range { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 44px; margin: 0; opacity: 0; pointer-events: none; cursor: ew-resize; }
+.steps-range:focus-visible ~ .steps-handle, .steps:has(.steps-range:focus-visible) .steps-handle { outline: 3px solid var(--color-accent, currentColor); outline-offset: 2px; }
+.steps:not([data-ready]) .steps-range, .steps:not([data-ready]) .steps-handle { display: none; }
+[data-steps-mode="compare"][data-ready] .steps-stage { cursor: ew-resize; }
+.steps-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem; }
+.steps-pair-item { margin: 0; }
+/* Légendes. */
+.steps-figcap { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.6rem; font-size: 0.9375rem; color: var(--color-ink-soft, inherit); }
+.steps-label { color: var(--color-ink, inherit); font-weight: 600; }
+/* Étapes : onglets (actifs seulement avec JavaScript), frise, défilement. */
+.steps-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.steps:not([data-ready]) .steps-tabs, .steps:not([data-ready]) .steps-nav { display: none; }
+.steps-tab, .steps-btn { min-height: 44px; min-width: 44px; padding: 0 1rem; border: 1px solid var(--color-ink, currentColor); background: transparent; color: var(--color-ink, inherit); font: inherit; cursor: pointer; }
+.steps-tab[aria-selected="true"] { background: var(--color-ink, currentColor); color: var(--color-bg, inherit); }
+.steps-tab:focus-visible, .steps-btn:focus-visible, [data-steps-mode="turn"] .steps-stage:focus-visible { outline: 3px solid var(--color-accent, currentColor); outline-offset: 2px; }
+.steps-panel, .steps-step, .steps-frame { margin: 0 0 1.5rem; }
+.steps[data-ready] .steps-panel, .steps[data-ready] .steps-frame { margin-bottom: 0; }
+.steps-frame { position: relative; }
+[data-steps-view="strip"] .steps-list { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(70%, 1fr); gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; }
+[data-steps-view="strip"] .steps-step { margin: 0; scroll-snap-align: start; }
+@media (min-width: 900px) { [data-steps-view="strip"] .steps-list { grid-auto-columns: minmax(0, 1fr); overflow: visible; } }
+[data-steps-view="scroll"] .steps-list { display: flex; flex-direction: column; gap: 2rem; }
+/* Tourner : le nombre de la vue et les boutons. */
+[data-steps-mode="turn"] .steps-stage { cursor: grab; }
+[data-steps-mode="turn"] .steps-frame { position: absolute; inset: 0; margin: 0; }
+[data-steps-mode="turn"]:not([data-ready]) .steps-stage { aspect-ratio: auto; overflow: visible; }
+[data-steps-mode="turn"]:not([data-ready]) .steps-frame { position: static; aspect-ratio: var(--sr, 3 / 2); margin-bottom: 1rem; }
+[data-steps-mode="turn"] .steps-figcap { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 0.5rem 0.75rem; background: var(--color-bg, transparent); }
+.steps-nav { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 0.75rem; }
+.steps-count { min-width: 4rem; text-align: center; color: var(--color-ink-soft, inherit); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .steps-pair { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .steps, .steps * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

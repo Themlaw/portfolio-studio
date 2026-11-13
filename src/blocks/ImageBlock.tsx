@@ -3,9 +3,11 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import MediaFrame from "@/components/MediaFrame";
+import AnimatedSheet from "@/components/AnimatedSheet";
 import Picture from "@/components/Picture";
 import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
+import { animSlotFields } from "@/lib/animation/sheet";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { signCrop } from "@/lib/images/crop-cache";
@@ -19,6 +21,7 @@ import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
 import { BlockCaption, capHost, captionPart } from "./caption";
 import { localizedText, mediaRef, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const imageSchema = z.object({
   mediaId: mediaRef.optional(),
@@ -38,6 +41,8 @@ export const imageSchema = z.object({
   fit: z.enum(["contain", "cover"]).optional(),
   /** Agrandir au clic (lot 44) : la visionneuse des images qui défilent. Absent = oui ; `false` la coupe. Dans une grille, l'image n'est dans le défilement que si la grille s'agrandit aussi. */
   zoom: z.boolean().optional(),
+  /** Lot 132 : si l'image est une animation image par image, cadence (6 / 8 / 12 / 24 i/s, défaut 8) et boucle (`false` = un seul tour). Absent = rendu d'avant. */
+  ...animSlotFields,
 });
 
 /**
@@ -59,6 +64,7 @@ export const imageSchema = z.object({
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
   // Avant tout await : l'ordre des réclamations est celui du document (lot 54).
   const eager = claimEager(1) > 0;
+  const { ta, lang } = await editI18n({ edit: Boolean(ctx.edit || ctx.gridCanvas) });
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
   // Toile : la page en vue brouillon, ou une grille de planche (lot 31d : mêmes repères de média et de case que sur une page).
@@ -71,8 +77,10 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   const crop = ctx.look?.crop?.mediaId;
   const legacy = Boolean(crop && !crop.rect);
   const fit = props.fit ?? (props.width === "full" && !ctx.cell ? "contain" : "cover");
-  const cover = fit === "cover" || legacy;
-  const raster = Boolean(image?.sources && image.key.startsWith(ORIGINALS_PREFIX) && image.width && image.height);
+  // Lot 132 : une animation n'est jamais rognée ni recadrée (une case à son format ; format imposé = image entière, bandes vides).
+  const anim = image?.anim;
+  const cover = !anim && (fit === "cover" || legacy);
+  const raster = Boolean(!anim && image?.sources && image.key.startsWith(ORIGINALS_PREFIX) && image.width && image.height);
   const resolved = image && raster ? resolveCrop(crop, natural, box, cover) : null;
   const cropped = image && resolved ? cropSources({ id: image.id, width: image.width!, height: image.height! }, resolved.rect, signCrop, mediaUrl, image.sources?.color ?? null) : null;
   const free = Boolean(resolved?.free);
@@ -95,7 +103,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   // peu rogné) la fenêtre que la page affiche en CSS ; l'image entière quand rien n'est rogné.
   const vRect = image && raster ? viewerRect(crop, natural, box, cover) : null;
   const vCrop = image && vRect ? (cropped && resolved ? cropped : cropSources({ id: image.id, width: image.width!, height: image.height! }, vRect, signCrop, mediaUrl, image.sources?.color ?? null)) : null;
-  const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
+  const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && !anim && (!ctx.cell || ctx.cellViewer === true);
   const viewer =
     zoomable && image
       ? viewerAttrs(
@@ -148,6 +156,9 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {...editFull}
       {...(viewer ?? {})}
     >
+      {anim ? (
+        <AnimatedSheet src={image.url} meta={anim} fps={props.fps} loop={props.loop} alt={image.alt ? tr(image.alt, ctx.locale) : caption} />
+      ) : (
       <Picture
         src={image.url}
         sources={cropped ? cropped.sources : image.sources}
@@ -160,6 +171,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         fallback={fallback}
         priority={eager}
       />
+      )}
       {/* Titre « sur l'image » (lot 128) : dans la boîte de la photo (rogné par elle), jamais dans la légende. */}
       {ctx.overHead}
     </MediaFrame>
@@ -179,18 +191,18 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {image ? (
         photo
       ) : ctx.edit ? (
-        <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
-          <span>Dépose une image ici</span>
+        <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang={lang}>
+          <span>{ta("dropImage")}</span>
           <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
-            Choisir dans la médiathèque
+            {ta("pickFromLibrary")}
           </button>
         </span>
       ) : (
         // Case vide d'une grille de planche (ancienne donnée) : le même choix que pour une place libre.
-        <span className="pe-media-empty" lang="fr">
-          <span>Case vide</span>
+        <span className="pe-media-empty" lang={lang}>
+          <span>{ta("emptyCell")}</span>
           <button type="button" className="pe-empty-action" data-edit-cell-media="image">
-            + Image
+            {ta("addImage")}
           </button>
         </span>
       )}

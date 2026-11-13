@@ -14,6 +14,9 @@
  */
 import { z } from "zod";
 
+import type { AdminT } from "@/i18n/admin-lang";
+
+import { FR_LABELS } from "./block-msg";
 import { hasText, OPTIONAL_FIELDS } from "./optional-fields";
 
 const localized = z.object({ fr: z.string().max(200), en: z.string().max(200) });
@@ -130,18 +133,20 @@ export type HeadWhere = { cell: boolean; justified: boolean };
 /**
  * Pastilles proposées sur la toile pour ce composant, dans l'ordre : sans titre, « + Titre » ; avec un titre, « Retirer le titre », le sous-titre,
  * dessous / dessus, sur l'image. Case d'une grille justifiée : seulement le titre de légende (`captionTitle`).
+ * `t` (espace blockRegLabels, clés `headOps.*`) : langue de l'interface ; sans lui, le français.
  */
-export function headOpsFor(type: string, props: Record<string, unknown>, where: HeadWhere): { op: string; label: string }[] {
+export function headOpsFor(type: string, props: Record<string, unknown>, where: HeadWhere, t?: AdminT): { op: string; label: string }[] {
+  const L = (key: keyof typeof FR_LABELS.headOps) => (t ? t(`headOps.${key}`) : FR_LABELS.headOps[key]);
   if (!isHeadType(type)) return [];
   if (where.cell && where.justified) {
     if (!OPTIONAL_FIELDS[type]?.["cap-title"]) return [];
-    return props.captionTitle !== undefined ? [{ op: "remove-cap-title", label: "Retirer le titre" }] : [{ op: "add-cap-title", label: "+ Titre" }];
+    return props.captionTitle !== undefined ? [{ op: "remove-cap-title", label: L("removeTitle") }] : [{ op: "add-cap-title", label: L("addTitle") }];
   }
   const head = readHead(props.head);
-  if (!head) return [{ op: "add-head", label: "+ Titre" }];
-  const out = [{ op: "remove-head", label: "Retirer le titre" }];
-  out.push(head.eyebrow === undefined ? { op: "add-head-eyebrow", label: "+ Sous-titre" } : { op: "remove-head-eyebrow", label: "Retirer le sous-titre" });
-  out.push(head.at === "below" ? { op: "remove-head-below", label: "Mettre dessus" } : { op: "add-head-below", label: "Mettre dessous" });
-  if (isOverType(type) && !where.cell) out.push(head.at === "over" ? { op: "remove-head-over", label: "Hors de l'image" } : { op: "add-head-over", label: "Sur l'image" });
+  if (!head) return [{ op: "add-head", label: L("addTitle") }];
+  const out = [{ op: "remove-head", label: L("removeTitle") }];
+  out.push(head.eyebrow === undefined ? { op: "add-head-eyebrow", label: L("addSubtitle") } : { op: "remove-head-eyebrow", label: L("removeSubtitle") });
+  out.push(head.at === "below" ? { op: "remove-head-below", label: L("putAbove") } : { op: "add-head-below", label: L("putBelow") });
+  if (isOverType(type) && !where.cell) out.push(head.at === "over" ? { op: "remove-head-over", label: L("outside") } : { op: "add-head-over", label: L("onImage") });
   return out;
 }

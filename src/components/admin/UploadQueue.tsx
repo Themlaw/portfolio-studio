@@ -15,6 +15,7 @@
  *   relance du traitement si le média existe déjà. Refus définitif (quota
  *   plein, taille, type) : pas de nouvel essai.
  */
+import { useTranslations } from "next-intl";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { addMediaTagsAction, listTagsAction, removeMediaTagsAction, retryMediaAction } from "@/app/admin/(espace)/medias/actions";
@@ -25,7 +26,7 @@ import type { TagRow } from "@/lib/tags";
 
 import { useDismiss } from "../edit/useDismiss";
 import { toast } from "./editing";
-import { isPdfFile, isVideoFile, readRatio, readVideoFrame, sendFile, useMediaWatch, type UploadedMedia } from "./uploads";
+import { isPdfFile, isVideoFile, readRatio, readVideoFrame, sendFile, setUploadsTranslator, useMediaWatch, type UploadedMedia } from "./uploads";
 
 export type Target = { kind: "library" } | { kind: "end"; projectId: number; at?: number } | { kind: "slot"; projectId: number; slotId: number };
 
@@ -108,6 +109,13 @@ export const isActive = (i: QueueItem) => i.phase === "waiting" || i.phase === "
 export const isUploaded = (i: QueueItem) => i.phase === "processing" || i.phase === "ready";
 
 export function UploadQueueProvider({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("uploads");
+  // Le traducteur sert aussi aux callbacks (boucle d'envoi, synchronisation des tags) et aux messages d'erreur de uploads.ts.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+    setUploadsTranslator(t as never);
+  }, [t]);
   const [items, setItems] = useState<QueueItem[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [tags, setTags] = useState<TagRow[]>([]);
@@ -171,11 +179,11 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
         uploadId: undefined,
         applied: media.tagWarning ? [] : sentTags,
         tagRefused: media.tagWarning ? wantKey(sentTags) : undefined,
-        message: phase === "failed" ? "Le traitement a échoué." : undefined,
+        message: phase === "failed" ? tRef.current("processingFailed") : undefined,
       });
       if (media.tagWarning) toast(media.tagWarning, "error");
       const placeError = await place(item, media.id);
-      if (placeError) patch(key, { message: `Ajouté à la bibliothèque, mais pas au projet : ${placeError}` });
+      if (placeError) patch(key, { message: tRef.current("notPlaced", { error: placeError }) });
       files.current.delete(key);
       refreshTags();
       const done = itemsRef.current.find((i) => i.key === key) ?? item;
@@ -318,7 +326,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
           } catch {
             // Réseau : mémorisé comme un refus ; un changement de tags relance.
             refused = key;
-            toast("Les tags n'ont pas pu être enregistrés (connexion). Modifie-les pour réessayer.", "error");
+            toast(tRef.current("tagsFailed"), "error");
           } finally {
             patch(item.key, { applied, tagRefused: refused });
             syncing.current.delete(item.key);
@@ -335,7 +343,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
     for (const row of rows) {
       if (row.status === "processing") continue;
       for (const item of itemsRef.current.filter((i) => i.mediaId === row.id && i.phase === "processing")) {
-        patch(item.key, row.status === "ready" ? { phase: "ready" } : { phase: "failed", message: row.error ?? "Le traitement a échoué." });
+        patch(item.key, row.status === "ready" ? { phase: "ready" } : { phase: "failed", message: row.error ?? tRef.current("processingFailed") });
       }
     }
   });
@@ -360,6 +368,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
 
 /** Indicateur discret (barre latérale) : « 2 envois en cours », ouvre la file. */
 export function QueueIndicator() {
+  const t = useTranslations("uploads");
   const { items, retry, dismiss } = useUploadQueue();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -368,11 +377,7 @@ export function QueueIndicator() {
   const failed = items.filter((i) => i.phase === "failed").length;
   const converting = items.filter((i) => i.phase === "processing").length;
   if (!active && !failed && !converting && !open) return null;
-  const label = active
-    ? `${active} envoi${active > 1 ? "s" : ""} en cours`
-    : failed
-      ? `${failed} envoi${failed > 1 ? "s" : ""} en échec`
-      : `${converting} traitement${converting > 1 ? "s" : ""} en cours`;
+  const label = active ? t("sendingCount", { count: active }) : failed ? t("failedCount", { count: failed }) : t("processingCount", { count: converting });
   return (
     <div ref={root} className="a-queue">
       <button type="button" className="a-queue-toggle" aria-expanded={open} aria-controls="a-queue-panel" onClick={() => setOpen(!open)} data-failed={failed > 0 || undefined}>
@@ -380,28 +385,28 @@ export function QueueIndicator() {
         {label}
       </button>
       {open && (
-        <div id="a-queue-panel" className="a-queue-panel" role="region" aria-label="File d'envoi">
+        <div id="a-queue-panel" className="a-queue-panel" role="region" aria-label={t("queueLabel")}>
           {items.length === 0 ? (
-            <p className="muted">Aucun envoi.</p>
+            <p className="muted">{t("none")}</p>
           ) : (
             <ul>
               {items.map((i) => (
                 <li key={i.key} data-phase={i.phase}>
                   <span className="a-queue-name">{i.name}</span>
                   <span className="a-queue-state">
-                    {i.phase === "waiting" && "En attente"}
-                    {i.phase === "uploading" && `${Math.round(i.progress * 100)} %`}
-                    {i.phase === "processing" && (i.video ? "Conversion…" : "Traitement…")}
+                    {i.phase === "waiting" && t("waiting")}
+                    {i.phase === "uploading" && t("percent", { percent: Math.round(i.progress * 100) })}
+                    {i.phase === "processing" && (i.video ? t("converting") : t("processing"))}
                     {i.phase === "ready" && "✓"}
                     {i.phase === "failed" && <span className="a-danger-text">{i.message}</span>}
                   </span>
                   {i.phase === "failed" && !i.definitive && (
                     <button type="button" className="a-btn a-btn-small" onClick={() => retry(i.key)}>
-                      Réessayer
+                      {t("retry")}
                     </button>
                   )}
                   {!isActive(i) && (
-                    <button type="button" className="a-icon-btn" aria-label={`Retirer ${i.name} de la file`} onClick={() => dismiss(i.key)}>
+                    <button type="button" className="a-icon-btn" aria-label={t("removeFromQueue", { name: i.name })} onClick={() => dismiss(i.key)}>
                       ✕
                     </button>
                   )}

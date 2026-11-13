@@ -9,6 +9,9 @@
  *  4. Médias : un média utilisé ne se supprime pas (liste des endroits), un média libre va à la corbeille (n'est
  *     plus servi), se restaure, ressort si le même contenu est renvoyé, est purgé (fichiers compris).
  *  5. Compteur d'usages = détail : une seule règle, le brouillon d'un bloc publié n'est pas une seconde place.
+ *  6. N11 (docs/SECURITE.md) : restaurer ou remettre en ligne une page rejoue les contrôles de publication (formulaire
+ *     dont l'identifiant est déjà publié ailleurs → restaurée HORS LIGNE, remise en ligne refusée) ; copie d'un formulaire
+ *     désactivé = nouvel identifiant ; deux formulaires publiés au même identifiant → envoi refusé (409) et journalisé.
  * Usage : node --import tsx scripts/test-trash.mjs
  */
 import assert from "node:assert/strict";
@@ -24,7 +27,10 @@ const { bootstrap } = await import("../src/lib/db/bootstrap.ts");
 await bootstrap();
 const { getDb, schema } = await import("../src/lib/db/index.ts");
 const { eq } = await import("drizzle-orm");
-const { createPage, deletePage, restorePage, savePage } = await import("../src/lib/edit/pages.ts");
+const { createPage, deletePage, restorePage, savePage, setPublished } = await import("../src/lib/edit/pages.ts");
+const { withFreshUids } = await import("../src/blocks/tree.ts");
+const { defaultContactForm } = await import("../src/lib/contact-form.ts");
+const { POST: CONTACT_POST } = await import("../src/app/api/contact/route.ts");
 const { createProject, deleteProject, restoreProject } = await import("../src/lib/edit/projects.ts");
 const { deleteMedia, restoreMedia } = await import("../src/lib/edit/media.ts");
 const { purgeTrash, purgeOne, emptyTrash } = await import("../src/lib/edit/trash.ts");
@@ -453,5 +459,72 @@ await test("m5 : refus de supprimer une page citée par une page à la corbeille
   assert.deepEqual(r.references.map((x) => [x.pageId, x.trashed]), [[b, true]]);
   db.delete(schema.blocks).where(eq(schema.blocks.pageId, b)).run();
 });
+
+/* ---- 6. N11 : restauration et remise en ligne rejouent les contrôles de publication ---------------------------------- */
+{
+  const meta = { title: L(""), description: L("") };
+  const formBlock = (uid, formId, form = true) => ({ uid, type: "contact", props: { ...defaultContactForm(), form, formId } });
+  const input = (title, slug, blocks, published = true) => ({ title: L(title), slug: L(slug), meta, published, inMenu: false, accent: null, blocks });
+  const isPublished = (id) => db.select().from(schema.pages).where(eq(schema.pages.id, id)).get().published;
+  const a = createPage({ title: L("Contact N11 A"), slug: L("contact-n11-a") }).data.id;
+  const b = createPage({ title: L("Contact N11 B"), slug: L("contact-n11-b") }).data.id;
+
+  await test("N11 restaurer : formulaire dont l'identifiant a été publié ailleurs entre-temps → page restaurée HORS LIGNE (raison donnée)", () => {
+    assert.equal(savePage(a, input("Contact N11 A", "contact-n11-a", [formBlock("fa", "fn11dup01")])).ok, true);
+    assert.equal(deletePage(a).ok, true);
+    // Pendant que A est à la corbeille, B publie un formulaire au même identifiant (A ne compte plus : accepté).
+    const saved = savePage(b, input("Contact N11 B", "contact-n11-b", [formBlock("fb", "fn11dup01")]));
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+    const r = restorePage(a);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.match(r.data.unpublished ?? "", /autre page/);
+    assert.equal(isPublished(a), false, "revient hors ligne");
+    assert.equal(isPublished(b), true, "l'autre page n'est pas touchée");
+    assert.match(restoredMessage("Contact N11 A", r.data), /restaurée · elle revient hors ligne : .*autre page/);
+  });
+  await test("N11 remettre en ligne (liste des pages) : refusé tant que l'identifiant est publié ailleurs ; accepté ensuite", () => {
+    const r = setPublished(a, true);
+    assert.equal(r.ok, false);
+    assert.match(r.message, /Publication impossible : .*autre page/);
+    assert.equal(isPublished(a), false);
+    assert.equal(setPublished(b, false).ok, true, "dépublier n'est jamais refusé");
+    assert.equal(setPublished(a, true).ok, true, "l'autre page hors ligne : plus de doublon");
+    assert.equal(setPublished(b, true).ok, false, "et c'est maintenant B qui ne peut plus revenir en ligne");
+  });
+  await test("N11 restaurer une page sans conflit : elle reste en ligne (« Annuler » d'une suppression)", () => {
+    const c = createPage({ title: L("Contact N11 C"), slug: L("contact-n11-c") }).data.id;
+    assert.equal(savePage(c, input("Contact N11 C", "contact-n11-c", [formBlock("fc", "fn11solo01")])).ok, true);
+    assert.equal(deletePage(c).ok, true);
+    const r = restorePage(c);
+    assert.equal(r.ok, true);
+    assert.equal(r.data.unpublished, undefined);
+    assert.equal(isPublished(c), true);
+    assert.equal(deletePage(c).ok, true);
+  });
+  await test("N11 copie d'un formulaire DÉSACTIVÉ (identifiant gardé) : la copie reçoit un nouvel identifiant", () => {
+    let n = 0;
+    const off = withFreshUids(formBlock("x", "fn11off001", false), () => `u${++n}`);
+    assert.notEqual(off.props.formId, "fn11off001");
+    assert.match(off.props.formId, /^[a-z0-9]{6,32}$/);
+    const on = withFreshUids(formBlock("y", "fn11on0001", true), () => `u${++n}`);
+    assert.notEqual(on.props.formId, "fn11on0001");
+    const plain = withFreshUids({ uid: "z", type: "contact", props: { email: "a@b.fr" } }, () => `u${++n}`);
+    assert.equal(plain.props.formId, undefined, "un Contact sans formulaire ni identifiant n'en reçoit pas");
+  });
+  await test("N11 deux formulaires publiés au même identifiant (base écrite à la main) : envoi refusé (409) et journalisé", async () => {
+    const props = JSON.stringify({ ...defaultContactForm(), form: true, formId: "fn11twice1" });
+    for (const id of [a, b]) db.insert(schema.blocks).values({ pageId: id, position: 50, type: "contact", props }).run();
+    db.update(schema.pages).set({ published: true }).where(eq(schema.pages.id, b)).run();
+    const errors = [];
+    const error = console.error;
+    console.error = (...x) => errors.push(x.join(" "));
+    const res = await CONTACT_POST(new Request("http://localhost/api/contact", { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" }, body: JSON.stringify({ form: "fn11twice1", locale: "fr", values: { femail: "a@b.fr", fmessage: "x" } }) }));
+    console.error = error;
+    assert.equal(res.status, 409);
+    assert.ok(errors.some((e) => /\[contact\] formulaire fn11twice1 publié 2 fois/.test(e)), errors.join(" | "));
+    assert.equal(db.select().from(schema.messages).all().length, 0, "rien n'est rangé");
+    db.delete(schema.blocks).where(eq(schema.blocks.position, 50)).run();
+  });
+}
 
 console.log(`\ntest-trash : ${passed} tests OK`);

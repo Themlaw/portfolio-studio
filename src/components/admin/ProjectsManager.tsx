@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useFormatter, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -15,40 +16,42 @@ import { DragHandle, SortableList } from "./Sortable";
 /** Corbeille des projets : restauration en un clic, purge au bout de 30 jours. */
 function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary: TrashSummary }) {
   const router = useRouter();
+  const t = useTranslations("projects");
+  const format = useFormatter();
   const [busy, start] = useTransition();
   return (
     <section className="a-panel" aria-labelledby="pr-corbeille">
-      <h2 id="pr-corbeille">Projets supprimés</h2>
+      <h2 id="pr-corbeille">{t("trashHeading")}</h2>
       <p className="a-help a-panel-intro">
-        Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec ses images : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
+        {t("trashIntro", { days: TRASH_DAYS })}
       </p>
       {projects.length === 0 ? (
-        <p className="muted" data-testid="corbeille-projets-vide">La corbeille est vide.</p>
+        <p className="muted" data-testid="corbeille-projets-vide">{t("trashEmpty")}</p>
       ) : (
         <div className="a-table-wrap">
           <table className="a-table a-table-stack">
             <thead>
               <tr>
-                <th scope="col">Projet</th>
-                <th scope="col">Supprimé</th>
+                <th scope="col">{t("colProject")}</th>
+                <th scope="col">{t("colDeleted")}</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t("colActions")}</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {projects.map((p) => (
                 <tr key={p.id} data-testid="corbeille-ligne">
-                  <td data-label="Projet">
+                  <td data-label={t("colProject")}>
                     <strong>{p.title}</strong>
                     <span className="a-sub">
-                      {[p.context, p.year].filter(Boolean).join(" · ")} · {p.slots - p.empty} image{p.slots - p.empty > 1 ? "s" : ""}
+                      {[p.context, p.year].filter(Boolean).join(" · ")} · {t("images", { count: p.slots - p.empty })}
                     </span>
                   </td>
-                  <td data-label="Supprimé">
-                    {p.deletedAt ? new Date(p.deletedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""}
+                  <td data-label={t("colDeleted")}>
+                    {p.deletedAt ? format.dateTime(new Date(p.deletedAt), { day: "numeric", month: "long" }) : ""}
                     <span className="a-sub">
-                      effacé dans {p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS} jour{p.deletedAt && daysLeft(p.deletedAt) < 2 ? "" : "s"}
+                      {t("erasedIn", { count: p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS })}
                     </span>
                   </td>
                   <td className="a-row-actions">
@@ -60,12 +63,12 @@ function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary
                         start(async () => {
                           const r = await restoreProjectAction(p.id);
                           if (!r.ok) return toast(r.message, "error");
-                          toast(`« ${p.title} » restauré`);
+                          toast(t("restored", { title: p.title }));
                           router.refresh();
                         })
                       }
                     >
-                      Restaurer
+                      {t("restore")}
                     </button>
                     <PurgeItem kind="project" id={p.id} name={p.title} lost={lostWithProject(p.slots)} />
                   </td>
@@ -94,6 +97,7 @@ export default function ProjectsManager({
   summary: TrashSummary;
 }) {
   const router = useRouter();
+  const t = useTranslations("projects");
   const [order, setOrder] = useState(projects);
   const [source, setSource] = useState(projects);
   if (projects !== source) {
@@ -112,14 +116,14 @@ export default function ProjectsManager({
     <>
       <div className="a-toolbar">
         <button type="button" className="a-btn a-btn-primary" onClick={() => setCreating(true)}>
-          Nouveau projet
+          {t("newProject")}
         </button>
       </div>
 
       {order.length === 0 ? (
         <div className="a-empty">
-          <h2>Aucun projet pour l&apos;instant</h2>
-          <p>Un projet regroupe les images d&apos;un même travail (un film, une série, une commande).</p>
+          <h2>{t("emptyTitle")}</h2>
+          <p>{t("emptyText")}</p>
         </div>
       ) : (
         <SortableList
@@ -131,12 +135,12 @@ export default function ProjectsManager({
           className="a-project-grid"
           render={(p) => (
             <article className="a-project-card">
-              <Link href={`/admin/projets/${p.id}`} className="a-project-thumb" aria-label={`Ouvrir ${p.title}`}>
+              <Link href={`/admin/projets/${p.id}`} className="a-project-thumb" aria-label={t("openProject", { title: p.title })}>
                 {p.thumb ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.thumb} alt="" loading="lazy" />
                 ) : (
-                  <span className="muted">Pas encore d&apos;image</span>
+                  <span className="muted">{t("noImage")}</span>
                 )}
               </Link>
               <div className="a-project-body">
@@ -146,17 +150,17 @@ export default function ProjectsManager({
                       {p.title}
                     </Link>
                   </h2>
-                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancien bloc</span>}
+                  {showFeatured && p.featured && <span className="a-badge">{t("featuredBadge")}</span>}
                 </div>
                 <p className="muted">{[p.context, p.year].filter(Boolean).join(" · ")}</p>
                 <p className="a-help">
-                  {p.slots - p.empty} image{p.slots - p.empty > 1 ? "s" : ""}
-                  {p.empty > 0 && ` · ${p.empty} emplacement${p.empty > 1 ? "s" : ""} vide${p.empty > 1 ? "s" : ""}`}
+                  {t("images", { count: p.slots - p.empty })}
+                  {p.empty > 0 && ` · ${t("emptySlots", { count: p.empty })}`}
                 </p>
                 <div className="a-card-actions">
                   <DragHandle />
                   <Link className="a-btn a-btn-small" href={`/admin/projets/${p.id}`}>
-                    Modifier
+                    {t("edit")}
                   </Link>
                   <button
                     type="button"
@@ -166,7 +170,7 @@ export default function ProjectsManager({
                       setRemoving(p);
                     }}
                   >
-                    Supprimer
+                    {t("delete")}
                   </button>
                 </div>
               </div>
@@ -180,18 +184,18 @@ export default function ProjectsManager({
           <p className="a-save-state" aria-live="polite">
             {dirty ? (
               <>
-                <span className="a-dot" aria-hidden="true" /> Nouvel ordre non enregistré
+                <span className="a-dot" aria-hidden="true" /> {t("orderDirty")}
               </>
             ) : (
               <>
-                <span aria-hidden="true">✓</span> Ordre enregistré
+                <span aria-hidden="true">✓</span> {t("orderSaved")}
               </>
             )}
-            <span className="a-save-note">L&apos;ordre des projets est celui du site.</span>
+            <span className="a-save-note">{t("orderNote")}</span>
           </p>
           {dirty && (
             <button type="button" className="a-btn" onClick={() => setOrder(projects)} disabled={busy}>
-              Annuler
+              {t("cancel")}
             </button>
           )}
           <button
@@ -202,20 +206,20 @@ export default function ProjectsManager({
               start(async () => {
                 const r = await reorderProjectsAction(order.map((p) => p.id));
                 if (!r.ok) return toast(r.message, "error");
-                toast("Ordre des projets enregistré");
+                toast(t("orderToast"));
                 setTimeout(() => router.refresh(), 0);
               })
             }
           >
-            Enregistrer l&apos;ordre
+            {t("saveOrder")}
           </button>
         </div>
       )}
 
       <ConfirmDialog
         open={creating}
-        title="Nouveau projet"
-        confirmLabel="Créer le projet"
+        title={t("newProject")}
+        confirmLabel={t("createConfirm")}
         busy={busy}
         onClose={() => setCreating(false)}
         onConfirm={() =>
@@ -226,7 +230,7 @@ export default function ProjectsManager({
               toast(r.message, "error");
               return;
             }
-            toast("Projet créé");
+            toast(t("created"));
             try {
               sessionStorage.setItem(`pf-add-images-${r.data.id}`, "1");
             } catch {
@@ -236,13 +240,13 @@ export default function ProjectsManager({
           })
         }
       >
-        <p className="muted">Le projet est créé sans nom : tu le nommeras ensuite, et l&apos;ajout de ses images t’est proposé tout de suite.</p>
+        <p className="muted">{t("createIntro")}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={removing !== null}
-        title={`Supprimer le projet « ${removing?.title ?? ""} » ?`}
-        confirmLabel="Supprimer le projet"
+        title={t("deleteTitle", { title: removing?.title ?? "" })}
+        confirmLabel={t("deleteConfirm")}
         danger
         busy={busy}
         // Jamais « Supprimer » proposé pour un refus annoncé : tant qu'un bloc le montre, le bouton est inactif.
@@ -261,7 +265,7 @@ export default function ProjectsManager({
             undoToast(project.title, () =>
               void restoreProjectAction(project.id).then((res) => {
                 if (!res.ok) return toast(res.message, "error");
-                toast(`« ${project.title} » restauré`);
+                toast(t("restored", { title: project.title }));
                 router.refresh();
               }),
             );
@@ -272,20 +276,24 @@ export default function ProjectsManager({
         {removing && removing.blockedBy.length > 0 ? (
           <div className="a-alert" role="alert" data-testid="suppression-bloquee">
             <p>
-              Ce projet est affiché par {removing.blockedBy.length} bloc{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.
+              {t("blockedIntro", { count: removing.blockedBy.length })}
             </p>
             <ul className="a-refs">
               {removing.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
-                  {r.trashed && <span className="muted"> (à la corbeille)</span>}
+                  {t.rich("blockRef", {
+                    type: r.blockType,
+                    title: r.pageTitle,
+                    l: (c) => <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{c}</Link>,
+                  })}
+                  {r.trashed && <span className="muted">{t("inTrash")}</span>}
                 </li>
               ))}
             </ul>
           </div>
         ) : (
           <p className="muted">
-            Il quitte le site, mais ses images et ses {removing?.slots ?? 0} emplacements restent {TRASH_DAYS} jours dans la corbeille : tu peux le restaurer ou annuler juste après. Ses images restent dans la médiathèque.
+            {t("deleteKeep", { slots: removing?.slots ?? 0, days: TRASH_DAYS })}
           </p>
         )}
         {removeError && <p className="a-alert">{removeError}</p>}

@@ -1,0 +1,197 @@
+{
+  "_doc": "Lot 130 : périmètre de la garde « aucune chaîne française en dur ». Une étape livrée ajoute ses fichiers ici. include : dossiers ou fichiers ; exclude : sous-chemins pas encore traités (étape 130c : actions serveur, routes api/ et apercu/, dont les seuls textes sont des corps de réponse HTTP) ; allow : exceptions justifiées par fichier (extrait exact de la chaîne -> raison).",
+  "include": [
+    "src/app/admin",
+    "src/components/admin",
+    "src/components/edit",
+    "src/blocks",
+    "src/components/EditLayer.tsx",
+    "src/components/BoardLayer.tsx",
+    "src/components/SiteLayer.tsx",
+    "src/components/PreviewBridge.tsx",
+    "src/components/ProjectStrip.tsx",
+    "src/components/CollectionTiles.tsx",
+    "src/components/SocialPicker.tsx",
+    "src/components/PreviewBanner.tsx",
+    "src/components/PreviewExit.tsx",
+    "src/components/EditThisPage.tsx",
+    "src/components/hero",
+    "src/components/StripRail.tsx",
+    "src/components/SiteFooter.tsx",
+    "src/components/SiteHeader.tsx",
+    "src/components/VideoCard.tsx",
+    "src/components/ContactForm.tsx",
+    "src/components/MediaCaption.tsx",
+    "src/components/CollectionTileTools.tsx",
+    "src/components/CanvasTexts.tsx",
+    "src/components/AdminIntl.tsx",
+    "src/components/EditOnly.tsx",
+    "src/themes/cursor.ts",
+    "src/lib/favicon-spec.ts",
+    "src/lib/look.ts",
+    "src/themes/palette.ts"
+  ],
+  "exclude": [],
+  "allow": {
+    "src/components/edit/readability.ts": {
+      "Lisibilité :": "module pur testé par node (test-chrome24) : repli français de readabilityText ; l'affichage passe par useReadability (editMenusReadability)",
+      "il faut au moins": "module pur testé par node (test-chrome24) : repli français de ratioTip ; l'affichage passe par useReadability (editMenusReadability)"
+    },
+    "src/components/admin/UploadQueue.tsx": {
+      "hors de UploadQueueProvider": "erreur de développeur levée par throw, jamais affichée à l'utilisateur"
+    },
+    "src/blocks/help-text.ts": {
+      "Écris ton texte ici.": "texte d'exemple posé dans le bloc (contenu enregistré en base, FR et EN) ; reconnu à la publication",
+      "Titre de la rubrique": "ancien texte d'exemple, encore enregistré dans d'anciens brouillons : reconnu tel quel",
+      "Titre du bloc": "texte d'exemple du titre posé dans le bloc (contenu enregistré en base) ; reconnu à la publication"
+    },
+    "src/blocks/editor-context.tsx": {
+      "à utiliser dans l'éditeur": "erreur de développeur levée par throw, jamais affichée à l'utilisateur"
+    },
+    "src/blocks/registry.ts": {
+      "Résumé": "contenu par défaut d'un bloc CV neuf (texte localisé { fr, en } enregistré en base), pas de l'interface",
+      "Écris-moi": "contenu par défaut d'un bloc Contact neuf (texte localisé { fr, en } enregistré en base), pas de l'interface"
+    },
+    "src/components/hero/types.ts": {
+      "Étiquette": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Ton nom": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "commun à toutes les pages": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Faire défiler": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Ton métier": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/SiteFooter.tsx": {
+      "Pied de page · commun à toutes les pages": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Ton métier": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Mention (crédits, droits…)": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/SiteHeader.tsx": {
+      "En-tête · commun à toutes les pages": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Nom du site": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/VideoCard.tsx": {
+      "Étiquette": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Titre de la vidéo": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Légende": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/ContactForm.tsx": {
+      "Libellé": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Message de confirmation": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/MediaCaption.tsx": {
+      "Titre": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Légende": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/CollectionTiles.tsx": {
+      "Étiquette": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Présentation": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/components/EditLayer.tsx": {
+      "vidéo": "valeur de la prop `what` de FrameWindow (« photo » / « vidéo »), mot repris et traduit par FrameMenu ; pas affichée ici"
+    },
+    "src/components/BoardLayer.tsx": {
+      "vidéo": "valeur de la prop `what` de FrameWindow (« photo » / « vidéo »), mot repris et traduit par FrameMenu ; pas affichée ici"
+    },
+    "src/components/SiteLayer.tsx": {
+      "Ton nom": "libellé du champ de formulaire CRÉÉ (contenu de la page, fr / en), pas du texte d'interface"
+    },
+    "src/components/EditThisPage.tsx": {
+      "500 12.5px": "police CSS en ligne, pas un texte"
+    },
+    "src/components/edit/FreeLayer.tsx": {
+      "vidéo": "valeur de la prop what de FrameWindow (code, pas un texte affiché) ; traduite dans FrameMenu"
+    },
+    "src/components/edit/GridLayer.tsx": {
+      "vidéo": "valeur de la prop what de FrameWindow (code, pas un texte affiché) ; traduite dans FrameMenu"
+    },
+    "src/themes/cursor.ts": {
+      "Curseur presque invisible sur": "module pur testé par node (test-palette) : repli français ; l'affichage passe par CursorSettings (cursorSettings)"
+    },
+    "src/lib/favicon-spec.ts": {
+      "Écris 2 ou 3 lettres.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)"
+    },
+    "src/lib/look.ts": {
+      "Étroite": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Léger": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Titre de page": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Étiquette": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Légende": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Nom du site": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Titres du thème": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Texte du thème": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Police inconnue : choisis-la dans le catalogue.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Épais": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Cadre du thème": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Un cadre de la bibliothèque porte son identifiant (et lui seul).": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Couleur et épaisseur ne vont qu'avec une bande de couleur.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "au plus.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "styles de texte": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Grand en haut, réduit au défilement": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Centré dans la barre": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "En haut de la barre": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "En bas de la barre": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "La barre s'agrandit": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Remplir la hauteur": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Logo réduit": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Même logo": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Tout le menu": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Tout le pied de page": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Trop de réglages de texte.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)"
+    },
+    "src/themes/palette.ts": {
+      "Le fond des pages.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Fond des blocs": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Sépare deux blocs sans trait.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "le fond, un cran plus foncé (plus clair sur un thème sombre)": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Traits fins ; transparence acceptée.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "12 % du texte dans le fond": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Texte": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Titres et paragraphes.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Présentations et légendes.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "le texte éclairci vers le fond, juste assez pour rester lisible": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Teinte des ombres des cartes et des images.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "le texte (noir sur un thème sombre)": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Liens et fond des boutons.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Action au survol": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Boutons et liens sous la souris.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "l'action un cran plus foncée (plus claire sur un thème sombre)": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Posé sur la couleur d'action.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "blanc, ou la couleur la plus sombre du thème si elle se lit mieux": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Détails mis en valeur.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Petits textes d'étiquette": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "étiquettes": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Petits textes au-dessus des titres.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Détails": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Ornements discrets ; transparence acceptée.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Fond des images agrandies": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Fond sombre derrière une image agrandie ou une vidéo.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "le texte (le fond sur un thème sombre)": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Légendes et boutons posés sur le fond des images agrandies.": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "le fond (le texte sur un thème sombre)": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Fond de page": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Cartes et encadrés": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)",
+      "Boutons et liens": "module pur testé par node : repli français ; traduction à l'affichage PAS ENCORE faite (reste du lot 130, à traiter)"
+    },
+    "src/blocks/etapes.ts": {
+      "Avant / après": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Étapes (making-of)": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Deux images recadrées pareil, séparées par un curseur : le visiteur le glisse (ou le règle au clavier).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Une suite d'images avec une légende par étape (croquis, valeurs, couleur, final).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Plusieurs vues d'un même sujet : on les fait défiler en glissant ou avec les flèches. Rien ne tourne tout seul.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Onglets : une étape à la fois": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Frise : toutes les étapes côte à côte": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Défilement : les unes sous les autres": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Une étape n'a pas encore d'image : choisis-la, ou retire l'étape.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Choisis les deux images à comparer (avant et après).": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Ajoute au moins deux vues à faire tourner.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)",
+      "Ajoute au moins deux étapes.": "module pur testé par node (test-etapes131) : repli français ; l'affichage passe par EtapesBlock et EtapesEditor (blockReg / steps)"
+    },
+    "src/blocks/EtapesBlock.tsx": {
+      "Étiquette": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Présentation": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    },
+    "src/blocks/EtapesView.tsx": {
+      "Titre de l'étape": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)",
+      "Légende": "attribut data-placeholder / data-site-hint / data-edit-label du HTML du site en vue brouillon (identique hors vue brouillon) : traduit à l'affichage par CanvasTexts (catalogue canvasTexts)"
+    }
+  }
+}

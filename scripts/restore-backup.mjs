@@ -13,9 +13,15 @@
  * (l'archive ne contient que les originaux et ce qui n'est pas régénérable : kit/, icons/…, voir src/lib/backup/archive.ts). Les fichiers
  * prennent le propriétaire du dossier de données (exécution en root). Une archive d'avant le lot 85 (manifest sans `storage`) est
  * restaurée aussi, avec un AVERTISSEMENT : elle n'a ni kit, ni cadres importés, ni icônes.
+ *
+ * Liens symboliques : le contenu de <données> est écrit par le site (utilisateur 1000). Un site compromis pourrait y remplacer
+ * `fonts/` ou `media/originals/` par un lien vers `/etc` et attendre une restauration lancée en root. Le script ne suit donc JAMAIS
+ * un lien : avant de modifier quoi que ce soit, chaque composant de chaque chemin touché est vérifié par `lstat` (refus net, rien
+ * n'a changé), puis de nouveau juste avant chaque déplacement ; les propriétaires sont posés par `lchown`, et le parcours des dossiers
+ * ne descend pas dans un lien. Lancer de préférence en 1000:1000 (commande de docs/SAUVEGARDES.md), jamais en root sans nécessité.
  */
 import { createReadStream, createWriteStream } from "node:fs";
-import { chown, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
+import { lchown, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
@@ -131,6 +137,27 @@ export async function copyTo(r, size, out) {
   }
 }
 
+/**
+ * Refuse tout lien symbolique sur le chemin relatif `rel` sous `root` : chaque composant est lu par `lstat` (qui ne suit pas
+ * les liens), la cible comprise si elle existe. Un composant absent arrête la vérification (la suite sera créée par le script).
+ */
+export async function assertNoSymlink(root, rel) {
+  let cur = root;
+  for (const part of rel.split(/[\\/]+/).filter(Boolean)) {
+    cur = path.join(cur, part);
+    let st;
+    try {
+      st = await lstat(cur);
+    } catch (e) {
+      if (e?.code === "ENOENT") return;
+      throw e;
+    }
+    if (st.isSymbolicLink()) {
+      throw new Error(`lien symbolique dans le dossier de données, refusé : ${cur}. La restauration ne suit jamais un lien : remplace-le par un vrai dossier (ou supprime-le), puis relance.`);
+    }
+  }
+}
+
 const safe = (name) => name.length > 0 && !name.startsWith("/") && !name.includes("\0") && name.split("/").every((s) => s && s !== "." && s !== "..");
 
 /** Contenu du manifest sans rien extraire d'autre. */
@@ -200,8 +227,9 @@ export async function extractAll(archive, dest, owner) {
     await mkdir(dir, { recursive: true });
     made.add(dir);
   };
+  // lchown : ne suit jamais un lien (le dossier de travail est créé par le script, mais rien n'est supposé).
   const own = async (p) => {
-    if (owner) await chown(p, owner.uid, owner.gid).catch(() => {});
+    if (owner) await lchown(p, owner.uid, owner.gid).catch(() => {});
   };
   const src = createReadStream(archive).pipe(createGunzip());
   await readTar(src, async (name, size, r) => {
@@ -220,6 +248,7 @@ export async function extractAll(archive, dest, owner) {
   return files;
 }
 
+/** Dossiers sous `root` (récursif). Un lien symbolique n'est ni listé ni parcouru (`Dirent.isDirectory()` ne suit pas les liens). */
 async function walkDirs(root) {
   const out = [];
   for (const d of await readdir(root, { withFileTypes: true }).catch(() => [])) {
@@ -228,12 +257,35 @@ async function walkDirs(root) {
   return out;
 }
 
-export async function restore(archive, dataDir) {
-  const info = await stat(dataDir).catch(() => null);
-  if (!info?.isDirectory()) throw new Error(`dossier de données introuvable : ${dataDir}`);
+const SCRUBBED_TABLES = ["session", "verification", "rate_limit"];
+/** Vide les tables de secrets de la base restaurée. Ne jette jamais : renvoie { ok, removed } ou { ok:false, reason } (affiché en clair). */
+async function scrubRestoredDb(file) {
+  try {
+    const { default: Database } = await import("better-sqlite3");
+    const db = new Database(file);
+    try {
+      let removed = 0;
+      const has = db.prepare("select 1 from sqlite_master where type = 'table' and name = ?");
+      for (const t of SCRUBBED_TABLES) if (has.get(t)) removed += db.prepare(`delete from "${t}"`).run().changes;
+      db.pragma("wal_checkpoint(TRUNCATE)");
+      return { ok: true, removed };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return { ok: false, reason: String(e?.message ?? e).slice(0, 160) };
+  }
+}
+
+export async function restore(archive, dataArg) {
+  const info = await stat(dataArg).catch(() => null);
+  if (!info?.isDirectory()) throw new Error(`dossier de données introuvable : ${dataArg}`);
+  // Le dossier donné par celui qui restaure peut être un lien (son choix) : on travaille sur son chemin réel. Sous lui, aucun lien.
+  const dataDir = await realpath(dataArg);
   const owner = process.getuid?.() === 0 ? { uid: info.uid, gid: info.gid } : null;
   const stamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
   const work = path.join(dataDir, `restore-tmp-${stamp}`);
+  await assertNoSymlink(dataDir, path.basename(work));
   await rm(work, { recursive: true, force: true });
   await mkdir(work, { recursive: true });
   try {
@@ -241,26 +293,44 @@ export async function restore(archive, dataDir) {
     if (!files.includes("manifest.json") || !files.includes("portfolio.db")) throw new Error("archive incomplète : manifest.json ou portfolio.db absent");
     const head = (await readFile(path.join(work, "portfolio.db"))).subarray(0, 16).toString("latin1");
     if (head !== "SQLite format 3\0") throw new Error("portfolio.db de l'archive n'est pas une base SQLite");
-    // Tout est lu et vérifié : on change enfin quelque chose. L'ancienne base est rangée, pas effacée.
+    // Avant tout changement : aucun lien symbolique sur les chemins que la restauration va toucher (refus net, rien n'a bougé).
     const previous = path.join(dataDir, `restore-previous-${stamp}`);
+    const DB_FILES = ["portfolio.db", "portfolio.db-wal", "portfolio.db-shm"];
+    for (const rel of [...DB_FILES, path.basename(previous), ...files, path.join("cache", "crops"), ...OWNED_DIRS]) await assertNoSymlink(dataDir, rel);
+    // Tout est lu et vérifié : on change enfin quelque chose. L'ancienne base est rangée, pas effacée.
     let moved = 0;
-    for (const f of ["portfolio.db", "portfolio.db-wal", "portfolio.db-shm"]) {
-      if (await stat(path.join(dataDir, f)).catch(() => null)) {
+    let scrub = null;
+    for (const f of DB_FILES) {
+      if (await lstat(path.join(dataDir, f)).catch(() => null)) {
+        await assertNoSymlink(dataDir, f);
         await mkdir(previous, { recursive: true });
+        await assertNoSymlink(dataDir, path.basename(previous));
         await rename(path.join(dataDir, f), path.join(previous, f));
         moved++;
       }
     }
     for (const name of files) {
       const to = path.join(dataDir, name);
+      // Revérifié juste avant d'écrire (le site est censé être arrêté, mais rien n'est supposé), puis après la création des dossiers.
+      await assertNoSymlink(dataDir, name);
       await mkdir(path.dirname(to), { recursive: true });
+      await assertNoSymlink(dataDir, name);
       await rename(path.join(work, name), to);
     }
+    // #58 : une sauvegarde d'avant le nettoyage contient les sessions, jetons de vérification et compteurs d'essais de l'époque :
+    // restaurée telle quelle, elle rouvrirait des sessions volées. On les vide dans la base restaurée (tables absentes tolérées).
+    scrub = await scrubRestoredDb(path.join(dataDir, "portfolio.db"));
     // Dossiers créés en root : rendus au propriétaire des données.
     // Cache des recadrages : indexé par IDENTIFIANT de média, que la base restaurée a pu réattribuer à d'autres images : on le vide.
+    await assertNoSymlink(dataDir, path.join("cache", "crops"));
     await rm(path.join(dataDir, "cache", "crops"), { recursive: true, force: true });
-    if (owner) for (const d of OWNED_DIRS) for (const p of [path.join(dataDir, d), ...(await walkDirs(path.join(dataDir, d)))]) await chown(p, owner.uid, owner.gid).catch(() => {});
-    return { files: files.length, previous: moved ? previous : null };
+    if (owner) {
+      for (const d of OWNED_DIRS) {
+        await assertNoSymlink(dataDir, d);
+        for (const p of [path.join(dataDir, d), ...(await walkDirs(path.join(dataDir, d)))]) await lchown(p, owner.uid, owner.gid).catch(() => {});
+      }
+    }
+    return { files: files.length, previous: moved ? previous : null, scrub };
   } finally {
     await rm(work, { recursive: true, force: true });
   }
@@ -292,6 +362,8 @@ async function main() {
   const out = await restore(archive, dataDir);
   console.log(`Restauré : ${out.files} fichier(s) dans ${dataDir}.`);
   if (out.previous) console.log(`Ancienne base rangée dans ${out.previous} (à supprimer une fois la restauration vérifiée).`);
+  if (out.scrub?.ok) console.log(`Sessions, jetons de vérification et compteurs d'essais de la sauvegarde vidés (${out.scrub.removed} ligne(s)) : tout le monde devra se reconnecter.`);
+  else console.warn(`ATTENTION : sessions de la sauvegarde NON vidées (${out.scrub?.reason ?? "inconnu"}). Une session volée avant la sauvegarde resterait valide : vide les tables session, verification et rate_limit de portfolio.db avant de redémarrer.`);
   console.log("Redémarre le site : il régénère lui-même les variantes d'images manquantes.");
 }
 

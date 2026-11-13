@@ -1,0 +1,19 @@
+{
+  "originRefused": "Origine refusée.",
+  "tooHeavy": "Cet envoi est trop lourd : {mb} Mo au plus pour une animation.",
+  "sendFailedDisk": "L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.",
+  "sendFailed": "L'envoi a échoué. Réessaie.",
+  "connectionFailed": "L'envoi a échoué (connexion ?). Réessaie.",
+  "summary": "Créer une animation image par image",
+  "description": "Envoie tes dessins numérotés (PNG, WebP ou JPEG, de 2 à 48 images, dans l'ordre de leurs noms), un zip de ces images, ou une feuille de sprites avec son nombre de colonnes et de rangées. Le site assemble une seule bande ; la cadence (6, 8, 12 ou 24 images par seconde) se règle à chaque endroit où tu la poses.",
+  "imagesLabel": "Images de l'animation",
+  "sheetLabel": "Feuille de sprites",
+  "cols": "Colonnes",
+  "rows": "Rangées",
+  "assembling": "Assemblage…",
+  "create": "Créer l'animation",
+  "reused": "Cette animation existait déjà",
+  "created": "Animation créée",
+  "images": "images",
+  "appearsInMedia": "elle apparaît dans les médias"
+}

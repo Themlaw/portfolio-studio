@@ -10,27 +10,33 @@ import { monoColors } from "@/lib/favicon-plan";
 import { siteNameFor } from "@/lib/site-schema";
 import { getPublishedTheme } from "@/lib/theme";
 import { fontLibraryRows } from "@/lib/fonts/library";
+import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminT } from "@/i18n/admin-server";
 
-export const metadata = { title: "Réglages" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("settings"))("title") };
+}
 
 export default async function SettingsPage() {
+  await requireAdmin();
+  const t = await getAdminT("settings");
   const fonts = fontLibraryRows();
   const settings = getSettingsForAdmin(true);
   const images = listMediaForAdmin().filter((m) => m.kind === "image");
   return (
     <>
       <PageHeader
-        title="Réglages"
-        intro="L'identité de ton site : ton nom, ton métier, l'adresse où l'on peut t'écrire et tes réseaux. Ici, une modification est en ligne dès que tu enregistres ; dans l'éditeur, les mêmes champs sont publiés avec la page que tu publies."
+        title={t("title")}
+        intro={t("intro")}
       />
       <SettingsForm initial={settings} pending={siteDraftHolder()} />
       <SeoForm initial={getSeoForAdmin()} media={images} siteName={siteNameFor(settings.site.name, "fr")} favicon={getFaviconForAdmin()} colors={monoColors(await getPublishedTheme())} />
       <FontLibraryPanel rows={fonts.rows} total={fonts.total} limits={{ families: fonts.limits.families, totalBytes: fonts.limits.totalBytes }} />
       <p className="a-section" data-testid="journal-link">
-        Besoin de savoir ce qui a été modifié, quand et depuis quelle page ? <Link href="/admin/journal">Ouvrir le journal</Link>.
+        {t("journalAsk")} <Link href="/admin/journal">{t("journalOpen")}</Link>.
       </p>
       <details className="a-advanced a-section">
-        <summary>Avancé</summary>
+        <summary>{t("advanced")}</summary>
         <Diagnostic />
       </details>
     </>

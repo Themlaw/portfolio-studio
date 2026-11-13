@@ -7,7 +7,7 @@
  */
 import { spawn } from "node:child_process";
 
-import { decoderFor } from "./limits";
+import { decoderFor, ffmpegEnv } from "./limits";
 
 /** Crête (dBFS) en dessous de laquelle une piste est tenue pour silencieuse. */
 export const SILENCE_DB = -70;
@@ -21,7 +21,7 @@ export function peakOfTrack(file: string, container: "mov" | "matroska" | "mp4",
       "-nostdin", "-hide_banner", "-threads", "1", "-c:a", decoderFor(codec), "-protocol_whitelist", "file", "-f", container === "mp4" ? "mov" : container,
       "-i", "file:" + file, "-map", `0:a:${index}`, "-vn", "-sn", "-dn", "-af", "volumedetect", "-f", "null", "-",
     ];
-    const child = spawn("nice", ["-n", "10", "ffmpeg", ...args], { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn("nice", ["-n", "10", "ffmpeg", ...args], { stdio: ["ignore", "ignore", "pipe"], env: ffmpegEnv() });
     let err = "";
     child.stderr.on("data", (d) => (err = (err + d).slice(-8000)));
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);

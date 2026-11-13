@@ -4,13 +4,14 @@
  * Aperçu d'un média de l'onglet Médias (clic sur une vignette quand aucun bloc sélectionné ne peut le
  * recevoir) : l'image ENTIÈRE ou la vidéo, son nom, ses tags, et comment la poser sur la page.
  */
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef } from "react";
 
 import type { AdminMediaRow } from "@/lib/admin";
 
-const DEFAULT_HINT = "Pour la poser : sélectionne d'abord une image, une vidéo ou une grille sur la page puis clique ce média, ou glisse-le sur un projet ou une place vide.";
-
-export default function MediaPreviewDialog({ media, onClose, hint = DEFAULT_HINT }: { media: AdminMediaRow | null; onClose: () => void; hint?: string | null }) {
+export default function MediaPreviewDialog({ media, onClose, hint }: { media: AdminMediaRow | null; onClose: () => void; hint?: string | null }) {
+  const t = useTranslations("editorPanelsPreview");
+  const shownHint = hint === undefined ? t("hint") : hint;
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -44,18 +45,18 @@ export default function MediaPreviewDialog({ media, onClose, hint = DEFAULT_HINT
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={media.preview ?? media.thumb ?? ""} alt={media.alt.fr || media.name} />
               ) : (
-                <p className="ve-empty">{media.kind === "pdf" ? "Document PDF" : "Pas d'aperçu pour l'instant."}</p>
+                <p className="ve-empty">{media.kind === "pdf" ? t("pdf") : t("noPreview")}</p>
               )}
             </div>
             <p className="ve-hint">
-              {media.width && media.height ? `${media.width} × ${media.height} px` : ""}
+              {media.width && media.height ? t("dimensions", { width: media.width, height: media.height }) : ""}
               {media.tags.length > 0 ? `${media.width ? " · " : ""}${media.tags.map((t) => t.label).join(", ")}` : ""}
             </p>
-            {hint && <p className="ve-hint">{hint}</p>}
+            {shownHint && <p className="ve-hint">{shownHint}</p>}
           </div>
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
-              Fermer
+              {t("close")}
             </button>
           </div>
         </>

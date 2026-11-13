@@ -7,6 +7,7 @@
  * avant, la page éditée ne change pas (rechargement de la même adresse).
  */
 import { matchSorter } from "match-sorter";
+import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { Button, Dialog, DialogTrigger, Input, ListBox, ListBoxItem, Popover, SearchField } from "react-aria-components";
 
@@ -16,13 +17,14 @@ import type { ThemeChoice } from "@/lib/edit/theme-usage";
 import { toast } from "../editing";
 
 export default function ThemePicker({ themes, preparing, flush }: { themes: ThemeChoice[]; preparing: PreparingInfo | null; flush: () => Promise<unknown> }) {
+  const t = useTranslations("editorPanelsTheme");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const labelId = useId();
-  const live = themes.find((t) => t.live);
+  const live = themes.find((th) => th.live);
   const currentId = preparing?.id ?? live?.id ?? "";
-  const current = themes.find((t) => t.id === currentId);
+  const current = themes.find((th) => th.id === currentId);
   const currentName = (preparing?.name ?? live?.name ?? "") + (current?.version ? ` · v${current.version}` : "");
   // Ordre d'origine (en ligne, puis derniers utilisés) tant qu'on ne tape rien ; sinon le meilleur résultat d'abord.
   const shown = query.trim() ? matchSorter(themes, query.trim(), { keys: ["name"], baseSort: (a, b) => a.index - b.index }) : themes;
@@ -43,37 +45,37 @@ export default function ThemePicker({ themes, preparing, flush }: { themes: Them
       window.location.reload();
     } catch {
       setBusy(false);
-      toast("Le thème n'a pas pu être changé. Réessaie.", "error");
+      toast(t("changeFailed"), "error");
     }
   };
 
   return (
     <DialogTrigger isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
-      <Button className="a-btn ve-theme-btn" data-testid="theme-picker" data-preparing={preparing ? "true" : undefined} isDisabled={busy} aria-label={`Thème : ${currentName}`} data-name={currentName}>
-        <span id={labelId} className="ve-theme-cur"><span className="ve-theme-cap">Thème<span className="ve-theme-colon"> : </span></span><strong>{currentName}</strong></span> <span aria-hidden="true">▾</span>
+      <Button className="a-btn ve-theme-btn" data-testid="theme-picker" data-preparing={preparing ? "true" : undefined} isDisabled={busy} aria-label={t("buttonLabel", { name: currentName })} data-name={currentName}>
+        <span id={labelId} className="ve-theme-cur"><span className="ve-theme-cap">{t("caption")}<span className="ve-theme-colon">{t("colon")}</span></span><strong>{currentName}</strong></span> <span aria-hidden="true">▾</span>
       </Button>
       <Popover className="ve-theme-popover" placement="bottom start" offset={4}>
-        <Dialog className="ve-theme-dialog" aria-label="Choisir un thème">
-          <SearchField className="ve-theme-search" aria-label="Chercher un thème" value={query} onChange={setQuery} autoFocus>
-            <Input className="a-input" placeholder="Chercher un thème…" data-testid="theme-picker-search" />
+        <Dialog className="ve-theme-dialog" aria-label={t("choose")}>
+          <SearchField className="ve-theme-search" aria-label={t("search")} value={query} onChange={setQuery} autoFocus>
+            <Input className="a-input" placeholder={t("searchPlaceholder")} data-testid="theme-picker-search" />
           </SearchField>
           <ListBox
             className="ve-theme-list"
-            aria-label="Thèmes"
+            aria-label={t("list")}
             selectionMode="none"
-            items={shown.map((t) => ({ ...t }))}
-            onAction={(key) => { const t = themes.find((x) => x.id === key); if (t) void choose(t); }}
-            renderEmptyState={() => <p className="a-taginput-empty">Aucun thème ne correspond.</p>}
+            items={shown.map((th) => ({ ...th }))}
+            onAction={(key) => { const th = themes.find((x) => x.id === key); if (th) void choose(th); }}
+            renderEmptyState={() => <p className="a-taginput-empty">{t("none")}</p>}
           >
-            {(t) => (
-              <ListBoxItem id={t.id} textValue={t.name} className="ve-theme-item" data-current={t.id === currentId || undefined} data-testid={`theme-choice-${t.id}`}>
-                <span className="ve-theme-check" aria-hidden="true">{t.id === currentId ? "✓" : ""}</span>
+            {(th) => (
+              <ListBoxItem id={th.id} textValue={th.name} className="ve-theme-item" data-current={th.id === currentId || undefined} data-testid={`theme-choice-${th.id}`}>
+                <span className="ve-theme-check" aria-hidden="true">{th.id === currentId ? "✓" : ""}</span>
                 <span className="ve-theme-name">
-                  {t.name}
-                  {t.kind === "mine" && t.version ? <span className="ve-theme-kind" data-testid="theme-choice-version"> · version {t.version}</span> : null}
-                  {t.kind === "old" ? <span className="ve-theme-kind"> · ancien thème</span> : null}
+                  {th.name}
+                  {th.kind === "mine" && th.version ? <span className="ve-theme-kind" data-testid="theme-choice-version">{t("version", { version: th.version })}</span> : null}
+                  {th.kind === "old" ? <span className="ve-theme-kind">{t("old")}</span> : null}
                 </span>
-                {t.live && <span className="a-badge ve-theme-live">En ligne</span>}
+                {th.live && <span className="a-badge ve-theme-live">{t("live")}</span>}
               </ListBoxItem>
             )}
           </ListBox>

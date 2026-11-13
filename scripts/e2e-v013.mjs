@@ -28,7 +28,8 @@
  *         BROWSER=firefox ONLY=J node scripts/e2e-v013.mjs   (sélection seulement)
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -450,9 +451,12 @@ if (run("E")) {
   await center(f, gridSel);
   await page.screenshot({ path: `${SHOTS}/E-grille-avec-cellule-vide.png` });
   // Vidéo (fichier) déposée sur la 2e cellule précisément.
-  const mp4 = "/tmp/e2e-v013.mp4";
+  // Vidéo de test dans un dossier au nom imprévisible (mkdtemp), supprimé aussitôt lue : pas de chemin /tmp fixe.
+  const mp4Dir = mkdtempSync(path.join(tmpdir(), "e2e-v013-"));
+  const mp4 = path.join(mp4Dir, "plan.mp4");
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=12:duration=2", "-pix_fmt", "yuv420p", "-c:v", "libx264", mp4]);
   const bytes = [...readFileSync(mp4)];
+  rmSync(mp4Dir, { recursive: true, force: true });
   const second = f.locator(`${gridSel} .pe-media-video`).nth(1);
   const sb = await second.boundingBox();
   const vdt = await f.evaluateHandle((b) => {
@@ -701,7 +705,13 @@ if (run("L")) {
   ok("L8 envoi public validé : message de confirmation", await until(pp, () => /Merci/.test(document.querySelector("[role=status]")?.textContent ?? ""), null, 30000));
   const msg = q("select fields, reply_to r from messages order by id desc limit 1")[0];
   ok("L9 message rangé avec le nouveau champ et l'adresse de réponse", msg && JSON.parse(msg.fields).some((x) => x.label === "Ton studio" && x.value === "Studio Brume") && msg.r === "lou@exemple.fr", JSON.stringify(msg));
-  const post = (data) => pp.evaluate(async (d) => (await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).status, data);
+  // Jeton signé + délai minimal avant l'envoi (docs/SECURITE.md §2.3) : comme le formulaire, demandé puis attendu.
+  const post = (data) =>
+    pp.evaluate(async (d) => {
+      const { token } = await (await fetch(`/api/contact/token?form=${d.form}`, { cache: "no-store" })).json();
+      await new Promise((r) => setTimeout(r, 3200));
+      return (await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...d, token }) })).status;
+    }, data);
   const values = { [fields[1].id]: "a@b.fr", [fields[2].id]: "x" };
   ok("L10 champ inconnu rejeté (400)", (await post({ form: formId, locale: "fr", values: { ...values, admin: "1" } })) === 400);
   ok("L11 formulaire inconnu rejeté (404)", (await post({ form: "fpasunformulaire", locale: "fr", values })) === 404);

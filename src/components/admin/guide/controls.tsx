@@ -4,6 +4,7 @@
  * Petits contrôles de l'éditeur de thème guidé (lot 61) : réglette, « Affiner (avancé) » repliable avec son compteur de réglages
  * modifiés, choix à boutons.
  */
+import { useTranslations } from "next-intl";
 import { useId, type ReactNode } from "react";
 
 export function Slider({
@@ -25,6 +26,7 @@ export function Slider({
   unit: string;
   onChange: (v: number) => void;
 }) {
+  const t = useTranslations("guide");
   const id = useId();
   const v = value ?? min;
   return (
@@ -32,7 +34,7 @@ export function Slider({
       <label htmlFor={id}>
         {label}
         <output htmlFor={id} className="mono">
-          {value === null ? "personnalisé" : `${v}${unit}`}
+          {value === null ? t("custom") : `${v}${unit}`}
         </output>
       </label>
       <input id={id} type="range" min={min} max={max} step={step} value={v} onChange={(e) => onChange(Number(e.target.value))} />
@@ -46,17 +48,16 @@ export const clampMax = (v: string): number | null => {
   return m ? parseFloat(m[3]) : null;
 };
 
-/** « 3 réglages modifiés » : ce que l'artiste a écarté du réglage standard ou du calcul automatique. */
-export const countLabel = (n: number) => (n === 0 ? "aucun réglage modifié" : n === 1 ? "1 réglage modifié" : `${n} réglages modifiés`);
-
 /** Réglages avancés d'une étape : replié par défaut, avec le compteur de ce qui s'écarte du standard. */
-export function Advanced({ id, count, hint, children, title = "Affiner (avancé)" }: { id: string; count: number; hint?: ReactNode; children: ReactNode; title?: string }) {
+export function Advanced({ id, count, hint, children, title }: { id: string; count: number; hint?: ReactNode; children: ReactNode; title?: string }) {
+  const t = useTranslations("guide");
   return (
     <details className="a-adv" data-testid={`adv-${id}`}>
       <summary>
-        <span className="a-adv-title">{title}</span>
+        <span className="a-adv-title">{title ?? t("advanced")}</span>
         <span className="a-adv-count" data-count={count} data-testid={`adv-${id}-count`}>
-          {countLabel(count)}
+          {/* « 3 réglages modifiés » : ce que l'artiste a écarté du réglage standard ou du calcul automatique. */}
+          {t("changedCount", { count })}
         </span>
       </summary>
       <div className="a-adv-body">

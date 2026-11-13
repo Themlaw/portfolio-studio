@@ -27,6 +27,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useTranslations } from "next-intl";
 import { createContext, useContext, useId } from "react";
 
 type HandleProps = ReturnType<typeof useSortable>["listeners"] & ReturnType<typeof useSortable>["attributes"];
@@ -34,8 +35,9 @@ const HandleContext = createContext<{ props: HandleProps | undefined; label: str
 
 export function DragHandle() {
   const { props, label } = useContext(HandleContext);
+  const t = useTranslations("sortable");
   return (
-    <button type="button" className="a-handle" aria-label={`Déplacer ${label}`} {...props}>
+    <button type="button" className="a-handle" aria-label={t("move", { label })} {...props}>
       <svg width="12" height="18" viewBox="0 0 12 18" aria-hidden="true">
         {[3, 9, 15].flatMap((y) => [3, 9].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" fill="currentColor" />))}
       </svg>
@@ -82,6 +84,7 @@ export function SortableList<T>({
 }) {
   // Identifiant stable : sans lui, dnd-kit génère des id d'accessibilité
   // différents au rendu serveur et au client (écart d'hydratation).
+  const t = useTranslations("sortable");
   const dndId = useId();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -90,14 +93,14 @@ export function SortableList<T>({
   const ids = items.map(getId);
   const labelOf = (id: string | number) => {
     const item = items.find((i) => getId(i) === String(id));
-    return item ? `« ${getLabel(item)} »` : "l'élément";
+    return item ? t("quoted", { label: getLabel(item) }) : t("theItem");
   };
   const pos = (id: string | number | undefined) => (id === undefined ? 0 : ids.indexOf(String(id)) + 1);
   const announcements: Announcements = {
-    onDragStart: ({ active }) => `${labelOf(active.id)} saisi, position ${pos(active.id)} sur ${ids.length}.`,
-    onDragOver: ({ active, over }) => (over ? `${labelOf(active.id)} en position ${pos(over.id)} sur ${ids.length}.` : `${labelOf(active.id)} hors de la liste.`),
-    onDragEnd: ({ active, over }) => (over ? `${labelOf(active.id)} posé en position ${pos(over.id)} sur ${ids.length}.` : `${labelOf(active.id)} reposé.`),
-    onDragCancel: ({ active }) => `Déplacement annulé : ${labelOf(active.id)} reste à sa place.`,
+    onDragStart: ({ active }) => t("picked", { label: labelOf(active.id), position: pos(active.id), total: ids.length }),
+    onDragOver: ({ active, over }) => (over ? t("over", { label: labelOf(active.id), position: pos(over.id), total: ids.length }) : t("outside", { label: labelOf(active.id) })),
+    onDragEnd: ({ active, over }) => (over ? t("dropped", { label: labelOf(active.id), position: pos(over.id), total: ids.length }) : t("putBack", { label: labelOf(active.id) })),
+    onDragCancel: ({ active }) => t("cancelled", { label: labelOf(active.id) }),
   };
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
@@ -119,7 +122,7 @@ export function SortableList<T>({
       accessibility={{
         announcements,
         screenReaderInstructions: {
-          draggable: "Pour déplacer : Espace pour saisir, flèches haut et bas pour choisir la place, Espace pour poser, Échap pour annuler.",
+          draggable: t("instructions"),
         },
       }}
     >

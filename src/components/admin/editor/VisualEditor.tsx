@@ -14,6 +14,7 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import {
@@ -23,6 +24,8 @@ import {
   createDraftProjectAction,
   discardDraftAction,
   installFontAction,
+  pasteBlocksAction,
+  pasteStyleAction,
   publishDraftAction,
   restoreBoardAction,
   saveDraftAction,
@@ -34,13 +37,14 @@ import PageWallpaperField from "@/app/admin/_fields/PageWallpaperField";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, MAX_TILES, sameL, tilesMode, type TileEdit, type TileItem } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
-import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
+import { HELP_TEXT, starterList, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
-import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
+import { ancestorsOf, blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { applyHeadOp } from "@/blocks/head";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
 import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
 import { announcePublished } from "@/lib/publish-signal";
+import { applyStyle, blocksClip, CLIP_KEY, readStoredClip, styleClip, styleOf, writeStoredClip, type Clip } from "@/lib/edit/clip";
 import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
@@ -55,7 +59,7 @@ import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
-import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItem, type BoardItemType } from "@/blocks/board-layout";
+import { parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItem, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type HzZone, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
@@ -88,6 +92,8 @@ import StructureTree from "./StructureTree";
 import { untranslatedLabel } from "@/lib/translation-gaps";
 import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
+import RevealPanel from "./RevealPanel";
+import { readReveal, type Reveal } from "@/blocks/reveal";
 import BlockThumb from "./thumbs";
 
 /** Journal d'édition (lot 97) : connexion perdue pendant une écriture (le navigateur n'a pas eu de réponse). Renvoie le refus que l'éditeur affiche. */
@@ -152,19 +158,15 @@ const toWire = (g: GhostItem): Ghost => ({
 });
 
 const WIDE_PX = 1440;
-const DEVICES: { id: Device; label: string; width: number | null }[] = [
-  { id: "desktop", label: "Ordinateur", width: 1180 },
+// Libellés : catalogue `visualEditor`, clés `device_<id>` et `tab_<id>`.
+const DEVICES: { id: Device; width: number | null }[] = [
+  { id: "desktop", width: 1180 },
   // Grand écran (lot 57) : le rendu d'un écran de 1440 px, réduit par un zoom pour tenir dans la fenêtre.
-  { id: "wide", label: "Grand écran", width: WIDE_PX },
-  { id: "tablet", label: "Tablette", width: 820 },
-  { id: "phone", label: "Téléphone", width: 390 },
+  { id: "wide", width: WIDE_PX },
+  { id: "tablet", width: 820 },
+  { id: "phone", width: 390 },
 ];
-const TABS: { id: Tab; label: string }[] = [
-  { id: "ajouter", label: "Ajouter" },
-  { id: "medias", label: "Médias" },
-  { id: "structure", label: "Structure" },
-  { id: "reglages", label: "Réglages" },
-];
+const TABS: { id: Tab }[] = [{ id: "ajouter" }, { id: "medias" }, { id: "structure" }, { id: "reglages" }];
 const DEBOUNCE_MS = 800;
 const HISTORY_MAX = 100;
 const MOBILE = "(max-width: 819px)";
@@ -271,6 +273,11 @@ export default function VisualEditor({
   /** Thèmes du menu « Thème » (lot 63) : en ligne d'abord, puis derniers utilisés. */
   themeChoices?: ThemeChoice[];
 }) {
+  // Lot 130b : textes de l'éditeur dans la langue de l'interface d'admin (catalogue `visualEditor`) ; le sélecteur FR / EN de la barre du haut choisit la langue du CONTENU.
+  const tv = useTranslations("visualEditor");
+  const tl = useTranslations("blockRegLabels");
+  const tp = useTranslations("blockRegProblems");
+  const tSite = useTranslations("editorPanelsSite"); // messages de refus d'applySiteOp / siteText (SiteEditor)
   const router = useRouter();
   const mobile = useMedia(MOBILE);
   const topTight = useMedia(TOP_TIGHT);
@@ -280,7 +287,8 @@ export default function VisualEditor({
   /** Recherche d'un composant (onglet « Ajouter »). */
   const [addQuery, setAddQuery] = useState("");
   /** Composants proposés à l'ajout : groupes (src/blocks/groups.ts), filtrés par la recherche. */
-  const addGroups = useMemo(() => pickerGroups(catalog, STARTER_LIST, addQuery), [catalog, addQuery]);
+  const tHelp = useTranslations("blockHelp");
+  const addGroups = useMemo(() => pickerGroups(catalog, starterList(tHelp), addQuery, tl), [catalog, addQuery, tHelp, tl]);
 
   /* ---- Brouillon et historique ------------------------------------------- */
 
@@ -618,7 +626,7 @@ export default function VisualEditor({
   const apply = useCallback(
     (next: PageDraft, opts: { key?: string; structural?: boolean } = {}) => {
       if (blockedRef.current) {
-        toast(blockedRef.current === "conflict" ? "Page modifiée ailleurs : recharge avant de continuer." : "Brouillon illisible : repars d'abord de la version publiée.", "error");
+        toast(blockedRef.current === "conflict" ? tv("blockedConflict") : tv("blockedCorrupt"), "error");
         return;
       }
       const now = Date.now();
@@ -636,7 +644,7 @@ export default function VisualEditor({
       setDraftState(next);
       schedule(opts.structural ? 0 : DEBOUNCE_MS);
     },
-    [schedule],
+    [schedule, tv],
   );
 
   /** Opération sur une planche, inscrite dans l'historique. */
@@ -699,22 +707,22 @@ export default function VisualEditor({
       const entry = history.current.past.at(-1);
       if (!entry) return;
       // La toile ne peut pas deviner le résultat : état « en cours » jusqu'à l'acquittement.
-      send({ kind: "pending", label: "Retour en arrière en cours…" });
+      send({ kind: "pending", label: tv("undoing") });
       const back = await travel(entry);
       if (!back) {
-        toast("Impossible de défaire ce pas : le projet a changé (image supprimée ?).", "error");
+        toast(tv("undoImpossible"), "error");
         return;
       }
       const h = history.current;
       history.current = { past: h.past.filter((e) => e !== entry), future: [back, ...h.future] };
       bumpHistory();
-      toast("Action défaite");
+      toast(tv("undone"));
     } finally {
       traveling.current = false;
       // Rien à enregistrer (refus, pas sans effet) : plus rien à attendre. Sinon l'acquittement lève l'état.
       if (quiet(false)) send({ kind: "pending", label: null });
     }
-  }, [travel, send, quiet]);
+  }, [travel, send, quiet, tv]);
 
   const redo = useCallback(async () => {
     if (blockedRef.current || traveling.current) return;
@@ -724,21 +732,21 @@ export default function VisualEditor({
       await lock.current;
       const entry = history.current.future[0];
       if (!entry) return;
-      send({ kind: "pending", label: "Rétablissement en cours…" });
+      send({ kind: "pending", label: tv("redoing") });
       const back = await travel(entry);
       if (!back) {
-        toast("Rétablissement impossible pour ce pas : le projet a changé (image supprimée ?).", "error");
+        toast(tv("redoImpossible"), "error");
         return;
       }
       const h = history.current;
       history.current = { past: [...h.past, back], future: h.future.filter((e) => e !== entry) };
       bumpHistory();
-      toast("Rétabli");
+      toast(tv("redone"));
     } finally {
       traveling.current = false;
       if (quiet(false)) send({ kind: "pending", label: null });
     }
-  }, [travel, send, quiet]);
+  }, [travel, send, quiet, tv]);
 
   const undoRef = useRef(undo);
   useEffect(() => {
@@ -785,7 +793,7 @@ export default function VisualEditor({
     }
     const place = at ?? defaultPlace(def.type);
     if (place.parent === null && list.length >= 40) {
-      toast("40 blocs au plus par page.", "error");
+      toast(tv("maxBlocks"), "error");
       return;
     }
     // Titre inséré tout en haut d'une page (aucun bloc avant) sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
@@ -797,14 +805,14 @@ export default function VisualEditor({
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
-      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Ce bloc"} » n'accepte pas « ${def.label} » (ou il est plein).` : "Impossible d'ajouter ce bloc ici.", "error");
+      toast(parent ? tv("cannotAddInside", { parent: own(byType, parent.type)?.label ?? tv("thisBlockCap"), block: def.label }) : tv("cannotAddHere"), "error");
       return;
     }
     setBlocks(next);
     selectBlock(block.uid, { scroll: true });
     // Rubrique Texte neuve : la toile ouvre l'édition en place, son texte d'aide sélectionné.
     if (opts?.edit) send({ kind: "edit-text", uid: block.uid, path: opts.edit });
-    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "le bloc"} »` : ""}`);
+    toast(place.parent ? tv("addedInside", { block: def.label, parent: own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? tv("theBlock") }) : tv("added", { block: def.label }));
     if (mobile) setSheet(false);
   };
 
@@ -964,7 +972,7 @@ export default function VisualEditor({
       else delete props.look;
     }
     setBlocks(updateBlock(list, target.uid, (b) => ({ ...b, props })), { structural: true });
-    toast(mediaId === undefined ? "Couverture de la collection rétablie" : "Couverture choisie", "success", { label: "Annuler", run: () => void undoRef.current() });
+    toast(mediaId === undefined ? tv("coverRestored") : tv("coverChosen"), "success", { label: tv("cancel"), run: () => void undoRef.current() });
     return true;
   };
   const [tileCover, setTileCover] = useState<{ uid: string; index?: number; pageId?: number } | null>(null);
@@ -1017,24 +1025,24 @@ export default function VisualEditor({
     if (board) await itemFlushRef.current();
     const base = gridBase(uid, board, fallback);
     if (!base) {
-      toast("Cette grille n'existe plus : recharge l'éditeur.", "error");
+      toast(tv("gridGone"), "error");
       return false;
     }
     const kind = mediaKindOf(mediaId, hint);
     if (kind === "pdf") {
-      toast("Un PDF se pose dans un bloc « CV ».", "error");
+      toast(tv("pdfInCv"), "error");
       return false;
     }
     const type = kind === "video" ? "video-single" : "image";
     const child: GridChild = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } };
     const n = gridKids(base).length;
-    const res = applyGridOp(base, { op: "put", index: Math.min(index, n), child });
+    const res = applyGridOp(base, { op: "put", index: Math.min(index, n), child }, undefined, tp);
     if ("error" in res) {
       toast(res.error, "error");
       return false;
     }
     const ok = await gridWrite(uid, board, res.props);
-    if (ok) toast(index < n ? "Image remplacée" : `${type === "video-single" ? "Vidéo" : "Image"} placée en case ${n + 1}`, "success", { label: "Défaire", run: () => void undoRef.current() });
+    if (ok) toast(index < n ? tv("imageReplaced") : tv("placedInCell", { kind: type === "video-single" ? "video" : "image", n: n + 1 }), "success", { label: tv("undo"), run: () => void undoRef.current() });
     return ok;
   };
 
@@ -1051,7 +1059,7 @@ export default function VisualEditor({
     if (msg.board) await itemFlushRef.current();
     const base = gridBase(msg.uid, msg.board, msg.props);
     if (!base) {
-      toast("Cette grille n'existe plus : recharge l'éditeur.", "error");
+      toast(tv("gridGone"), "error");
       return false;
     }
     const op = msg.op;
@@ -1063,15 +1071,15 @@ export default function VisualEditor({
       return true;
     }
     const model: GridModelOp = op.op === "adapt" ? { op: "adapt", ratios: op.ratios ?? gridRatios(base) } : (op as GridModelOp);
-    const res = applyGridOp(base, model, gridRatios(base));
+    const res = applyGridOp(base, model, gridRatios(base), tp);
     if ("error" in res) {
       toast(res.error, "error");
       return false;
     }
     if (JSON.stringify(res.props) === JSON.stringify(base)) return false;
     const ok = await gridWrite(msg.uid, msg.board, res.props);
-    if (ok && op.op === "adapt") toast("Disposition adaptée aux images", "success", { label: "Défaire", run: () => void undoRef.current() });
-    if (ok && op.op === "remove") toast("Image retirée de la grille", "success", { label: "Défaire", run: () => void undoRef.current() });
+    if (ok && op.op === "adapt") toast(tv("layoutAdapted"), "success", { label: tv("undo"), run: () => void undoRef.current() });
+    if (ok && op.op === "remove") toast(tv("gridImageRemoved"), "success", { label: tv("undo"), run: () => void undoRef.current() });
     return ok;
   };
 
@@ -1100,23 +1108,23 @@ export default function VisualEditor({
     if (board) await itemFlushRef.current();
     const base = freeBase(uid, board, fallback);
     if (!base) {
-      toast("Cette planche libre n'existe plus : recharge l'éditeur.", "error");
+      toast(tv("freeGone"), "error");
       return false;
     }
     const kind = mediaKindOf(mediaId, hint);
     if (kind === "pdf") {
-      toast("Un PDF se pose dans un bloc « CV ».", "error");
+      toast(tv("pdfInCv"), "error");
       return false;
     }
     const row = context.media.find((m) => m.id === mediaId);
     const ratio = row?.width && row?.height ? row.width / row.height : kind === "video" ? 16 / 9 : 1.5;
-    const res = applyFreeOp(base, { op: "put", id: newFreeId(), media: mediaId, x, y, ratio });
+    const res = applyFreeOp(base, { op: "put", id: newFreeId(), media: mediaId, x, y, ratio }, tp);
     if ("error" in res) {
       toast(res.error, "error");
       return false;
     }
     const ok = await gridWrite(uid, board, res.props);
-    if (ok) toast(kind === "video" ? "Vidéo posée" : "Image posée", "success", { label: "Défaire", run: () => void undoRef.current() });
+    if (ok) toast(kind === "video" ? tv("videoPlaced") : tv("imagePlaced"), "success", { label: tv("undo"), run: () => void undoRef.current() });
     return ok;
   };
   /** Choix du média pour « Remplacer » (id donné) ou « + Image » (à la suite, vers le centre). */
@@ -1128,10 +1136,10 @@ export default function VisualEditor({
       if (blockedRef.current) return false;
       if (p.board) await itemFlushRef.current();
       if (mediaKindOf(mediaId, hint) !== "image") {
-        toast("L'affiche d'une vidéo est une image.", "error");
+        toast(tv("posterIsImage"), "error");
         return false;
       }
-      const res = applyFreeOp(base, { op: "poster", id: p.id, media: mediaId });
+      const res = applyFreeOp(base, { op: "poster", id: p.id, media: mediaId }, tp);
       if ("error" in res) {
         toast(res.error, "error");
         return false;
@@ -1145,10 +1153,10 @@ export default function VisualEditor({
     if (blockedRef.current) return false;
     if (p.board) await itemFlushRef.current();
     if (mediaKindOf(mediaId, hint) === "pdf") {
-      toast("Un PDF se pose dans un bloc « CV ».", "error");
+      toast(tv("pdfInCv"), "error");
       return false;
     }
-    const res = applyFreeOp(base, { op: "replace", id: p.id, media: mediaId });
+    const res = applyFreeOp(base, { op: "replace", id: p.id, media: mediaId }, tp);
     if ("error" in res) {
       toast(res.error, "error");
       return false;
@@ -1160,7 +1168,7 @@ export default function VisualEditor({
     if (msg.board) await itemFlushRef.current();
     const base = freeBase(msg.uid, msg.board, msg.props);
     if (!base) {
-      toast("Cette planche libre n'existe plus : recharge l'éditeur.", "error");
+      toast(tv("freeGone"), "error");
       return false;
     }
     const op = msg.op;
@@ -1168,14 +1176,14 @@ export default function VisualEditor({
       setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}), ...(op.poster ? { poster: true } : {}) });
       return true;
     }
-    const res = applyFreeOp(base, op as FreeModelOp);
+    const res = applyFreeOp(base, op as FreeModelOp, tp);
     if ("error" in res) {
       toast(res.error, "error");
       return false;
     }
     if (JSON.stringify(res.props) === JSON.stringify(base)) return false;
     const ok = await gridWrite(msg.uid, msg.board, res.props);
-    if (ok && op.op === "remove") toast("Image retirée de la planche libre", "success", { label: "Défaire", run: () => void undoRef.current() });
+    if (ok && op.op === "remove") toast(tv("freeImageRemoved"), "success", { label: tv("undo"), run: () => void undoRef.current() });
     return ok;
   };
 
@@ -1298,8 +1306,8 @@ export default function VisualEditor({
       case "free": {
         if (t.board) await itemFlushRef.current();
         const base = freeBase(t.uid, t.board, t.props);
-        if (!base) return refuse("Cette planche libre n'existe plus : recharge l'éditeur.");
-        const res = applyFreeLook(base, t.id, patch);
+        if (!base) return refuse(tv("freeGone"));
+        const res = applyFreeLook(base, t.id, patch, tp);
         if ("error" in res) return refuse(res.error);
         if (JSON.stringify(res.props) === JSON.stringify(base)) return false;
         return gridWrite(t.uid, t.board, res.props);
@@ -1384,7 +1392,7 @@ export default function VisualEditor({
     const move = (parent: string | null, index: number, done?: string) => {
       const next = moveBlock(list, uid, parent, index);
       if (!next) {
-        toast("Ce bloc ne peut pas aller là.", "error");
+        toast(tv("blockCannotGoThere"), "error");
         return;
       }
       setBlocks(next);
@@ -1393,7 +1401,7 @@ export default function VisualEditor({
     // Bloc verrouillé (lot 89, « Sortie ») : ni supprimé ni dupliqué ; on dit pourquoi au lieu de ne rien faire.
     const locked = own(byType, at ? (siblings[at.index]?.type ?? "") : "")?.locked;
     if (locked && (kind === "delete" || kind === "duplicate")) {
-      toast(kind === "delete" ? locked : "Ce bloc existe une seule fois sur la page : tu peux le déplacer et le mettre en forme, pas le dupliquer.", "error");
+      toast(kind === "delete" ? locked : tv("singleBlockNoDuplicate"), "error");
       return;
     }
     if (kind === "delete") {
@@ -1406,7 +1414,7 @@ export default function VisualEditor({
     if (kind === "out" && at.parent) {
       // Sortir : juste après son conteneur, dans la liste du conteneur.
       const outer = locate(list, at.parent)!;
-      move(outer.parent, outer.index + 1, "Sorti du bloc");
+      move(outer.parent, outer.index + 1, tv("movedOut"));
     }
     if (kind === "in") {
       // Entrer dans le conteneur voisin (après, sinon avant) qui l'accepte.
@@ -1415,26 +1423,168 @@ export default function VisualEditor({
       const prev = siblings[i - 1];
       const target = [next, prev].find((c) => c && isContainer(c.type) && canPlace(removeBlock(list, uid), block, c.uid));
       if (!target) {
-        toast("Aucun bloc voisin n'accepte ce bloc.", "error");
+        toast(tv("noNeighbourAccepts"), "error");
         return;
       }
       const index = target === next ? 0 : (listOf(list, target.uid)?.length ?? 0);
-      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "le bloc"} »`);
+      move(target.uid, index, tv("placedIn", { parent: own(byType, target.type)?.label ?? tv("theBlock") }));
     }
     if (kind === "duplicate") {
       if (at.parent === null && list.length >= 40) {
-        toast("40 blocs au plus par page.", "error");
+        toast(tv("maxBlocks"), "error");
         return;
       }
       const copy = withFreshUids(clone(siblings[i]), newUid);
       const next = insertBlock(list, copy, at.parent, i + 1);
       if (!next) {
-        toast("Ce bloc est plein.", "error");
+        toast(tv("blockFull"), "error");
         return;
       }
       setBlocks(next);
       selectBlock(copy.uid);
     }
+  };
+
+  /* ---- Copier / coller (lot 133) ------------------------------------------------------------------------------------------------------ */
+
+  /** Genre du presse-papiers (localStorage, partagé entre onglets) : relu au retour sur l'onglet et quand un autre onglet écrit. */
+  const [clipKind, setClipKind] = useState<Clip["kind"] | null>(null);
+  useEffect(() => {
+    const read = () => setClipKind(readStoredClip()?.kind ?? null);
+    read();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === CLIP_KEY) read();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("focus", read);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", read);
+    };
+  }, []);
+  const putClip = (clip: Clip, done: string) => {
+    if (!writeStoredClip(clip)) {
+      toast(tv("copyImpossible"), "error");
+      return;
+    }
+    setClipKind(clip.kind);
+    toast(done);
+  };
+  const copyBlock = (uid: string) => {
+    const block = findBlock(draftRef.current.blocks, uid);
+    if (!block) return;
+    putClip(blocksClip([clone(block)], pageId), tv("blockCopied"));
+  };
+  const copyStyle = (uid: string) => {
+    const block = findBlock(draftRef.current.blocks, uid);
+    if (!block) return;
+    putClip(styleClip(block.type, styleOf(block)), tv("styleCopied"));
+  };
+  // Garde de réentrance : un collage à la fois (évite de coller deux fois sur une frappe ou un déclenchement concurrent).
+  const pasting = useRef(false);
+  /** Colle le bloc copié après le bloc choisi (dans le conteneur choisi s'il l'accepte), validé par le serveur (registre, références, nouveaux uid). */
+  const pasteBlock = async () => {
+    if (pasting.current) return;
+    pasting.current = true;
+    try {
+      const clip = readStoredClip();
+      if (!clip || clip.kind !== "blocks") {
+        toast(tv("nothingToPaste"), "error");
+        return;
+      }
+      const first = clip.blocks[0];
+      const place = defaultPlace(first.type);
+      const before = draftRef.current.blocks;
+      const parent = place.parent ? findBlock(before, place.parent) : null;
+      const result = await pasteBlocksAction(pageId, clip, {
+        parentType: parent?.type ?? null,
+        depth: place.parent ? ancestorsOf(before, place.parent).length + 1 : 0,
+        count: (listOf(before, place.parent) ?? []).length,
+        pageTypes: walkTree(before).map((v) => v.block.type),
+      });
+      if (!result.ok) {
+        toast(result.message, "error");
+        return;
+      }
+      // Le brouillon a pu changer pendant l'aller-retour : l'emplacement est relu.
+      let next: DraftBlock[] | null = draftRef.current.blocks;
+      let at = place.index;
+      if (place.parent && !findBlock(next, place.parent)) {
+        toast(tv("targetGone"), "error");
+        return;
+      }
+      for (const b of result.data.blocks as DraftBlock[]) {
+        next = next ? insertBlock(next, b, place.parent, at++) : null;
+      }
+      if (!next) {
+        toast(tv("cannotPlace"), "error");
+        return;
+      }
+      setBlocks(next);
+      selectBlock(result.data.blocks[0].uid);
+      toast(tv("blocksPasted", { count: result.data.blocks.length }), "success", { label: tv("undo"), run: () => void undoRef.current() });
+    } finally {
+      pasting.current = false;
+    }
+  };
+  /** Colle le style copié (ou celui du bloc copié) sur le bloc choisi : seulement ce que ses schémas acceptent. */
+  const pasteStyleOn = async (uid: string) => {
+    const clip = readStoredClip();
+    const source = clip?.kind === "style" ? clip : clip?.kind === "blocks" ? styleClip(clip.blocks[0].type, styleOf(clip.blocks[0])) : null;
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    const at = locate(list, uid);
+    if (!source || !block || !at) {
+      toast(tv("noStyleToPaste"), "error");
+      return;
+    }
+    const result = await pasteStyleAction(pageId, source, { type: block.type, top: at.parent === null });
+    if (!result.ok) {
+      toast(result.message, "error");
+      return;
+    }
+    const now = draftRef.current.blocks;
+    if (!findBlock(now, uid)) return;
+    setBlocks(updateBlock(now, uid, (b) => ({ ...b, props: applyStyle(b.props, source.style, result.data.style) })));
+    toast(tv("stylePasted"), "success", { label: tv("undo"), run: () => void undoRef.current() });
+  };
+
+  // Les fonctions changent à chaque rendu : le clavier (effet plus bas) lit la dernière version.
+  const clipFns = useRef({ copyBlock, pasteBlock });
+  clipFns.current = { copyBlock, pasteBlock };
+
+  /** Apparition au défilement d'un bloc (lot 133, `props.reveal`) ; null = la retire. Un pas d'historique (continu pour le curseur de cascade). */
+  const applyReveal = (uid: string, next: Reveal | null) => {
+    const list = draftRef.current.blocks;
+    if (!findBlock(list, uid)) return;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (next) props.reveal = next;
+        else delete props.reveal;
+        return { ...b, props };
+      }),
+      { key: `reveal:${uid}` },
+    );
+  };
+  /** Planche libre : l'effet de chaque image, décalé image après image (0 à 5, puis on recommence). */
+  const applyFreeCascade = (uid: string, kind: Reveal["kind"] | null) => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    if (!block || !Array.isArray(block.props.items)) return;
+    setBlocks(
+      updateBlock(list, uid, (b) => ({
+        ...b,
+        props: {
+          ...b.props,
+          items: (b.props.items as Record<string, unknown>[]).map((it, i) => {
+            const { reveal: _drop, ...rest } = it;
+            void _drop;
+            return kind ? { ...rest, reveal: { kind, ...(i % 6 ? { delay: i % 6 } : {}) } } : rest;
+          }),
+        },
+      })),
+    );
   };
 
   /** Planches (avec surcouche d'images) que la suppression d'un bloc retirerait de la page. */
@@ -1455,8 +1605,8 @@ export default function VisualEditor({
     if (selected === uid) selectBlock(at?.parent ?? null);
     if (lost.length) {
       // La surcouche d'une planche n'est appliquée que si la page l'affiche.
-      toast(`Bloc supprimé · Les changements d'images de ${lost.length > 1 ? "ces projets" : "ce projet"} ne seront pas publiés`, "success", { label: "Défaire", run: () => void undoRef.current() });
-    } else toast(`Bloc supprimé · Défaire (Ctrl+Z) pour la récupérer`, "success", { label: "Défaire", run: () => void undoRef.current() });
+      toast(tv("deletedLost", { count: lost.length }), "success", { label: tv("undo"), run: () => void undoRef.current() });
+    } else toast(tv("deletedUndo"), "success", { label: tv("undo"), run: () => void undoRef.current() });
   };
 
   /** Texte posé en place ; false = refusé (la toile retire son aperçu et rétablit le texte d'origine). */
@@ -1507,9 +1657,9 @@ export default function VisualEditor({
   /** Déplacement depuis la toile ou la structure : dans la page, dans un conteneur, entre les deux. */
   const moveTree = (uid: string, parent: string | null, index: number) => {
     const list = draftRef.current.blocks;
-    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 blocs au plus par page.", "error");
+    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast(tv("maxBlocks"), "error");
     const next = moveBlock(list, uid, parent, index);
-    if (!next) return toast(parent ? "Ce bloc n'accepte pas ce type de bloc (ou il est plein)." : "Déplacement impossible.", "error");
+    if (!next) return toast(parent ? tv("blockNotAcceptType") : tv("moveImpossible"), "error");
     if (next !== list) setBlocks(next);
   };
 
@@ -1524,13 +1674,13 @@ export default function VisualEditor({
     if (!block || !isFormBlock(block.type, block.props)) return false;
     const fields = ((block.props.fields as FormField[] | undefined) ?? []).slice();
     if (msg.op === "add") {
-      if (fields.length >= MAX_FIELDS) return refuse(`${MAX_FIELDS} champs au plus.`);
+      if (fields.length >= MAX_FIELDS) return refuse(tv("maxFields", { count: MAX_FIELDS }));
       const field = makeField(msg.fieldType ?? "text");
       // Identifiant choisi par la toile (son aperçu et le champ réel se reconnaissent), s'il est libre.
       if (msg.id && !fields.some((f) => f.id === msg.id)) field.id = msg.id;
       if (field.type === "email" && !fields.some((f) => f.reply)) field.reply = true;
       setProp(msg.uid, "fields", [...fields, field]);
-      toast("Champ ajouté · double-clic sur son libellé pour le renommer");
+      toast(tv("fieldAdded"));
       return true;
     }
     const i = msg.index ?? -1;
@@ -1544,10 +1694,10 @@ export default function VisualEditor({
       return true;
     }
     if (msg.op === "remove") {
-      if (fields.length <= 1) return refuse("Un formulaire garde au moins un champ.");
-      if (fields[i].reply) return refuse("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.");
+      if (fields.length <= 1) return refuse(tv("formKeepsField"));
+      if (fields[i].reply) return refuse(tv("replyFieldKept"));
       setProp(msg.uid, "fields", fields.filter((_, j) => j !== i));
-      toast("Champ retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
+      toast(tv("fieldRemoved"), "success", { label: tv("undo"), run: () => void undoRef.current() });
       return true;
     }
     const to = msg.to ?? i;
@@ -1589,12 +1739,12 @@ export default function VisualEditor({
       const weight = nearestWeight(g, s?.weight ?? 400, italic);
       if (hasFace(fontLib.current, g.family, weight, italic)) continue;
       setFontBusy(g.family);
-      toast(`Téléchargement de « ${g.family} » par le site…`);
+      toast(tv("fontDownloading", { family: g.family }));
       let result: Awaited<ReturnType<typeof installFontAction>>;
       try {
         result = await installFontAction(g.family, weight, italic);
       } catch {
-        result = { ok: false, message: `Impossible de télécharger « ${g.family} » (connexion perdue). La police n'est pas appliquée.` };
+        result = { ok: false, message: tv("fontDownloadFailed", { family: g.family }) };
       } finally {
         setFontBusy(null);
       }
@@ -1606,7 +1756,7 @@ export default function VisualEditor({
       setFontFamilies(Object.keys(result.data.library));
     }
     return true;
-  }, []);
+  }, [tv]);
 
   /** Réglages d'un bloc venus de la toile ou du panneau (null : tout revient au thème). */
   const applyLook = async (uid: string, next: Look | null): Promise<boolean> => {
@@ -1815,12 +1965,12 @@ export default function VisualEditor({
       }
       setExtraProjects((list) => [...list, { id: result.data.id, slug: result.data.slug, title: result.data.title, draft: true }]);
       if (uid) setBoardProject(uid, result.data.slug);
-      toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
+      toast(tv("projectCreated", { title: result.data.title }));
       // Lot 111 : un projet créé sans nom propose tout de suite d'y ajouter des images.
       if (propose) setAddPicker({ board: result.data.id });
       return { id: result.data.id, slug: result.data.slug };
     },
-    [pageId, setBoardProject],
+    [pageId, setBoardProject, tv],
   );
   useEffect(() => {
     panelCreate.current = async (name) => (await createProject("", name, true))?.slug ?? null;
@@ -1841,26 +1991,26 @@ export default function VisualEditor({
     const block = findBlock(list, target.uid);
     if (!block) return;
     if (target.kind === "cell") {
-      if (kind === "pdf") return toast("Un PDF se pose dans un bloc « CV ».", "error");
+      if (kind === "pdf") return toast(tv("pdfInCv"), "error");
       const type = kind === "video" ? "video-single" : "image";
       const child = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
       const next = insertBlock(list, child, target.uid, listOf(list, target.uid)?.length ?? 0);
-      if (!next) return toast("Cette grille n'accepte plus de bloc.", "error");
+      if (!next) return toast(tv("gridNoMore"), "error");
       setBlocks(next);
       selectBlock(child.uid);
       return;
     }
     const field = own(byType, block.type)?.mediaFields?.find((f) => f.field === target.field);
     if (!field) return;
-    const expected = { video: "Ce bloc attend une vidéo.", pdf: "Ce bloc attend un PDF.", image: "Ce bloc attend une image.", any: "Ce bloc attend une image ou une vidéo." }[field.kind];
+    const expected = { video: tv("expectVideo"), pdf: tv("expectPdf"), image: tv("expectImage"), any: tv("expectAny") }[field.kind];
     if (kind && (field.kind === "any" ? kind === "pdf" : kind !== field.kind)) return toast(expected, "error");
     setProp(target.uid, target.field, mediaId);
-    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Défaire", run: () => void undoRef.current() });
+    toast(field.kind === "video" ? tv("videoPlacedField") : field.kind === "pdf" ? tv("pdfPlacedField") : tv("imagePlacedField"), "success", { label: tv("undo"), run: () => void undoRef.current() });
   };
 
   /** Envoie un fichier et attend sa conversion : l'identifiant du média prêt, ou null (le message d'erreur est affiché). */
   const sendAndWait = async (file: File): Promise<number | null> => {
-    toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
+    toast(tv("sending", { name: file.name.slice(0, 60) }));
     const up = await sendFile(file, () => undefined);
     if (!up.ok) {
       toast(up.message, "error");
@@ -1901,7 +2051,7 @@ export default function VisualEditor({
     if (!decl) return;
     if (what === "clear") {
       setProp(uid, field, undefined);
-      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
+      toast(field === "backgroundMediaId" ? tv("themeBackgroundRestored") : tv("mediaRemoved"), "success", { label: tv("undo"), run: () => void undoRef.current() });
     } else setMediaPick({ uid, field, kind: decl.kind });
   };
 
@@ -1953,7 +2103,7 @@ export default function VisualEditor({
           : { op: "add", mediaId, index: g.index ?? 0, ...(g.collection ? { collection: g.collection } : {}) };
       const result = await boardDo(g.board, op);
       if (!result) {
-        patchGhost(id, { phase: "failed", progress: null, message: "placement refusé" });
+        patchGhost(id, { phase: "failed", progress: null, message: tv("placementRefused") });
         return false;
       }
       const placed = g.slot ?? (g.rail ? railKey(g.rail, g.index ?? 0) : result.after.slots[g.index ?? 0]?.key);
@@ -1963,7 +2113,7 @@ export default function VisualEditor({
       setTimeout(() => setGhostList((list) => list.filter((x) => x.id !== id)), 8000);
       return true;
     },
-    [boardDo, patchGhost, router, setGhostList],
+    [boardDo, patchGhost, router, setGhostList, tv],
   );
 
   /** Fichiers déposés sur la toile : fantômes à la position même, envoyés dans l'ordre. */
@@ -2018,7 +2168,7 @@ export default function VisualEditor({
         return;
       }
       if (target.kind === "new") {
-        const created = await createProject(target.uid, "Projet sans titre");
+        const created = await createProject(target.uid, tv("untitledProject"));
         if (!created) return;
         board = created.id;
       } else if (target.kind === "slot") {
@@ -2064,14 +2214,14 @@ export default function VisualEditor({
   const dropMedia = useCallback(
     async (mediaId: number, target: DropTargetInfo | null, kind?: string) => {
       if (!target) {
-        toast("Dépose l'image sur un projet : entre deux images, ou sur une place vide.", "error");
+        toast(tv("dropOnProject"), "error");
         return;
       }
       if (target.kind === "media" || target.kind === "cell") placeMedia(target, mediaId, kind);
       else if (target.kind === "gcell") await gridPut(target.uid, target.board, target.index, mediaId, kind, target.props);
       else if (target.kind === "free") await freePut(target.uid, target.board, target.x, target.y, mediaId, kind, target.props);
       else if (target.kind === "new") {
-        const created = await createProject(target.uid, "Projet sans titre");
+        const created = await createProject(target.uid, tv("untitledProject"));
         if (created) await boardDo(created.id, { op: "add", mediaId, index: 0 });
       } else if (target.kind === "bitem") {
         await itemFlushRef.current();
@@ -2090,7 +2240,7 @@ export default function VisualEditor({
         return;
       }
       const result = await boardDo(board, slotBoardOp(key, { op }));
-      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Défaire", run: () => undoRef.current() });
+      if (result) toast(op === "remove" ? tv("slotImageRemoved") : tv("slotRemoved"), "success", { label: tv("undo"), run: () => undoRef.current() });
   };
 
   /** Pendant un glisser : aucune sélection de texte native (éditeur), sélection en cours effacée. */
@@ -2175,7 +2325,7 @@ export default function VisualEditor({
         const slug = (block.props as { project?: unknown }).project;
         const project = typeof slug === "string" ? projectsList.find((p) => p.slug === slug) : undefined;
         if (project) {
-          void boardDo(project.id, { op: "add", mediaId: m.id, index: 0, end: true }).then((r) => r && toast(`« ${m.name} » ajoutée au projet`, "success", { label: "Défaire", run: () => undoRef.current() }));
+          void boardDo(project.id, { op: "add", mediaId: m.id, index: 0, end: true }).then((r) => r && toast(tv("addedToProject", { name: m.name }), "success", { label: tv("undo"), run: () => undoRef.current() }));
           return;
         }
       }
@@ -2206,13 +2356,13 @@ export default function VisualEditor({
     // attente, c'est-à-dire les intentions précédentes, déjà écrites quand celle-ci s'exécute.
     let done: string | undefined;
     void writeSite((cur) => {
-      const result = msg.kind === "site-text" ? siteText(cur, msg) : applySiteOp(cur, msg, pages);
+      const result = msg.kind === "site-text" ? siteText(cur, msg, tSite) : applySiteOp(cur, msg, pages, tSite);
       if ("error" in result) return result;
       done = result.done;
       return result.snap;
     }).then((ok) => {
       if (!ok) revert();
-      else if (done) toast(done, "success", { label: "Défaire", run: () => void undoRef.current() });
+      else if (done) toast(done, "success", { label: tv("undo"), run: () => void undoRef.current() });
     });
   };
 
@@ -2257,12 +2407,12 @@ export default function VisualEditor({
       setTab("reglages");
       if (mobile) setSheet(true);
     }
-    toast(`« ${BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
+    toast(tv("itemAdded", { label: tl(`boardItem.label.${type}`) }), "success", { label: tv("undo"), run: () => undoRef.current() });
   };
   const itemOp = async (board: number, uid: string, op: "up" | "down" | "remove") => {
     await itemFlushRef.current();
     const r = await boardDo(board, { op: op === "remove" ? "item-remove" : "item-move", uid, ...(op === "remove" ? {} : { dir: op }) } as BoardOp);
-    if (r && op === "remove") toast("Bloc supprimé", "success", { label: "Annuler", run: () => undoRef.current() });
+    if (r && op === "remove") toast(tv("itemDeleted"), "success", { label: tv("cancel"), run: () => undoRef.current() });
   };
   const itemSelect = (board: number, uid: string, type: BoardItemType, props: string) => {
     void itemFlushRef.current();
@@ -2329,7 +2479,7 @@ export default function VisualEditor({
    */
   const addBoardForCarousel = (place: Place) => {
     insert("project-board", place);
-    toast("« Images qui défilent » se place dans un bloc « Projet » : j'en ai ajouté un ici. Choisis son projet, puis clique de nouveau sur « Images qui défilent ».", "success");
+    toast(tv("carouselAddedProject"), "success");
   };
   /**
    * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
@@ -2344,7 +2494,7 @@ export default function VisualEditor({
     if (itemSel) {
       await itemFlushRef.current();
       const r = await boardDo(itemSel.board, { op: "item-add", type: "strip", index: 0, after: itemSel.uid });
-      if (r) toast("« Images qui défilent » ajouté sous le bloc choisi", "success", { label: "Défaire", run: () => void undoRef.current() });
+      if (r) toast(tv("carouselAddedBelow"), "success", { label: tv("undo"), run: () => void undoRef.current() });
       return;
     }
     const list = draftRef.current.blocks;
@@ -2372,8 +2522,8 @@ export default function VisualEditor({
     }
     toast(
       boardsHere.length > 1
-        ? "« Images qui défilent » se place dans un projet. Il y en a plusieurs sur cette page : clique sur le bloc « Projet » voulu, puis sur « Images qui défilent »."
-        : "« Images qui défilent » se place dans un projet. Ajoute d'abord un bloc « Projet » à la page et choisis son projet, puis reviens ici.",
+        ? tv("carouselSeveral")
+        : tv("carouselNone"),
       "error",
     );
   };
@@ -2388,7 +2538,7 @@ export default function VisualEditor({
     const known = boards.current.get(board)?.layout.find((i) => i.uid === uid);
     const item = known ?? (itemSel && itemSel.board === board && itemSel.uid === uid ? { uid, type: itemSel.type, props: itemSel.props, ...(itemSel.box ? { box: itemSel.box } : {}) } : undefined);
     if (!item) {
-      toast("Ce bloc n'est plus sur le projet : recharge l'éditeur.", "error");
+      toast(tv("itemGone"), "error");
       return;
     }
     const slug = projectsList.find((p) => p.id === board)?.slug;
@@ -2397,7 +2547,7 @@ export default function VisualEditor({
     const holder = shows.find((b) => b.uid === selected) ?? shows[0];
     const kinds: Record<number, "image" | "video"> = {};
     for (const m of context.media) if (m.kind === "image" || m.kind === "video") kinds[m.id] = m.kind;
-    const res = convertBoardItem(item, to, { kinds, newUid, look: holder?.props.look as Record<string, unknown> | undefined });
+    const res = convertBoardItem(item, to, { kinds, newUid, look: holder?.props.look as Record<string, unknown> | undefined }, tp);
     if ("error" in res) {
       toast(res.error, "error");
       return;
@@ -2422,7 +2572,7 @@ export default function VisualEditor({
         bumpHistory();
       }
     }
-    toast(to === "strip" ? "Affiché en « Images qui défilent » : tes images, légendes et cadres sont gardés" : "Affiché en grille : tes images, légendes et cadres sont gardés", "success", { label: "Défaire", run: () => void undoRef.current() });
+    toast(to === "strip" ? tv("shownAsStrip") : tv("shownAsGrid"), "success", { label: tv("undo"), run: () => void undoRef.current() });
   };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
@@ -2715,6 +2865,13 @@ export default function VisualEditor({
       } else if (mod && e.key === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "c" || e.key === "C") && selected && !selected.startsWith("site-") && !window.getSelection()?.toString()) {
+        // Copier le bloc choisi (lot 133) ; une sélection de texte garde le copier du navigateur.
+        e.preventDefault();
+        clipFns.current.copyBlock(selected);
+      } else if (mod && !e.shiftKey && !e.altKey && (e.key === "v" || e.key === "V") && readStoredClip()?.kind === "blocks") {
+        e.preventDefault();
+        void clipFns.current.pasteBlock();
       } else if (e.key === "Escape" && selected) {
         selectBlock(null);
       }
@@ -2835,7 +2992,7 @@ export default function VisualEditor({
         return publishDraftAction(pageId, revRef.current, live);
       });
       if (!result) {
-        toast("Le brouillon n'est pas enregistré : réessaie.", "error");
+        toast(tv("draftNotSaved"), "error");
         return;
       }
       if (!result.ok) reportSaveFailure("publishDraftAction", result);
@@ -2857,7 +3014,7 @@ export default function VisualEditor({
           setTab("reglages");
           if (mobile) setSheet(true);
         }
-        toast("Publication impossible : la liste des points à corriger est en haut de la page.", "error");
+        toast(tv("publishImpossible"), "error");
         return;
       }
       revRef.current = result.data.rev;
@@ -2887,7 +3044,7 @@ export default function VisualEditor({
         // Le bloc choisi a changé de nom (ou de voisin) : plus de sélection plutôt qu'un autre bloc choisi.
         if (renamed && selected && !selected.startsWith("site-")) selectBlock(null);
       }
-      toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
+      toast(result.data.site ? tv("publishedSite") : tv("published"));
       setSitePending(false);
       if (typeof result.data.siteRev === "number") siteRevRef.current = result.data.siteRev;
       send(refreshMsg(false));
@@ -2903,7 +3060,7 @@ export default function VisualEditor({
   const addToMenu = async () => {
     const result = await addToMenuFromEditorAction(pageId);
     if (!result.ok) {
-      toast(result.message ?? "Impossible d'ajouter la page au menu.", "error");
+      toast(result.message ?? tv("addToMenuFailed"), "error");
       return;
     }
     const inSync = JSON.stringify(draftRef.current) === savedJson.current;
@@ -2911,7 +3068,7 @@ export default function VisualEditor({
     setDraftState(draftRef.current);
     if (inSync) savedJson.current = JSON.stringify(draftRef.current);
     setPublishWarn((w) => (w ? { ...w, notInMenu: false } : w));
-    toast("La page est dans le menu");
+    toast(tv("inMenuNow"));
     router.refresh();
   };
 
@@ -2961,15 +3118,15 @@ export default function VisualEditor({
     bumpHistory();
     send(refreshMsg(false));
     router.refresh();
-    toast("Les changements du site sont annulés : le site en ligne est repris", "success");
+    toast(tv("siteReverted"), "success");
   };
 
   const copyTexts = async () => {
     try {
       await navigator.clipboard.writeText(draftTexts(draftRef.current, byType));
-      toast("Textes copiés");
+      toast(tv("textsCopied"));
     } catch {
-      toast("Copie impossible : ouvre « Voir mes textes en cours ».", "error");
+      toast(tv("copyFailed"), "error");
     }
   };
 
@@ -3012,8 +3169,9 @@ export default function VisualEditor({
   const editor = selBlock ? own(editors, selBlock.type) : undefined;
   // Fil d'Ariane du bloc choisi (conteneurs qui l'englobent).
   const selChain = selBlock ? walkTree(blocks).find((v) => v.block.uid === selBlock.uid)?.ancestors ?? [] : [];
-  // Publication refusée : la liste des problèmes en français (chaque ligne mène au bon endroit).
-  const problems = useMemo(() => describeProblems(blocks, publishErrors, (t) => own(byType, t)?.label ?? t), [blocks, publishErrors, byType]);
+  // Publication refusée : la liste des problèmes dans la langue de l'interface (chaque ligne mène au bon endroit).
+  const tProblems = useTranslations("editorProblems");
+  const problems = useMemo(() => describeProblems(blocks, publishErrors, (t) => own(byType, t)?.label ?? t, tProblems), [blocks, publishErrors, byType, tProblems]);
   const goToProblem = (p: Problem) => {
     if (p.kind === "block" && p.uid) {
       selectBlock(p.uid, { scroll: true });
@@ -3034,21 +3192,22 @@ export default function VisualEditor({
       .filter((v): v is string => v !== undefined),
   );
 
-  // États explicites : la couleur du point dit si le site est à jour.
+  // États explicites : la couleur du point dit si le site est à jour. `connexion perdue` (LOST) est la valeur interne du journal : dite dans la langue de l'interface.
+  const saveErrorText = saveError === LOST ? tv("lostConnection") : saveError;
   const status: { tone: string; text: string; reason?: string } =
     blocked === "conflict"
-      ? { tone: "error", text: "Modifié ailleurs" }
+      ? { tone: "error", text: tv("statusConflict") }
       : blocked === "corrupt"
-        ? { tone: "error", text: "Brouillon illisible" }
+        ? { tone: "error", text: tv("statusCorrupt") }
         : saveState === "error"
-          ? { tone: "error", text: "Erreur d'enregistrement", reason: saveError ?? undefined }
+          ? { tone: "error", text: tv("statusError"), reason: saveErrorText ?? undefined }
           : saveState === "saving" || saveState === "pending"
-            ? { tone: "busy", text: "Enregistrement…" }
+            ? { tone: "busy", text: tv("statusSaving") }
             : !draft.published
-              ? { tone: "idle", text: "Pas encore en ligne" }
+              ? { tone: "idle", text: tv("statusNotLive") }
               : hasDraft || sitePending
-                ? { tone: "draft", text: "Modifications non publiées" }
-                : { tone: "ok", text: "En ligne" };
+                ? { tone: "draft", text: tv("statusUnpublished") }
+                : { tone: "ok", text: tv("statusLive") };
 
   const wide = !mobile && device === "wide";
   const frameWidth = mobile || wide ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
@@ -3115,21 +3274,21 @@ export default function VisualEditor({
   }, [mediaScrollTo, mediaPage.count, tab]);
 
   const panel = (
-    <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={(mobile && !sheet) || canvasModal ? true : undefined}>
+    <aside className="ve-panel" data-open={sheet || undefined} aria-label={tv("toolsLabel")} inert={(mobile && !sheet) || canvasModal ? true : undefined}>
       {mobile && (
         <div className="ve-sheet-head">
           <span className="ve-sheet-grab" aria-hidden="true" />
           {hasDraft && !blocked && (
             <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => setDiscarding(true)}>
-              Abandonner les modifications
+              {tv("discardChanges")}
             </button>
           )}
           <button type="button" className="a-btn a-btn-small" onClick={() => setSheet(false)}>
-            Fermer
+            {tv("close")}
           </button>
         </div>
       )}
-      <div className="ve-tabs" role="tablist" aria-label="Panneau">
+      <div className="ve-tabs" role="tablist" aria-label={tv("panelLabel")}>
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -3150,7 +3309,7 @@ export default function VisualEditor({
               }
             }}
           >
-            {t.label}
+            {tv(`tab_${t.id}`)}
           </button>
         ))}
       </div>
@@ -3158,21 +3317,21 @@ export default function VisualEditor({
       <div className="ve-pane" role="tabpanel" id={`ve-pane-${tab}`} aria-labelledby={`ve-tab-${tab}`}>
         {tab === "ajouter" && (
           <>
-            <p className="ve-hint">{mobile ? "Touche un bloc pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
+            <p className="ve-hint">{mobile ? tv("hintTouch") : tv("hintDrag")}</p>
             <input
               type="search"
               className="a-input ve-search"
-              placeholder="Chercher un bloc"
-              aria-label="Chercher un bloc"
+              placeholder={tv("searchBlock")}
+              aria-label={tv("searchBlock")}
               value={addQuery}
               onChange={(e) => setAddQuery(e.target.value)}
             />
-            {addGroups.length === 0 && <p className="ve-empty">Aucun bloc ne correspond à « {addQuery.trim()} ».</p>}
+            {addGroups.length === 0 && <p className="ve-empty">{tv("noBlockMatches", { query: addQuery.trim() })}</p>}
             {addGroups.map((g) => (
               <section key={g.id} className="ve-group" data-group={g.id} aria-label={g.label}>
                 <h3 className="ve-group-title">{g.label}</h3>
                 {g.starters.length > 0 && (
-                  <div className="ve-starters" role="group" aria-label="Ajouter du texte">
+                  <div className="ve-starters" role="group" aria-label={tv("addText")}>
                     {g.starters.map((st) => (
                       <button
                         key={st.key}
@@ -3224,8 +3383,8 @@ export default function VisualEditor({
                             </p>
                           )}
                           {c.models.length > 0 && (
-                            <div className="ve-models" role="group" aria-label={`Modèles de départ : ${c.label}`}>
-                              <span className="ve-models-title">Modèles :</span>
+                            <div className="ve-models" role="group" aria-label={tv("startModelsOf", { label: c.label })}>
+                              <span className="ve-models-title">{tv("models")}</span>
                               {c.models.map((m) => (
                                 <button
                                   key={m.key}
@@ -3261,7 +3420,7 @@ export default function VisualEditor({
                         data-type="board-strip"
                         data-key="board-strip"
                         data-dragging={paletteDrag?.type === "board-strip" || undefined}
-                        onPointerDown={(e) => onPaletteDown(e, { key: "board-strip", type: "board-strip", label: "Images qui défilent" })}
+                        onPointerDown={(e) => onPaletteDown(e, { key: "board-strip", type: "board-strip", label: tv("carousel") })}
                         onClick={(e) => {
                           if (e.currentTarget.dataset.dragged) return;
                           void addCarousel();
@@ -3269,8 +3428,8 @@ export default function VisualEditor({
                       >
                         <BlockThumb type="image" preset="board-strip" />
                         <span>
-                          <strong>Images qui défilent</strong>
-                          <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans un bloc « Projet ».</span>
+                          <strong>{tv("carousel")}</strong>
+                          <span className="ve-card-desc">{tv("carouselDesc")}</span>
                         </span>
                       </button>
                     </li>
@@ -3283,10 +3442,10 @@ export default function VisualEditor({
 
         {tab === "medias" && (
           <>
-            <Uploader origin={`editeur-${pageId}`} libraryLabel="Voir dans la Médiathèque" />
+            <Uploader origin={`editeur-${pageId}`} libraryLabel={tv("seeInLibrary")} />
             <label className="ve-media-search">
-              <span className="sr-only">Rechercher par nom ou tag</span>
-              <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
+              <span className="sr-only">{tv("searchMedia")}</span>
+              <input className="a-input" type="search" placeholder={tv("searchMediaPh")} value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
             </label>
             <MediaSortMenu
               className="ve-media-sort"
@@ -3297,7 +3456,7 @@ export default function VisualEditor({
               }}
             />
             {tagOptions.length > 0 && (
-              <div className="ve-chips" role="group" aria-label="Filtrer par tags">
+              <div className="ve-chips" role="group" aria-label={tv("filterTags")}>
                 {tagOptions.map((t) => {
                   const on = mediaTags.includes(t);
                   return (
@@ -3309,19 +3468,19 @@ export default function VisualEditor({
               </div>
             )}
             {shownMedia.length === 0 ? (
-              <p className="ve-empty">{media.length ? "Aucun média ne correspond." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
+              <p className="ve-empty">{media.length ? tv("noMediaMatch") : tv("libraryEmpty")}</p>
             ) : (
-              <ul className="ve-media" aria-label="Médias" onFocus={(e) => loadMoreOnFocus(e, mediaPage.count, mediaPage.more, mediaPage.ensure)}>
+              <ul className="ve-media" aria-label={tv("mediaList")} onFocus={(e) => loadMoreOnFocus(e, mediaPage.count, mediaPage.more, mediaPage.ensure)}>
                 {shownMedia.slice(0, mediaPage.count).map((m) => (
                   <li
                     key={m.id}
                     data-flash={mediaFlash === m.id || undefined}
-                    title={`${m.name} : clique pour la poser, glisse-la sur un projet`}
+                    title={tv("mediaTitle", { name: m.name })}
                     data-media={m.id}
                     data-status={m.status}
                     tabIndex={m.status === "failed" ? undefined : 0}
                     role="button"
-                    aria-label={`${m.name} : poser ou afficher`}
+                    aria-label={tv("mediaAria", { name: m.name })}
                     onPointerDown={(e) => onMediaDown(e, m)}
                     onClick={() => activateMedia(m)}
                     onKeyDown={(e) => {
@@ -3337,18 +3496,18 @@ export default function VisualEditor({
                       <img src={m.thumb} alt="" loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
-                    {noDate(m, mediaSort) && <span className="ve-media-nodate" data-testid="media-nodate">Date inconnue</span>}
-                    {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
+                    {noDate(m, mediaSort) && <span className="ve-media-nodate" data-testid="media-nodate">{tv("noDate")}</span>}
+                    {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? tv("converting") : tv("processing")}</span>}
                     {m.status === "failed" && (
                       <span className="ve-media-state" data-failed="" title={m.error ?? undefined}>
-                        Échec
+                        {tv("failed")}
                         <button
                           type="button"
                           className="ve-media-retry"
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => void retryMediaAction(m.id).then((r) => (r.ok ? router.refresh() : toast(r.message, "error")))}
                         >
-                          Réessayer
+                          {tv("retry")}
                         </button>
                       </span>
                     )}
@@ -3360,16 +3519,13 @@ export default function VisualEditor({
               </ul>
             )}
             {mediaPage.more && <div ref={mediaSentinel} className="ve-media-more" aria-hidden="true" data-testid="ve-media-more" />}
-            <p className="ve-hint">
-              Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (la petite loupe l&apos;agrandit sans la poser), ou glisse-la sur un
-              projet de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur le projet.
-            </p>
+            <p className="ve-hint">{tv("mediaHint")}</p>
           </>
         )}
 
         {tab === "structure" &&
           (blocks.length === 0 ? (
-            <p className="ve-empty">La page est vide. Ajoute un premier bloc depuis « Ajouter ».</p>
+            <p className="ve-empty">{tv("pageEmpty")}</p>
           ) : (
             <StructureTree
               blocks={blocks}
@@ -3395,17 +3551,17 @@ export default function VisualEditor({
               context={editorContext}
               editor={own(editors, itemSel.type)}
               head={
-                <div className="ve-settings-tools" role="group" aria-label="Bloc du projet">
-                  <button type="button" className="a-icon-btn" aria-label="Monter" onClick={() => void itemOp(itemSel.board, itemSel.uid, "up")}>
+                <div className="ve-settings-tools" role="group" aria-label={tv("projectBlock")}>
+                  <button type="button" className="a-icon-btn" aria-label={tv("moveUp")} onClick={() => void itemOp(itemSel.board, itemSel.uid, "up")}>
                     ↑
                   </button>
-                  <button type="button" className="a-icon-btn" aria-label="Descendre" onClick={() => void itemOp(itemSel.board, itemSel.uid, "down")}>
+                  <button type="button" className="a-icon-btn" aria-label={tv("moveDown")} onClick={() => void itemOp(itemSel.board, itemSel.uid, "down")}>
                     ↓
                   </button>
                   <button
                     type="button"
                     className="a-icon-btn a-danger-text"
-                    aria-label="Supprimer"
+                    aria-label={tv("delete")}
                     onClick={() => {
                       const { board, uid } = itemSel;
                       setItemSel(null);
@@ -3434,8 +3590,8 @@ export default function VisualEditor({
             />
             {selected === "site-header" && (
               <StrokeField
-                title="Couleur du soulignement"
-                help="Le trait sous le lien de la page courante et au survol. Sans réglage : la couleur du site pour le trait, sinon celle du thème."
+                title={tv("underlineColor")}
+                help={tv("underlineHelp")}
                 value={siteSnap.styles?.stroke?.header}
                 testid="header-stroke"
                 onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), header: t } }), [])}
@@ -3446,7 +3602,7 @@ export default function VisualEditor({
           ) : selBlock && selDef ? (
             <div className="ve-settings">
               {selChain.length > 0 && (
-                <nav className="ve-crumbs" aria-label="Emplacement du bloc">
+                <nav className="ve-crumbs" aria-label={tv("blockLocation")}>
                   {selChain.map((c) => (
                     <span key={c.uid}>
                       <button type="button" className="ve-crumb" onClick={() => selectBlock(c.uid, { scroll: true })}>
@@ -3460,35 +3616,47 @@ export default function VisualEditor({
               )}
               <header className="ve-settings-head">
                 <h2>{selDef.label}</h2>
-                <div className="ve-settings-tools" role="group" aria-label="Bloc sélectionné">
-                  <button type="button" className="a-icon-btn" aria-label="Monter" disabled={selAt?.index === 0} onClick={() => op("up", selBlock.uid)}>
+                <div className="ve-settings-tools" role="group" aria-label={tv("selectedBlock")}>
+                  <button type="button" className="a-icon-btn" aria-label={tv("moveUp")} disabled={selAt?.index === 0} onClick={() => op("up", selBlock.uid)}>
                     ↑
                   </button>
-                  <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={selAt?.index === selSiblings.length - 1} onClick={() => op("down", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label={tv("moveDown")} disabled={selAt?.index === selSiblings.length - 1} onClick={() => op("down", selBlock.uid)}>
                     ↓
                   </button>
                   {selAt?.parent && (
-                    <button type="button" className="a-icon-btn" aria-label="Sortir du bloc" title="Sortir du bloc" onClick={() => op("out", selBlock.uid)}>
+                    <button type="button" className="a-icon-btn" aria-label={tv("moveOutOfBlock")} title={tv("moveOutOfBlock")} onClick={() => op("out", selBlock.uid)}>
                       ⇱
                     </button>
                   )}
-                  <button type="button" className="a-icon-btn" aria-label="Dupliquer" disabled={Boolean(selDef.locked)} title={selDef.locked ? "Ce bloc existe une seule fois sur la page." : undefined} onClick={() => op("duplicate", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label={tv("copyBlock")} title={tv("copyBlockTitle")} disabled={Boolean(selDef.locked)} data-testid="block-copy" onClick={() => copyBlock(selBlock.uid)}>
+                    ⎘
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label={tv("pasteBlock")} title={tv("pasteBlockTitle")} disabled={clipKind !== "blocks"} data-testid="block-paste" onClick={() => void pasteBlock()}>
+                    ⎗
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label={tv("copyStyle")} title={tv("copyStyleTitle")} data-testid="style-copy" onClick={() => copyStyle(selBlock.uid)}>
+                    ✎
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label={tv("pasteStyle")} title={tv("pasteStyleTitle")} disabled={clipKind === null} data-testid="style-paste" onClick={() => void pasteStyleOn(selBlock.uid)}>
+                    ⬚
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label={tv("duplicate")} disabled={Boolean(selDef.locked)} title={selDef.locked ? tv("onlyOnce") : undefined} onClick={() => op("duplicate", selBlock.uid)}>
                     ⧉
                   </button>
-                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Supprimer" disabled={Boolean(selDef.locked)} title={selDef.locked} data-locked={selDef.locked ? "" : undefined} onClick={() => op("delete", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn a-danger-text" aria-label={tv("delete")} disabled={Boolean(selDef.locked)} title={selDef.locked} data-locked={selDef.locked ? "" : undefined} onClick={() => op("delete", selBlock.uid)}>
                     ✕
                   </button>
                 </div>
               </header>
               <p className="ve-hint">{selDef.description}</p>
-              {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic (ou double-tap) dessus.</p>}
+              {selDef.inline.length > 0 && <p className="ve-hint">{tv("inlineHint")}</p>}
               {selPath && publishErrors[selPath] && <p className="a-field-error">{publishErrors[selPath]}</p>}
               {selBlock.type === "image" && !(selAt?.parent && findBlock(blocks, selAt.parent)?.type === "grid") && (
                 <ImageSizeSection key={`size-${selBlock.uid}`} look={readLook(selBlock.props.look) ?? {}} onChange={(next) => void applyLook(selBlock.uid, next)} />
               )}
               {selBlock.type === "image" && (
                 // Haut du panneau (lot 41) : le fond derrière l'image, comme dans la barre de l'image sur la toile (look.imageBg).
-                <section className="lp lp-image-bg tc" aria-label="Fond de l'image" data-testid="panel-imgbg">
+                <section className="lp lp-image-bg tc" aria-label={tv("imageBackground")} data-testid="panel-imgbg">
                   <ImageBgControls
                     value={readLook(selBlock.props.look)?.imageBg}
                     onChange={(imageBg) => void mediaLook({ kind: "media-look", target: { kind: "block", uid: selBlock.uid }, patch: { bg: imageBg ?? null } })}
@@ -3517,10 +3685,17 @@ export default function VisualEditor({
               ) : (
                 <p className="ve-empty">
                   {selDef.inline.length > 0
-                    ? "Ce bloc n'a pas de réglage à part : ses textes se modifient directement sur la page (double-clic ou double-tap dessus). Sa mise en page se règle ci-dessous."
-                    : "Ce bloc n'a pas de réglage à part : il s'affiche tel quel. Sa mise en page (espaces) se règle ci-dessous ; tu peux aussi le déplacer, le dupliquer ou le supprimer avec les boutons ci-dessus."}
+                    ? tv("noSettingsInline")
+                    : tv("noSettings")}
                 </p>
               )}
+              <RevealPanel
+                key={`reveal-${selBlock.uid}`}
+                value={readReveal(selBlock.props.reveal)}
+                first={selAt?.parent === null && selAt.index === 0}
+                onChange={(next) => applyReveal(selBlock.uid, next)}
+                {...(selBlock.type === "free-board" ? { onCascade: (k: Reveal["kind"] | null) => applyFreeCascade(selBlock.uid, k) } : {})}
+              />
               <BlockLookPanel
                 key={selBlock.uid}
                 type={selBlock.type}
@@ -3531,9 +3706,9 @@ export default function VisualEditor({
             </div>
           ) : (
             <div className="ve-settings-empty">
-              <p>Clique sur un bloc de la page pour le régler. Les textes se modifient directement sur la page.</p>
+              <p>{tv("clickBlock")}</p>
               <p className="ve-hint">
-                Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`} onClick={(e) => void leaveTo(e, `/admin/pages/${pageId}`)}>formulaire de la page</Link>.
+                {tv.rich("pageSettingsHint", { link: (chunks) => <Link href={`/admin/pages/${pageId}`} onClick={(e) => void leaveTo(e, `/admin/pages/${pageId}`)}>{chunks}</Link> })}
               </p>
               <div className="ve-page-collection">
                 <PageCollectionField
@@ -3554,8 +3729,8 @@ export default function VisualEditor({
               <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
               <StrokeField
-                title="Couleur du trait (tout le site)"
-                help="Le trait dessiné du thème : barre de défilement des images qui défilent, filets, soulignement du menu. Une couleur et une opacité se mélangent au dessin d'origine. Chaque rangée d'images et l'en-tête peuvent avoir la leur."
+                title={tv("strokeAll")}
+                help={tv("strokeAllHelp")}
                 value={siteSnap.styles?.stroke?.all}
                 testid="site-stroke"
                 onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), all: t } }), [])}
@@ -3573,15 +3748,15 @@ export default function VisualEditor({
       {mode === "edit" && lookContext.preparing && <PreparingBanner preparing={lookContext.preparing} flush={flush} />}
       {mode === "edit" && (
         <header className="ve-top" inert={canvasModal || undefined}>
-          <Link href="/admin/pages" className="ve-brand" title="Retour aux pages" onClick={(e) => void leaveTo(e, "/admin/pages")}>
+          <Link href="/admin/pages" className="ve-brand" title={tv("backToPages")} onClick={(e) => void leaveTo(e, "/admin/pages")}>
             <span aria-hidden="true">←</span>
             <span className="ve-brand-text">
               {siteName}
-              <small>éditeur de page</small>
+              <small>{tv("pageEditor")}</small>
             </span>
           </Link>
           <label className="ve-page">
-            <span className="sr-only">Page</span>
+            <span className="sr-only">{tv("page")}</span>
             <select className="a-input" value={pageId} onChange={(e) => void goToPage(Number(e.target.value))}>
               {pages.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -3591,7 +3766,7 @@ export default function VisualEditor({
             </select>
           </label>
           {themeChoices.length > 0 && <ThemePicker themes={themeChoices} preparing={lookContext.preparing} flush={flush} />}
-          <div className="a-seg ve-seg" role="group" aria-label="Langue">
+          <div className="a-seg ve-seg" role="group" aria-label={tv("language")}>
             {(["fr", "en"] as const).map((l) => (
               <button
                 key={l}
@@ -3619,31 +3794,31 @@ export default function VisualEditor({
           {!mobile && topTighter && (
             // Peu de place (jusqu'à 1180 px) : un seul menu déroulant, toujours dans la barre (jamais caché derrière « … »).
             <label className="ve-device-select">
-              <span className="sr-only">Largeur d&apos;aperçu</span>
-              <select className="a-input" aria-label="Largeur d'aperçu" value={device} onChange={(e) => setDevice(e.target.value as Device)}>
+              <span className="sr-only">{tv("previewWidth")}</span>
+              <select className="a-input" aria-label={tv("previewWidth")} value={device} onChange={(e) => setDevice(e.target.value as Device)}>
                 {DEVICES.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.label} ({d.width} px)
+                    {tv(`device_${d.id}`)} ({d.width} px)
                   </option>
                 ))}
               </select>
             </label>
           )}
           {!mobile && !topTighter && (
-            <div className="a-seg ve-seg" role="group" aria-label="Largeur d'aperçu">
+            <div className="a-seg ve-seg" role="group" aria-label={tv("previewWidth")}>
               {DEVICES.map((d) => (
-                <button key={d.id} type="button" aria-pressed={device === d.id} onClick={() => setDevice(d.id)} title={`${d.label} (${d.width} px)`}>
-                  {d.label}
+                <button key={d.id} type="button" aria-pressed={device === d.id} onClick={() => setDevice(d.id)} title={`${tv(`device_${d.id}`)} (${d.width} px)`}>
+                  {tv(`device_${d.id}`)}
                 </button>
               ))}
             </div>
           )}
           <span className="ve-spacer" />
-          <div className="ve-history" role="group" aria-label="Historique">
-            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label="Défaire" title="Défaire la dernière action (Ctrl+Z)">
+          <div className="ve-history" role="group" aria-label={tv("history")}>
+            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label={tv("undo")} title={tv("undoTitle")}>
               ↶
             </button>
-            <button type="button" className="a-icon-btn" onClick={redo} disabled={!historyLen.future} aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)">
+            <button type="button" className="a-icon-btn" onClick={redo} disabled={!historyLen.future} aria-label={tv("redo")} title={tv("redoTitle")}>
               ↷
             </button>
           </div>
@@ -3656,15 +3831,15 @@ export default function VisualEditor({
               </span>
             )}
             {saveState === "error" && !blocked && (
-              <button type="button" className="a-btn a-btn-small" onClick={() => void flush()} title={saveError ?? undefined}>
-                Réessayer
+              <button type="button" className="a-btn a-btn-small" onClick={() => void flush()} title={saveErrorText ?? undefined}>
+                {tv("retry")}
               </button>
             )}
           </span>
           {/* En erreur, la place va à la raison et à « Réessayer ». */}
           {hasDraft && !mobile && !topTight && !blocked && saveState !== "error" && (
             <button type="button" className="a-btn a-btn-quiet ve-discard" onClick={() => setDiscarding(true)}>
-              Abandonner les modifications
+              {tv("discardChanges")}
             </button>
           )}
           {!mobile && topTight && (
@@ -3673,16 +3848,16 @@ export default function VisualEditor({
             />
           )}
           <button type="button" className="a-btn" onClick={() => setMode("preview")} disabled={foreign}>
-            Aperçu
+            {tv("preview")}
           </button>
           <button
             type="button"
             className="a-btn a-btn-primary"
             onClick={() => (draft.published ? void publish() : setAskLive(true))}
             disabled={publishing || Boolean(blocked) || (!hasDraft && !sitePending && saveState === "idle" && draft.published)}
-            title={!draft.published ? "Met le contenu et la page en ligne" : !hasDraft && !sitePending && saveState === "idle" ? "Aucune modification à publier" : undefined}
+            title={!draft.published ? tv("publishTitleNotLive") : !hasDraft && !sitePending && saveState === "idle" ? tv("nothingToPublish") : undefined}
           >
-            {publishing ? "Publication…" : "Publier"}
+            {publishing ? tv("publishing") : tv("publish")}
           </button>
         </header>
       )}
@@ -3693,18 +3868,18 @@ export default function VisualEditor({
           {(publishMessage || problems.length > 0) && mode === "edit" && (
             <div className="ve-alert ve-problems" role="alert" data-testid="publish-problems">
               <strong>
-                {problems.length > 0 ? `Publication impossible : ${problems.length} point${problems.length > 1 ? "s" : ""} à corriger.` : publishMessage}
+                {problems.length > 0 ? tv("publishImpossibleCount", { count: problems.length }) : publishMessage}
               </strong>
               {problems.length > 0 && (
                 <>
-                  <span className="ve-problems-hint">Clique sur une ligne pour aller au bon endroit de la page.</span>
+                  <span className="ve-problems-hint">{tv("problemsHint")}</span>
                   <ul className="ve-problems-list">
                     {problems.map((p) => (
                       <li key={p.key}>
                         {p.kind === "form" ? (
                           <Link href={`/admin/pages/${pageId}`} className="ve-problem" onClick={(e) => void leaveTo(e, `/admin/pages/${pageId}`)}>
                             <span className="ve-problem-where">{p.field ?? p.where}</span>
-                            <span className="ve-problem-msg">{p.message} Ouvrir le formulaire de la page.</span>
+                            <span className="ve-problem-msg">{p.message} {tv("openPageForm")}</span>
                           </Link>
                         ) : (
                           <button type="button" className="ve-problem" onClick={() => goToProblem(p)}>
@@ -3722,35 +3897,35 @@ export default function VisualEditor({
           {publishWarn && mode === "edit" && (
             <div className="ve-alert ve-warnings" role="status" data-testid="publish-warnings">
               <strong>
-                C&apos;est publié. {[publishWarn.missingAlt.length > 0, publishWarn.untranslated > 0, publishWarn.notInMenu].filter(Boolean).length > 1 ? "Quelques points à regarder" : "Une chose à regarder"}, rien ne bloque :
+                {tv("warnHead", { many: String([publishWarn.missingAlt.length > 0, publishWarn.untranslated > 0, publishWarn.notInMenu].filter(Boolean).length > 1) })}
               </strong>
               <ul className="ve-problems-list">
                 {publishWarn.notInMenu && (
                   <li data-testid="warn-menu">
-                    Cette page est en ligne mais n&apos;apparaît dans aucun menu : les visiteurs ne la trouveront pas.{" "}
+                    {tv("warnNotInMenu")}{" "}
                     <button type="button" className="a-btn a-btn-small" onClick={() => void addToMenu()}>
-                      Ajouter au menu
+                      {tv("addToMenu")}
                     </button>
                   </li>
                 )}
                 {publishWarn.missingAlt.length > 0 && (
                   <li data-testid="warn-alt">
-                    {publishWarn.missingAlt.length} image{publishWarn.missingAlt.length > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google) :{" "}
+                    {tv("warnMissingAlt", { count: publishWarn.missingAlt.length })}{" "}
                     <span className="muted">{publishWarn.missingAlt.slice(0, 5).map((m) => m.name).join(", ")}{publishWarn.missingAlt.length > 5 ? "…" : ""}</span>{" "}
                     <Link href={`/admin/medias?filtre=sans-description&media=${publishWarn.missingAlt[0].id}`} onClick={(e) => void leaveTo(e, `/admin/medias?filtre=sans-description&media=${publishWarn.missingAlt[0].id}`)}>
-                      Compléter les descriptions
+                      {tv("completeDescriptions")}
                     </Link>
                   </li>
                 )}
                 {publishWarn.untranslated > 0 && (
                   <li data-testid="warn-translation">
-                    {untranslatedLabel(publishWarn.untranslated)}. Les visiteurs anglophones verront ces passages vides ou en français : remplis les champs « EN » dans l&apos;éditeur.
+                    {tv("warnUntranslated", { label: untranslatedLabel(publishWarn.untranslated) })}
                   </li>
                 )}
               </ul>
               <div className="ve-alert-actions">
                 <button type="button" className="a-btn a-btn-small" onClick={() => setPublishWarn(null)}>
-                  Fermer
+                  {tv("close")}
                 </button>
               </div>
             </div>
@@ -3758,55 +3933,53 @@ export default function VisualEditor({
           {blocked === "conflict" && mode === "edit" && (
             <div className="ve-alert ve-alert-strong" role="alert" data-testid="conflict">
               <p>
-                <strong>Cette page a été modifiée ailleurs</strong> (autre onglet, formulaire ou publication ; même chose si ce sont les changements du site, communs à toutes les pages). Tes dernières modifications
-                ne sont pas enregistrées : rien n&apos;a été écrasé.
+                <strong>{tv("conflictTitle")}</strong> {tv("conflictBody")}
               </p>
               <div className="ve-alert-actions">
                 <button type="button" className="a-btn a-btn-small" onClick={() => void copyTexts()}>
-                  Copier mes textes
+                  {tv("copyTexts")}
                 </button>
                 <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => window.location.reload()}>
-                  Recharger
+                  {tv("reload")}
                 </button>
               </div>
               <details className="ve-alert-texts">
-                <summary>Voir mes textes en cours</summary>
-                <textarea readOnly value={draftTexts(draft, byType)} rows={6} aria-label="Mes textes en cours" />
+                <summary>{tv("seeMyTexts")}</summary>
+                <textarea readOnly value={draftTexts(draft, byType)} rows={6} aria-label={tv("myTexts")} />
               </details>
             </div>
           )}
           {blocked === "corrupt" && mode === "edit" && (
             <div className="ve-alert ve-alert-strong" role="alert" data-testid="corrupt">
               <p>
-                <strong>Ce brouillon ne peut plus être lu</strong> (un bloc a changé). La toile montre ce qui en reste ; rien ne
-                sera enregistré ni publié avant ton choix.
+                <strong>{tv("corruptTitle")}</strong> {tv("corruptBody")}
               </p>
               <div className="ve-alert-actions">
                 <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setResetting(true)}>
-                  Repartir de la version publiée
+                  {tv("startFromPublished")}
                 </button>
               </div>
             </div>
           )}
           {sitePending && mode === "edit" && (
             <div className="ve-site-chip" role="note">
-              <strong>En-tête modifié</strong> (nom, menu, pied de page ou réseaux) : à la publication de cette page, il change sur <strong>toutes les pages</strong>.{" "}
+              <strong>{tv("siteChipHead")}</strong> {tv.rich("siteChipBody", { strong: (chunks) => <strong>{chunks}</strong> })}{" "}
               <button type="button" className="a-btn a-btn-small" data-testid="site-discard" onClick={() => setDiscardingSite(true)}>
-                Annuler ces changements du site
+                {tv("discardSiteChanges")}
               </button>
             </div>
           )}
           {foreign && mode === "edit" && (
             <div className="ve-alert" role="status">
-              La toile affiche une autre page.{" "}
+              {tv("foreignPage")}{" "}
               <button type="button" className="a-btn a-btn-small" onClick={() => frameRef.current && (frameRef.current.src = frameSrc)}>
-                Revenir à cette page
+                {tv("backToThisPage")}
               </button>
             </div>
           )}
           {wide && (
             <p className="ve-zoom-note" data-testid="zoom-note">
-              Grand écran : {WIDE_PX} px de large, affiché à {Math.round(zoom * 100)} %
+              {tv("zoomNote", { width: WIDE_PX, percent: Math.round(zoom * 100) })}
             </p>
           )}
           <div
@@ -3815,7 +3988,7 @@ export default function VisualEditor({
             data-wide={wide || undefined}
             style={wide ? { width: Math.round(WIDE_PX * zoom), maxWidth: "none", flex: "1 1 0" } : { maxWidth: mode === "preview" && device === "desktop" ? undefined : (frameWidth ?? undefined) }}
           >
-            {!frameReady && <div className="ve-loading">Chargement de la page…</div>}
+            {!frameReady && <div className="ve-loading">{tv("loadingPage")}</div>}
             <iframe
               key={locale}
               ref={frameRef}
@@ -3823,7 +3996,7 @@ export default function VisualEditor({
               onLoad={restoreLangScroll}
               style={wide ? { position: "absolute", top: 0, left: 0, width: WIDE_PX, height: Math.round(box.h / zoom), transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
               src={frameSrc}
-              title={mode === "preview" ? "Aperçu de la page" : "Page en cours d'édition"}
+              title={mode === "preview" ? tv("framePreview") : tv("frameEditing")}
             />
             {paletteDrag && <div className="ve-dragcover" aria-hidden="true" />}
           </div>
@@ -3882,21 +4055,21 @@ export default function VisualEditor({
 
       {mode === "preview" && (
         <button type="button" className="ve-exit-preview" onClick={() => setMode("edit")}>
-          Quitter l&apos;aperçu <kbd>Échap</kbd>
+          {tv("exitPreview")} <kbd>{tv("escKey")}</kbd>
         </button>
       )}
 
       {mobile && mode === "edit" && !sheet && (
         <button type="button" className="ve-fab" aria-expanded={false} onClick={() => setSheet(true)}>
-          ＋ Composants
+          {tv("components")}
         </button>
       )}
       {mobile && sheet && mode === "edit" && <div className="ve-scrim" onClick={() => setSheet(false)} aria-hidden="true" />}
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Supprimer le bloc « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
-        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} bloc${deletingCount > 1 ? "s" : ""}` : "Supprimer le bloc"}
+        title={tv("deleteBlockTitle", { label: deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : "" })}
+        confirmLabel={deletingCount ? tv("deleteWithBlocks", { count: deletingCount }) : tv("deleteBlock")}
         danger
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
@@ -3904,12 +4077,12 @@ export default function VisualEditor({
         {deletingCount > 0 && (
           <p data-testid="delete-count">
             <strong>
-              {deletingCount} bloc{deletingCount > 1 ? "s" : ""} {deletingCount > 1 ? "seront retirés" : "sera retiré"} avec lui.
+              {tv("deleteRemoved", { count: deletingCount })}
             </strong>
           </p>
         )}
-        {deletingLost.length > 0 && <p>Les changements d&apos;images {deletingLost.length > 1 ? "de ses projets" : "de son projet"} ne seront pas publiés (les images en ligne ne bougent pas).</p>}
-        <p className="muted">Il disparaît du brouillon ; « Défaire » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
+        {deletingLost.length > 0 && <p>{tv("deleteImagesLost", { count: deletingLost.length })}</p>}
+        <p className="muted">{tv("deleteNote")}</p>
       </ConfirmDialog>
 
       <AddSectionDialog
@@ -3920,12 +4093,12 @@ export default function VisualEditor({
           adding === null
             ? ""
             : adding.parent
-              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "le bloc"} »`
+              ? tv("whereInside", { parent: own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? tv("theBlock") })
               : adding.index >= blocks.length
-                ? "À la fin de la page"
+                ? tv("whereEnd")
                 : adding.index === 0
-                  ? "En tête de page"
-                  : "Entre deux blocs"
+                  ? tv("whereStart")
+                  : tv("whereBetween")
         }
         onClose={() => setAdding(null)}
         onPick={(choice: AddChoice) => {
@@ -4030,55 +4203,53 @@ export default function VisualEditor({
 
       <ConfirmDialog
         open={askLive}
-        title="Mettre cette page en ligne ?"
-        confirmLabel="Mettre en ligne"
+        title={tv("askLiveTitle")}
+        confirmLabel={tv("askLiveConfirm")}
         busy={publishing}
         onClose={() => setAskLive(false)}
         onConfirm={() => void publish(true)}
       >
-        <p className="muted">Elle sera visible par tous. Tu pourras la retirer du site à tout moment, depuis la liste des pages.</p>
+        <p className="muted">{tv("askLiveNote")}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={discardingSite}
-        title="Annuler les changements du site ?"
-        confirmLabel="Annuler ces changements du site"
+        title={tv("discardSiteTitle")}
+        confirmLabel={tv("discardSiteChanges")}
         danger
         busy={discardSiteBusy}
         onClose={() => setDiscardingSite(false)}
         onConfirm={() => void discardSite()}
       >
-        <p className="muted">
-          Le nom, le menu, le pied de page, les réseaux, les styles et le logo reviennent à ce qui est en ligne, sur toutes les pages. Les modifications des pages ne changent pas. Cette action ne s&apos;annule pas.
-        </p>
+        <p className="muted">{tv("discardSiteNote")}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={resetting}
-        title="Repartir de la version publiée ?"
-        confirmLabel="Repartir de la version publiée"
+        title={tv("resetTitle")}
+        confirmLabel={tv("startFromPublished")}
         danger
         busy={discardBusy}
         onClose={() => setResetting(false)}
         onConfirm={() => void discard()}
       >
-        <p className="muted">Le brouillon illisible est effacé ; la page en ligne ne change pas.</p>
+        <p className="muted">{tv("resetNote")}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={discarding}
-        title="Abandonner les modifications ?"
-        confirmLabel="Abandonner les modifications"
+        title={tv("discardTitle")}
+        confirmLabel={tv("discardChanges")}
         danger
         busy={discardBusy}
         onClose={() => setDiscarding(false)}
         onConfirm={() => void discard()}
       >
-        <p className="muted">Le brouillon est effacé et la page revient à sa version en ligne. Cette action ne s&apos;annule pas.</p>
+        <p className="muted">{tv("discardNote")}</p>
       </ConfirmDialog>
 
       <p className="sr-only" aria-live="polite">
-        {canvasBlocks.length ? `${canvasBlocks.length} blocs sur la toile` : ""}
+        {canvasBlocks.length ? tv("canvasBlocks", { count: canvasBlocks.length }) : ""}
       </p>
     </div>
   );

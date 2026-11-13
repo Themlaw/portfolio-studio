@@ -1,9 +1,14 @@
 import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
-import { facets, listEntries, RESULT_LABELS, TYPE_LABELS, type Entry, type Filters } from "@/lib/journal/store";
+import { facets, listEntries, type Entry, type Filters } from "@/lib/journal/store";
+import { requireAdmin } from "@/lib/auth/guard";
+import { getAdminLang, getAdminT } from "@/i18n/admin-server";
+import { intlLocale } from "@/i18n/admin-lang";
 
-export const metadata = { title: "Journal" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("journal"))("title") };
+}
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 100;
@@ -11,7 +16,12 @@ const PER_PAGE = 100;
 type Params = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
-const when = (t: number) => new Date(t).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Paris" });
+type Tr = (key: string, values?: Record<string, string | number | Date>) => string;
+/** Date d'une entrée dans la langue de l'interface (heure de Paris). */
+const makeWhen = (locale: string) => {
+  const f = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Paris" });
+  return (t: number) => f.format(new Date(t));
+};
 /** Décalage de Paris (minutes) à un instant donné : minuit heure de Paris, été comme hiver. */
 function parisOffsetMin(t: number): number {
   const tz = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" }).formatToParts(new Date(t)).find((x) => x.type === "timeZoneName")?.value ?? "GMT+1";
@@ -28,17 +38,17 @@ const dayStart = (s: string) => {
 type Change = { p: string; a?: string; b?: string; note?: string };
 type Summary = { changes?: Change[]; total?: number; reason?: string } | null;
 
-function ChangeLine({ c }: { c: Change }) {
+function ChangeLine({ c, t }: { c: Change; t: Tr }) {
   return (
     <li>
       <code>{c.p}</code>
-      {c.a !== undefined && c.b !== undefined ? <> : « {c.a} » → « {c.b} »</> : c.b !== undefined ? <> : « {c.b} »</> : c.a !== undefined ? <> : « {c.a} » retiré</> : null}
-      {c.note ? <> ({c.note})</> : null}
+      {c.a !== undefined && c.b !== undefined ? t("changeBoth", { a: c.a, b: c.b }) : c.b !== undefined ? t("changeTo", { b: c.b }) : c.a !== undefined ? t("changeRemoved", { a: c.a }) : null}
+      {c.note ? t("changeNote", { note: c.note }) : null}
     </li>
   );
 }
 
-function EntryRow({ e }: { e: Entry }) {
+function EntryRow({ e, t, when, locale }: { e: Entry; t: Tr; when: (t: number) => string; locale: string }) {
   const summary = e.summary as Summary;
   const changes = summary?.changes ?? [];
   const hidden = Math.max(0, (summary?.total ?? 0) - changes.length);
@@ -47,62 +57,62 @@ function EntryRow({ e }: { e: Entry }) {
       <summary>
         <time dateTime={new Date(e.t).toISOString()}>{when(e.t)}</time>
         <span className="a-journal-result" data-result={e.result}>
-          {RESULT_LABELS[e.result]}
+          {t(`result_${e.result}`)}
         </span>
         <span className="a-journal-label">{e.label}</span>
       </summary>
       <dl className="a-journal-details">
-        <dt>Type</dt>
-        <dd>{TYPE_LABELS[e.type] ?? e.type}</dd>
+        <dt>{t("dType")}</dt>
+        <dd>{t(`type_${e.type}`) ?? e.type}</dd>
         {e.page && (
           <>
-            <dt>Page</dt>
+            <dt>{t("dPage")}</dt>
             <dd>{e.page}</dd>
           </>
         )}
         {e.target && e.target !== e.page && (
           <>
-            <dt>Cible</dt>
+            <dt>{t("dTarget")}</dt>
             <dd>{e.target}</dd>
           </>
         )}
         {(e.revFrom !== null || e.revTo !== null) && (
           <>
-            <dt>Version de la page</dt>
+            <dt>{t("dPageVersion")}</dt>
             <dd>
               {e.revFrom ?? "?"} → {e.revTo ?? "?"}
             </dd>
           </>
         )}
-        <dt>Compte</dt>
-        <dd>{e.user ?? "inconnu"}</dd>
+        <dt>{t("dAccount")}</dt>
+        <dd>{e.user ?? t("unknownUser")}</dd>
         {e.ms !== null && (
           <>
-            <dt>Durée</dt>
-            <dd>{String(e.ms).replace(".", ",")} ms</dd>
+            <dt>{t("dDuration")}</dt>
+            <dd>{new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 20 }).format(e.ms)} ms</dd>
           </>
         )}
-        <dt>Version du site</dt>
+        <dt>{t("dSiteVersion")}</dt>
         <dd>{e.version}</dd>
-        <dt>Nom technique</dt>
+        <dt>{t("dTechName")}</dt>
         <dd>
           <code>{e.action}</code>
         </dd>
         {summary?.reason && (
           <>
-            <dt>Raison</dt>
+            <dt>{t("dReason")}</dt>
             <dd>{summary.reason}</dd>
           </>
         )}
         {changes.length > 0 && (
           <>
-            <dt>Ce qui change</dt>
+            <dt>{t("dChanges")}</dt>
             <dd>
               <ul>
                 {changes.map((c, i) => (
-                  <ChangeLine key={i} c={c} />
+                  <ChangeLine key={i} c={c} t={t} />
                 ))}
-                {hidden > 0 && <li>… et {hidden} autre(s)</li>}
+                {hidden > 0 && <li>{t("moreChanges", { hidden })}</li>}
               </ul>
             </dd>
           </>
@@ -114,6 +124,10 @@ function EntryRow({ e }: { e: Entry }) {
 
 /** Journal d'édition (lot 97) : qui a modifié quoi, quand, avec quel résultat. Lecture seule, filtres par un formulaire GET. */
 export default async function JournalPage({ searchParams }: { searchParams: Promise<Params> }) {
+  await requireAdmin();
+  const t = await getAdminT("journal");
+  const locale = intlLocale(await getAdminLang());
+  const when = makeWhen(locale);
   const q = await searchParams;
   const pageRaw = one(q.page);
   const type = one(q.type);
@@ -143,20 +157,20 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader
-        title="Journal"
-        intro="Tout ce qui a été modifié sur le site : quand, depuis quelle page, avec quel résultat. Les erreurs vues dans ton navigateur y sont aussi. On garde 30 jours (20 000 lignes au plus). Aucun mot de passe, e-mail ni contenu d'image n'y est écrit."
+        title={t("title")}
+        intro={t("intro")}
         action={
           <Link className="a-btn" href="/admin/reglages">
-            Retour aux réglages
+            {t("backToSettings")}
           </Link>
         }
       />
       <form method="get" className="a-journal-filters" data-testid="journal-filters">
         <label>
-          Page
+          {t("fPage")}
           <select name="page" defaultValue={pageRaw} className="a-select">
-            <option value="">Toutes</option>
-            <option value="none">Hors page (réglages, thèmes, médiathèque…)</option>
+            <option value="">{t("optAllF")}</option>
+            <option value="none">{t("optNoPage")}</option>
             {f.pages.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.title}
@@ -165,60 +179,60 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
           </select>
         </label>
         <label>
-          Type
+          {t("fType")}
           <select name="type" defaultValue={type} className="a-select">
-            <option value="">Tous</option>
-            {f.types.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABELS[t as keyof typeof TYPE_LABELS] ?? t}
+            <option value="">{t("optAllM")}</option>
+            {f.types.map((ty) => (
+              <option key={ty} value={ty}>
+                {t(`type_${ty}`) ?? ty}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Résultat
+          {t("fResult")}
           <select name="resultat" defaultValue={result} className="a-select">
-            <option value="">Tous</option>
-            {Object.entries(RESULT_LABELS).map(([k, v]) => (
+            <option value="">{t("optAllM")}</option>
+            {(["ok","refus","conflit","erreur"]).map((k) => (
               <option key={k} value={k}>
-                {v}
+                {t(`result_${k}`)}
               </option>
             ))}
           </select>
         </label>
         <label>
-          Du
+          {t("fFrom")}
           <input type="date" name="du" defaultValue={du} className="a-input" />
         </label>
         <label>
-          Au
+          {t("fTo")}
           <input type="date" name="au" defaultValue={au} className="a-input" />
         </label>
         <button type="submit" className="a-btn a-btn-primary">
-          Filtrer
+          {t("filter")}
         </button>
         <Link className="a-btn" href="/admin/journal">
-          Tout afficher
+          {t("showAll")}
         </Link>
       </form>
       <p className="a-journal-count" data-testid="journal-count" data-total={total}>
-        {total === 0 ? "Aucune entrée pour ces filtres." : `${total} entrée${total > 1 ? "s" : ""}${pages > 1 ? ` — page ${p} sur ${pages}` : ""}`}
+        {total === 0 ? t("noEntries") : pages > 1 ? t("countPages", { count: t("count", { n: total }), p, pages }) : t("count", { n: total })}
       </p>
-      <section className="a-journal-list" aria-label="Entrées du journal">
+      <section className="a-journal-list" aria-label={t("listLabel")}>
         {rows.map((e) => (
-          <EntryRow key={e.id} e={e} />
+          <EntryRow key={e.id} e={e} t={t} when={when} locale={locale} />
         ))}
       </section>
       {pages > 1 && (
-        <nav className="a-journal-pager" aria-label="Pages du journal">
+        <nav className="a-journal-pager" aria-label={t("pagerLabel")}>
           {p > 1 && (
             <Link className="a-btn" href={qs(p - 1)}>
-              Plus récentes
+              {t("newer")}
             </Link>
           )}
           {p < pages && (
             <Link className="a-btn" href={qs(p + 1)}>
-              Plus anciennes
+              {t("older")}
             </Link>
           )}
         </nav>

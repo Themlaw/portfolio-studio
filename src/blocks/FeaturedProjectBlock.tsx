@@ -6,6 +6,7 @@ import { hrefForPage } from "@/lib/pages";
 
 import { MAX_CHILDREN } from "./tree";
 import { childBlock, inline, localized, pageRef, projectSlug, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const featuredProjectSchema = z.object({
   /** Projet mis en avant (slug) : transmis aux composants qui n'en ont pas. */
@@ -32,19 +33,20 @@ export default async function FeaturedProjectBlock({
   children?: ReactNode;
 }) {
   const empty = props.children.length === 0;
+  const { ta, lang } = await editI18n(ctx);
   if (empty && !ctx.edit) return null;
   const moreHref = props.more?.pageId ? await hrefForPage(props.more.pageId, ctx.locale) : null;
   return (
     <>
       {ctx.edit && !props.project && (
-        <section className="shell pe-container-pick" data-edit-container-pick="" lang="fr" aria-hidden="true" />
+        <section className="shell pe-container-pick" data-edit-container-pick="" lang={lang} aria-hidden="true" />
       )}
       {children}
-      {ctx.edit && empty && <section className="shell pe-container-empty" data-edit-container-empty="" lang="fr" aria-hidden="true" />}
+      {ctx.edit && empty && <section className="shell pe-container-empty" data-edit-container-empty="" lang={lang} aria-hidden="true" />}
       {props.more && (moreHref || ctx.edit) && (
         <section className="shell">
           <Link className="link-underline text-sm" href={moreHref ?? "/"}>
-            {ctx.edit || textStyle(ctx, "more.label").style ? <span {...inline(ctx, "more.label")} data-placeholder="Voir plus">{tr(props.more.label, ctx.locale)}</span> : tr(props.more.label, ctx.locale)}{" "}
+            {ctx.edit || textStyle(ctx, "more.label").style ? <span {...inline(ctx, "more.label")} data-placeholder={ta("seeMore")}>{tr(props.more.label, ctx.locale)}</span> : tr(props.more.label, ctx.locale)}{" "}
             <span aria-hidden="true">→</span>
           </Link>
         </section>

@@ -1,0 +1,104 @@
+{
+  "gridLayout": {
+    "auto": "Automatic",
+    "1": "1 large",
+    "1+2": "1 large + 2 small below",
+    "2": "2 side by side",
+    "3": "3 side by side",
+    "2x2": "4 small (2 × 2)",
+    "4": "4 in a row",
+    "2+1": "2 small + 1 large",
+    "portrait-left": "Portrait on the left + 2 on the right",
+    "portrait-right": "Portrait on the right + 2 on the left",
+    "custom": "Custom"
+  },
+  "autoHint": "Automatic: images in the same row have the same height, without being cropped. A very wide backdrop takes the full width.",
+  "keepShapeHint": "Free format: images in a row get the same height. To keep the large cells of this layout, pick a format (Square, 4:3…).",
+  "justifyHint": "Free format: images in the same row have the same height, without being cropped.",
+  "boardItem": {
+    "label": {
+      "strip": "Scrolling images",
+      "grid": "Grid",
+      "image": "Image",
+      "video-single": "Video",
+      "free-board": "Free board",
+      "rich-text": "Text"
+    },
+    "hint": {
+      "strip": "The project's images in a strip that scrolls sideways.",
+      "grid": "Images or videos arranged in columns.",
+      "image": "A single image, up to full width.",
+      "video-single": "A video from your media library.",
+      "free-board": "Cut-out images placed wherever you like, at the size and angle you want.",
+      "rich-text": "A paragraph, with a title if you want."
+    }
+  },
+  "boxPreset": {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "full": "Full width"
+  },
+  "videoMode": {
+    "label": {
+      "loop": "Loop",
+      "player": "Player"
+    },
+    "hint": {
+      "loop": "Loop: the video plays in a loop, without sound. One click pauses it, another restarts it.",
+      "player": "Player: one click opens the video full size, with its controls and sound."
+    },
+    "option": {
+      "loop": "Loop (no sound)",
+      "player": "Player (opens full size)"
+    }
+  },
+  "videoSound": {
+    "label": {
+      "on": "On",
+      "off": "Off"
+    },
+    "hint": {
+      "on": "Sound on: the video plays with sound as soon as the visitor starts it (the browser requires a click first).",
+      "off": "Sound off: the video starts without sound; the sound button turns it back on."
+    }
+  },
+  "freeFormat": {
+    "16:9": "16:9",
+    "3:2": "3:2",
+    "4:3": "4:3",
+    "1:1": "Square",
+    "free": "Free height"
+  },
+  "freePhone": {
+    "scale": "Scaled",
+    "stack": "Stacked"
+  },
+  "tileSize": {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+  },
+  "group": {
+    "text": "Text",
+    "projects": "Projects",
+    "media": "Images and videos",
+    "grids": "Grids",
+    "other": "Other"
+  },
+  "collection": {
+    "characters": "Characters",
+    "backgrounds": "Backgrounds",
+    "animation": "Animation"
+  },
+  "headOps": {
+    "addTitle": "+ Title",
+    "removeTitle": "Remove the title",
+    "addSubtitle": "+ Subtitle",
+    "removeSubtitle": "Remove the subtitle",
+    "putAbove": "Put above",
+    "putBelow": "Put below",
+    "outside": "Outside the image",
+    "onImage": "On the image"
+  }
+}

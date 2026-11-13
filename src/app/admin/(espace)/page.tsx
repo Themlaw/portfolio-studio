@@ -3,38 +3,44 @@ import Link from "next/link";
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeSwatches from "@/components/admin/ThemeSwatches";
 import FirstSteps from "@/components/admin/FirstSteps";
+import { getAdminT } from "@/i18n/admin-server";
 import { countUnreadMessages, getAdminCounts, getHomePageId, getOnboarding, getThemeOverview } from "@/lib/admin";
+import { requireAdmin } from "@/lib/auth/guard";
 
-export const metadata = { title: "Tableau de bord" };
+export async function generateMetadata() {
+  return { title: (await getAdminT("dashboard"))("title") };
+}
 
-export default function Dashboard() {
+export default async function Dashboard() {
+  await requireAdmin();
+  const t = await getAdminT("dashboard");
   const counts = getAdminCounts();
   const { activeId, themes } = getThemeOverview();
-  const active = themes.find((t) => t.id === activeId);
+  const active = themes.find((th) => th.id === activeId);
   const home = getHomePageId();
   const unread = countUnreadMessages();
   const onboarding = getOnboarding();
 
   const stats = [
-    { label: "Pages", value: counts.pages, href: "/admin/pages", link: "Organiser les pages" },
-    { label: "Projets", value: counts.projects, href: "/admin/pages#projets", link: "Voir les projets" },
-    { label: "Médias", value: counts.media, href: "/admin/medias", link: "Ouvrir la médiathèque" },
+    { label: t("statPages"), value: counts.pages, href: "/admin/pages", link: t("linkPages") },
+    { label: t("statProjects"), value: counts.projects, href: "/admin/pages#projets", link: t("linkProjects") },
+    { label: t("statMedia"), value: counts.media, href: "/admin/medias", link: t("linkMedia") },
   ];
 
   return (
     <>
       <PageHeader
-        title="Tableau de bord"
-        intro="Ton site en un coup d'œil : l'apparence en ligne et ce qu'il contient."
+        title={t("title")}
+        intro={t("intro")}
         action={
           <div className="a-header-actions">
             {home !== null && (
               <Link className="a-btn a-btn-primary" href={`/admin/pages/${home}/editer`}>
-                Modifier la page d&apos;accueil
+                {t("editHome")}
               </Link>
             )}
             <a className="a-btn" href="/" target="_blank" rel="noopener">
-              Voir le site <span aria-hidden="true">↗</span>
+              {t("viewSite")} <span aria-hidden="true">↗</span>
             </a>
           </div>
         }
@@ -45,7 +51,7 @@ export default function Dashboard() {
       <div className="a-grid">
         <section className="a-card" aria-labelledby="theme-actif">
           <p className="a-card-label" id="theme-actif">
-            Thème en ligne
+            {t("liveTheme")}
           </p>
           {active ? (
             <>
@@ -53,16 +59,16 @@ export default function Dashboard() {
               <ThemeSwatches theme={active} />
             </>
           ) : (
-            <p style={{ marginTop: 4 }}>Aucun thème actif valide : le site utilise l&apos;apparence par défaut.</p>
+            <p style={{ marginTop: 4 }}>{t("noActiveTheme")}</p>
           )}
-          <Link href="/admin/themes">Changer d&apos;apparence</Link>
+          <Link href="/admin/themes">{t("changeLook")}</Link>
         </section>
 
-        <section className="a-card" aria-label="Messages" data-testid="dash-messages" data-unread={unread}>
-          <p className="a-card-label">Messages</p>
+        <section className="a-card" aria-label={t("messagesCard")} data-testid="dash-messages" data-unread={unread}>
+          <p className="a-card-label">{t("messagesCard")}</p>
           <span className="a-stat">{unread}</span>
-          <p style={{ margin: 0 }}>{unread === 0 ? "Aucun nouveau message" : unread === 1 ? "1 nouveau message" : `${unread} nouveaux messages`}</p>
-          <Link href="/admin/messages">{unread > 0 ? "Lire les messages" : "Ouvrir les messages"}</Link>
+          <p style={{ margin: 0 }}>{t("newMessages", { count: unread })}</p>
+          <Link href="/admin/messages">{unread > 0 ? t("readMessages") : t("openMessages")}</Link>
         </section>
 
         {stats.map((s) => (

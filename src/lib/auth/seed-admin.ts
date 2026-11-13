@@ -11,6 +11,9 @@ import { hashPassword } from "better-auth/crypto";
 import { count } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { maskEmail } from "./mask";
+
+import { MIN_PASSWORD_LENGTH } from "./config";
 
 export async function ensureFirstAdmin(): Promise<void> {
   const db = getDb();
@@ -32,8 +35,9 @@ export async function ensureFirstAdmin(): Promise<void> {
     );
     return;
   }
-  if (password.length < 8) {
-    console.error("[auth] ADMIN_PASSWORD trop court (8 caractères minimum) : administrateur non créé.");
+  // Nouveau mot de passe : même minimum que Better Auth (un compte déjà créé n'est jamais concerné).
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    console.error(`[auth] ADMIN_PASSWORD trop court (${MIN_PASSWORD_LENGTH} caractères minimum) : administrateur non créé.`);
     return;
   }
 
@@ -57,7 +61,7 @@ export async function ensureFirstAdmin(): Promise<void> {
         })
         .run();
     });
-    console.log(`[auth] premier administrateur créé : ${email}`);
+    console.log(`[auth] premier administrateur créé : ${maskEmail(email)}`);
   } catch (error) {
     // Démarrage concurrent : un autre processus l'a créé entre-temps.
     if (String(error).includes("UNIQUE")) return;

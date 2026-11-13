@@ -11,6 +11,10 @@
  * composants y sont vus comme les blocs de la page.
  */
 
+import type { AdminT } from "@/i18n/admin-lang";
+
+import { problemMsg } from "./block-msg";
+
 export type TreeBlock = { uid?: string; type: string; props?: unknown };
 export type ChildBlock = { uid: string; type: string; props: Record<string, unknown> };
 
@@ -68,35 +72,36 @@ export const flatBlocks = <B extends TreeBlock>(blocks: B[]): B[] => walk(blocks
  * niveaux de conteneurs au plus, nombre de composants borné, uid uniques et
  * bien formés (obligatoires pour un composant). Premier problème, ou null.
  */
-export function treeProblem(blocks: TreeBlock[], known: (type: string) => boolean): string | null {
+export function treeProblem(blocks: TreeBlock[], known: (type: string) => boolean, t?: AdminT): string | null {
+  const E = (key: Parameters<typeof problemMsg>[0], values?: Record<string, string | number>) => problemMsg(key, values, t);
   const uids = new Set<string>();
   const uidOk = (u: unknown) => typeof u === "string" && /^[a-z0-9-]{1,32}$/.test(u);
   const check = (list: unknown[], parent: string | null, depth: number): string | null => {
     for (const raw of list) {
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "Bloc illisible.";
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return E("treeUnreadableBlock");
       const block = raw as { uid?: unknown; type?: unknown; props?: unknown };
-      if (typeof block.type !== "string" || !known(block.type)) return `Type de bloc inconnu « ${String(block.type).slice(0, 60)} ».`;
+      if (typeof block.type !== "string" || !known(block.type)) return E("treeUnknownType", { type: String(block.type).slice(0, 60) });
       if (parent !== null) {
-        if (!containerAccepts(parent, block.type)) return "Ce bloc n'accepte pas ce type de bloc.";
-        if (!uidOk(block.uid)) return "Identifiant de bloc invalide.";
+        if (!containerAccepts(parent, block.type)) return E("treeNotAccepted");
+        if (!uidOk(block.uid)) return E("badUid");
       }
       if (block.uid !== undefined) {
-        if (!uidOk(block.uid)) return "Identifiant de bloc invalide.";
-        if (uids.has(block.uid as string)) return "Blocs en double.";
+        if (!uidOk(block.uid)) return E("badUid");
+        if (uids.has(block.uid as string)) return E("treeDup");
         uids.add(block.uid as string);
       }
       const props = block.props;
-      if (parent !== null && (!props || typeof props !== "object" || Array.isArray(props))) return "Réglages d'un bloc illisibles.";
+      if (parent !== null && (!props || typeof props !== "object" || Array.isArray(props))) return E("propsUnreadable");
       const hasChildren = Boolean(props) && typeof props === "object" && "children" in (props as object);
       if (!isContainer(block.type)) {
-        if (hasChildren) return "Seul un bloc qui en contient d'autres (Grille…) en porte.";
+        if (hasChildren) return E("treeOnlyContainers");
         continue;
       }
-      if (depth >= MAX_NESTING) return "Trop de blocs imbriqués.";
+      if (depth >= MAX_NESTING) return E("treeTooDeep");
       if (!hasChildren) continue;
       const children = (props as { children: unknown }).children;
-      if (!Array.isArray(children)) return "Blocs du bloc illisibles.";
-      if (children.length > MAX_CHILDREN) return `${MAX_CHILDREN} blocs au plus dans un bloc.`;
+      if (!Array.isArray(children)) return E("treeChildrenUnreadable");
+      if (children.length > MAX_CHILDREN) return E("treeMax", { max: MAX_CHILDREN });
       const problem = check(children, block.type, depth + 1);
       if (problem) return problem;
     }
@@ -274,8 +279,10 @@ export const descendantCount = (block: TreeBlock | null | undefined): number => 
 export function withFreshUids<B extends TreeBlock>(block: B, newUid: () => string): B {
   const children = childrenOf(block);
   const copy = { ...block, uid: newUid() } as B;
-  // Formulaire de contact : son identifiant public suit le bloc (nouveau bloc → nouvel identifiant).
-  if (block.type === "contact-form" || (block.type === "contact" && (block.props as { form?: unknown } | undefined)?.form === true)) {
+  // Formulaire de contact : son identifiant public suit le bloc (nouveau bloc → nouvel identifiant). Dès qu'il en porte un,
+  // même formulaire désactivé (l'identifiant est gardé pour le réactiver) : sinon la copie réactivée aurait le même (N11).
+  const p = block.props as { form?: unknown; formId?: unknown } | undefined;
+  if (block.type === "contact-form" || (block.type === "contact" && (p?.form === true || (typeof p?.formId === "string" && p.formId !== "")))) {
     copy.props = { ...((block.props ?? {}) as object), formId: `f${newUid().replace(/[^a-z0-9]/g, "")}${Math.random().toString(36).slice(2, 8)}`.slice(0, 32) };
   }
   return children.length || isContainer(block.type) ? setChildren(copy, children.map((c) => withFreshUids(c, newUid))) : copy;

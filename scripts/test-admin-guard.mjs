@@ -142,6 +142,10 @@ const EXPECTED = [
   "saveCardWallpaperAction",
   "saveThemeFrameAllAction",
   "listWallpapersAction",
+  "unlockBackupDownloadAction",
+  "changePasswordAction",
+  "revokeOtherSessionsAction",
+  "setAdminLangAction",
 ];
 const found = new Set();
 
@@ -216,6 +220,26 @@ for (const rel of GUARDED_GET) {
   const open = bodyOpen(src, m.index + m[0].length - 1);
   if (!GUARD.test(open < 0 ? "" : bodyAfter(src, open))) failures.push(`${rel} : route GET sans \`await assertAdmin()\` en première instruction`);
 }
+
+// Pages de l'admin (docs/SECURITE.md §2.2) : la garde du layout ne suffit pas (une navigation RSC ne rend que les segments qui
+// changent). Chaque page, sauf la connexion, commence par `await requireAdmin()` (ou `assertAdmin()`), en plus du proxy.
+const PAGE_GUARD = /^\s*(?:const\s+(?:\w+|\{[^}]*\})\s*=\s*)?await\s+(?:requireAdmin|assertAdmin)\(\)\s*;/;
+let pages = 0;
+for (const file of walk(join(ROOT, "src/app/admin"))) {
+  const rel = relative(ROOT, file);
+  if (!/(?:^|\/)page\.tsx?$/.test(rel) || rel === "src/app/admin/connexion/page.tsx") continue;
+  const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const m = /export\s+default\s+async\s+function\s+\w*\s*\(/.exec(src);
+  pages++;
+  if (!m) {
+    failures.push(`${rel} : la page doit être \`export default async function\` (garde impossible à vérifier)`);
+    continue;
+  }
+  const open = bodyOpen(src, m.index + m[0].length - 1);
+  if (!PAGE_GUARD.test(open < 0 ? "" : bodyAfter(src, open))) failures.push(`${rel} : page sans \`await requireAdmin()\` en première instruction`);
+}
+if (pages < 15) failures.push(`seulement ${pages} page(s) de l'admin trouvée(s) : chemins à revoir ?`);
+checked += pages;
 
 for (const name of EXPECTED) {
   if (!found.has(name)) failures.push(`action attendue « ${name} » introuvable (supprimée ? renommée ? mettre à jour EXPECTED)`);

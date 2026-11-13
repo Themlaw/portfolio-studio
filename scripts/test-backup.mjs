@@ -6,15 +6,20 @@
  *  2. Déclenchement, horloge simulée : rien sans modification, calme, délai maximal malgré l'activité, première sauvegarde,
  *     modification PENDANT une sauvegarde, échec (attente), état conservé d'un redémarrage à l'autre.
  *  3. Rotation : on garde les N plus récentes, tri par date, jamais tout supprimé.
+ *  3c. Rétention (audit de sécurité P1/P6) : la plus récente de plus de 48 h toujours gardée, sauvegardes manuelles comptées à part,
+ *     plafond de place ; et de bout en bout : « garder 1 » + deux « Sauvegarder maintenant » n'effacent pas l'archive d'avant.
  *  4. Détection par data_version (connexion lecture seule) : écriture vue, silence sans écriture.
  *  5. Archive : base cohérente et ouvrable, originaux seulement (variantes exclues), exceptions (original supprimé, seed),
  *     polices, BACKUP_MEDIA=0, noms longs (PAX), lecture par `tar`, aucun .tmp restant, rotation après écriture.
+ *  5b. Audit de sécurité P2 : l'instantané n'a ni sessions, ni jetons de vérification, ni compteurs, ni jetons OAuth (la base du
+ *     site, elle, les garde) ; cookie de déverrouillage du téléchargement (lié à la session, expiré, falsifié).
  *  6. Restauration (script) : base remplacée, ancien -wal rangé, archive tronquée refusée sans rien changer,
+ *     liens symboliques sous le dossier de données refusés sans rien écrire dehors (S3),
  *     puis variantes manquantes remises en file au démarrage (healRestoredMedia).
  * Usage : node --import tsx scripts/test-backup.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -28,7 +33,7 @@ const ok = (label, pass, detail = "") => {
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const { readBackupConfig, describeConfig } = await import("../src/lib/backup/config.ts");
-const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
+const { Scheduler, dueReason, rotationPlan, securityRetentionPlan, archiveDate, RETENTION, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
 
 /* ---- 1. réglages ---------------------------------------------------------------------------------------------------- */
 {
@@ -176,6 +181,33 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   ok("nom : portfolio-AAAAMMJJ-HHMMSS.tar.gz", archiveName(new Date(2026, 8, 5, 4, 3, 2)) === "portfolio-20260905-040302.tar.gz" && archiveName(new Date(2026, 8, 5, 4, 3, 2), 2) === "portfolio-20260905-040302-2.tar.gz");
 }
 
+/* ---- 3c. rétention : une session volée ne vide pas les sauvegardes (P1), place plafonnée (P6) ------------------------- */
+{
+  const H = 3_600_000;
+  const at = (d) => archiveName(d);
+  const t0 = new Date(2026, 8, 1, 10, 0, 0);
+  const plus = (h) => new Date(t0.getTime() + h * H);
+  const A = (h, manual = false, size = 100) => ({ name: at(plus(h)), size, manual });
+  ok("rétention : date relue dans le nom (heure locale)", archiveDate(at(t0))?.getTime() === t0.getTime() && archiveDate(`${at(t0).slice(0, -7)}-2.tar.gz`)?.getTime() === t0.getTime() && archiveDate("autre.tar.gz") === null);
+  ok("rétention : config par défaut 30 % du disque, valeur hors bornes refusée", readBackupConfig({}).maxDiskPct === 30 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "200" }).maxDiskPct === 30 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "200" }).warnings.length === 1 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "50" }).maxDiskPct === 50);
+  // scénario de l'audit : archive de la veille de l'intrusion, puis « garder 1 » et deux sauvegardes manuelles
+  const list = [A(0), A(72), A(73, true), A(73.1, true)];
+  const now = plus(73.2).getTime();
+  ok("rétention : avant le correctif, keep 1 ne gardait que la dernière (référence)", rotationPlan(list.map((a) => a.name), 1).length === 3);
+  const doomed = securityRetentionPlan(list, { keep: 1, now });
+  ok("rétention : keep 1 + deux manuelles : l'archive de plus de 48 h ET l'automatique restent", doomed.length === 0, JSON.stringify(doomed));
+  ok("rétention : seule la PLUS RÉCENTE de plus de 48 h est protégée", eq(securityRetentionPlan([A(0), A(10), A(72)], { keep: 1, now }), [at(plus(0))]));
+  const spam = [A(0), A(72), ...[1, 2, 3, 4, 5].map((i) => A(72 + i / 10, true))];
+  const sd = securityRetentionPlan(spam, { keep: 1, now });
+  ok(`rétention : « Sauvegarder maintenant » en boucle ne fait tourner que la réserve manuelle (${RETENTION.manualKeep})`, eq(sd, [at(plus(72.1)), at(plus(72.2))]), JSON.stringify(sd));
+  ok("rétention : les manuelles ne poussent jamais dehors une automatique", eq(securityRetentionPlan([A(70), A(71), A(72), A(72.5, true), A(72.6, true)], { keep: 3, now }), []));
+  ok("rétention : sans archive de plus de 48 h, keep s'applique comme avant", eq(securityRetentionPlan([A(60), A(61), A(62)], { keep: 2, now }), [at(plus(60))]));
+  // plafond de place : les plus anciennes NON protégées partent d'abord, la dernière et la protégée jamais
+  const big = [A(0, false, 400), A(50, false, 400), A(60, false, 400), A(70, false, 400)];
+  ok("rétention : plafond de place, retire les plus anciennes non protégées", eq(securityRetentionPlan(big, { keep: 30, now, maxBytes: 1000 }), [at(plus(50)), at(plus(60))]));
+  ok("rétention : plafond trop bas, la dernière et la plus récente de plus de 48 h restent", eq(securityRetentionPlan(big, { keep: 30, now, maxBytes: 1 }), [at(plus(50)), at(plus(60))]));
+}
+
 /* ---- 3b. lot 76 : réglages de l'admin, origine des valeurs, prochaine date, sauvegarde à la demande, téléchargement ------- */
 {
   const { sanitizeOverrides } = await import("../src/lib/backup/config.ts");
@@ -274,6 +306,17 @@ try {
   addMedia("seed-logo.svg", null);
   addMedia(longName, null);
   main.prepare("insert into notes values (?)").run("avant");
+  // Audit P2 : tables de Better Auth avec des secrets reconnaissables (mêmes colonnes que src/lib/db/schema.ts).
+  main.exec(`create table user(id text primary key, email text);
+    create table session(id text primary key, token text, user_id text, created_at integer);
+    create table account(id text primary key, user_id text, provider_id text, access_token text, refresh_token text, id_token text, access_token_expires_at integer, refresh_token_expires_at integer, password text);
+    create table verification(id text primary key, identifier text, value text);
+    create table rate_limit(id text primary key, key text, count integer, last_request integer);`);
+  main.prepare("insert into user values ('u1', 'artiste@example.test')").run();
+  main.prepare("insert into session values ('s1', 'JETON-DE-SESSION-SECRET-P2', 'u1', 1)").run();
+  main.prepare("insert into account values ('a1', 'u1', 'authentik', 'ACCES-OAUTH-SECRET-P2', 'RAFRAICHI-OAUTH-SECRET-P2', 'ID-OAUTH-SECRET-P2', 5, 6, null), ('a2', 'u1', 'credential', null, null, null, null, null, 'sel:empreinte-scrypt')").run();
+  main.prepare("insert into verification values ('v1', 'reset', 'JETON-DE-VERIFICATION-SECRET-P2')").run();
+  main.prepare("insert into rate_limit values ('r1', '203.0.113.9/sign-in', 3, 1)").run();
 
   // 4. data_version
   const reader = new Database(path.join(data, "portfolio.db"), { readonly: true, fileMustExist: true });
@@ -302,7 +345,14 @@ try {
   ok("lot 85 archive par exclusion : kit/, icons/, dossier imprévu et fiches de kit y sont ; ni variantes d'un original présent, ni icons-auto/, cache/, tmp/, *.tmp", !sorted.some((f) => /^media\/(img|icons-auto)\//.test(f) || f.endsWith(".tmp") || f.startsWith("tmp/") || f.startsWith("cache/crops")));
   const snap = new Database(path.join(out, "portfolio.db"), { readonly: true });
   ok("archive : la base s'ouvre, intègre, avec les modifications faites avant la copie", snap.pragma("integrity_check", { simple: true }) === "ok" && snap.prepare("select count(*) n from notes").get().n === 2 && snap.prepare("select count(*) n from media").get().n === 4);
+  ok("P2 instantané : sessions, vérifications et compteurs vidés", ["session", "verification", "rate_limit"].every((t) => snap.prepare(`select count(*) n from ${t}`).get().n === 0));
+  const acc = snap.prepare("select * from account order by id").all();
+  ok("P2 instantané : jetons OAuth effacés, empreinte du mot de passe et comptes gardés (restauration : on se reconnecte)", acc.length === 2 && acc.every((a) => a.access_token === null && a.refresh_token === null && a.id_token === null && a.access_token_expires_at === null && a.refresh_token_expires_at === null) && acc[1].password === "sel:empreinte-scrypt" && snap.prepare("select count(*) n from user").get().n === 1);
   snap.close();
+  const rawDb = readFileSync(path.join(out, "portfolio.db"));
+  ok("P2 instantané : aucun octet des secrets dans le fichier (VACUUM, secure_delete)", !/SECRET-P2/.test(rawDb.toString("latin1")));
+  ok("P2 : la base du SITE garde ses sessions et jetons (seule la copie est nettoyée)", main.prepare("select count(*) n from session").get().n === 1 && main.prepare("select access_token t from account where id = 'a1'").get().t === "ACCES-OAUTH-SECRET-P2");
+  ok("P2 : ni -wal ni -journal de l'instantané laissés dans backup/", readdirSync(dir).every((n) => !/snapshot/.test(n)), readdirSync(dir).join(","));
   ok("archive : original octet pour octet (flux)", readFileSync(path.join(out, "media/originals/orig1.png")).equals(Buffer.alloc(300_000, 1)));
   const man = await readManifest(path.join(dir, r1.name));
   ok("lot 85 manifest : catégories comptées, archive complète, rien de manquant", man.complete === true && man.storage?.kit?.files === 1 && man.storage?.icons?.files === 1 && man.storage?.kitManifests?.files === 1 && man.storage?.originals?.files === 2 && man.missingRefs?.count === 0 && man.regenerable?.variants?.files === 1 && man.regenerable?.iconsAuto?.files === 1, JSON.stringify(man));
@@ -347,6 +397,18 @@ try {
   const plan = await storageToSave([{ key: "originals/orig1.png", variants: "pas du json" }, { key: "originals/absent.png", variants: null }], path.join(data, "media"));
   ok("médias : variantes illisibles = dossier non prouvé régénérable, donc sauvegardé ; original absent sans erreur", plan.files.some((f) => f.key === "originals/orig1.png") && plan.files.some((f) => f.key === "img/aaaaaaaaaaaaaaaa/800.webp"));
 
+  /* ---- 5b. cookie de déverrouillage du téléchargement (audit P2) ---- */
+  {
+    const { unlockValue, isUnlocked, isFreshSession, readCookie, UNLOCK_TTL_MS } = await import("../src/lib/backup/unlock.ts");
+    const S = "secret-de-test-0123456789abcdef-0123456789";
+    const t = 1_800_000_000_000;
+    const v = unlockValue(S, "sess-1", t);
+    ok("P2 déverrouillage : valable pour sa session, pendant 10 min", isUnlocked(S, "sess-1", v, t + 1000) && isUnlocked(S, "sess-1", v, t + UNLOCK_TTL_MS - 1));
+    ok("P2 déverrouillage : expiré, autre session, autre secret, signature ou date falsifiée = refusé", !isUnlocked(S, "sess-1", v, t + UNLOCK_TTL_MS + 1) && !isUnlocked(S, "sess-2", v, t + 1000) && !isUnlocked("autre-secret-0123456789abcdef-0123456789", "sess-1", v, t + 1000) && !isUnlocked(S, "sess-1", `${v.slice(0, -2)}AA`, t + 1000) && !isUnlocked(S, "sess-1", `${t + 9e9}.${v.split(".")[1]}`, t + 1000) && !isUnlocked(S, "sess-1", null) && !isUnlocked(S, "sess-1", "x".repeat(500)));
+    ok("P2 connexion récente : moins de 10 min oui, plus non, date future non", isFreshSession(t - 60_000, t) && !isFreshSession(t - 11 * 60_000, t) && !isFreshSession(t + 60_000, t) && !isFreshSession("pas une date", t));
+    ok("P2 lecture du cookie dans l'en-tête brut", readCookie("a=1; pf-backup-unlock=abc.def; b=2", "pf-backup-unlock") === "abc.def" && readCookie("x-pf-backup-unlock=1", "pf-backup-unlock") === null && readCookie(null, "x") === null);
+  }
+
   /* ---- 6. restauration ------------------------------------------------------------------------------------------ */
   const target = path.join(tmp, "restored");
   mkdirSync(path.join(target, "media"), { recursive: true });
@@ -375,6 +437,65 @@ try {
   back.close();
   ok("restauration : ancienne base rangée (pas effacée)", res.previous && existsSync(path.join(res.previous, "portfolio.db")) && existsSync(path.join(res.previous, "portfolio.db-wal")));
   ok("restauration : originaux, polices et manifest posés ; dossier de travail supprimé", existsSync(path.join(target, "media/originals/orig1.png")) && existsSync(path.join(target, "fonts/Inter-400.woff2")) && existsSync(path.join(target, "manifest.json")) && readdirSync(target).every((n) => !n.startsWith("restore-tmp")));
+
+  /* liens symboliques dans le dossier de données (S3) : un site compromis remplace un dossier par un lien vers l'extérieur
+     (ex. fonts → /etc) et attend une restauration en root. Refus net, rien d'écrit dans la cible du lien, ancienne base en place. */
+  {
+    const { assertNoSymlink } = await import("./restore-backup.mjs");
+    const cases = [
+      ["fonts", "fonts → dossier extérieur"],
+      ["media/originals", "media/originals → dossier extérieur (lien sous un vrai dossier)"],
+      ["cache", "cache → dossier extérieur (vidé de crops, puis chown)"],
+      ["portfolio.db", "portfolio.db → fichier extérieur"],
+    ];
+    for (const [rel, label] of cases) {
+      const dir = path.join(tmp, `lien-${rel.replace(/\W/g, "-")}`);
+      const outside = path.join(tmp, `dehors-${rel.replace(/\W/g, "-")}`);
+      mkdirSync(path.join(dir, "media"), { recursive: true });
+      mkdirSync(path.join(outside, "crops"), { recursive: true });
+      writeFileSync(path.join(outside, "crops", "temoin.txt"), "ne pas toucher");
+      const db0 = new Database(path.join(dir, "portfolio.db"));
+      db0.exec("create table notes(v text); insert into notes values ('base-avant-lien');");
+      db0.close();
+      if (rel === "portfolio.db") {
+        renameSync(path.join(dir, "portfolio.db"), path.join(outside, "victime.db"));
+        symlinkSync(path.join(outside, "victime.db"), path.join(dir, rel));
+      } else {
+        mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+        symlinkSync(outside, path.join(dir, rel), "dir");
+      }
+      const before = readdirSync(outside).sort().join(",");
+      const ownerBefore = statSync(outside).uid;
+      let err = null;
+      try {
+        await restore(arch, dir);
+      } catch (e) {
+        err = e;
+      }
+      const left = readdirSync(dir);
+      const dbStill = rel === "portfolio.db" ? existsSync(path.join(outside, "victime.db")) : new Database(path.join(dir, "portfolio.db"), { readonly: true }).prepare("select v from notes").get()?.v === "base-avant-lien";
+      ok(
+        `restauration S3 : lien symbolique ${label} refusé ; rien d'écrit dehors, ancienne base en place, aucun dossier de travail`,
+        /lien symbolique/.test(err?.message ?? "") && readdirSync(outside).sort().join(",") === before && existsSync(path.join(outside, "crops", "temoin.txt")) && statSync(outside).uid === ownerBefore && dbStill && lstatSync(path.join(dir, rel)).isSymbolicLink() && left.every((n) => !n.startsWith("restore-tmp") && !n.startsWith("restore-previous")),
+        `${err?.message} | dehors : ${readdirSync(outside).join(",")} | données : ${left.join(",")}`,
+      );
+    }
+    // Le dossier de données lui-même peut être un lien (choix de celui qui restaure) : accepté, restauré dans sa cible réelle.
+    const real = path.join(tmp, "donnees-reelles");
+    mkdirSync(real, { recursive: true });
+    const viaLink = path.join(tmp, "donnees-lien");
+    symlinkSync(real, viaLink, "dir");
+    const viaRes = await restore(arch, viaLink).then(
+      () => true,
+      (e) => e.message,
+    );
+    ok("restauration S3 : dossier de données donné par un lien accepté (restauré dans la cible réelle)", viaRes === true && existsSync(path.join(real, "portfolio.db")) && existsSync(path.join(real, "fonts/Inter-400.woff2")), String(viaRes));
+    // assertNoSymlink : chemins sans lien ou pas encore créés acceptés ; lien en fin de chemin refusé.
+    const plain = await assertNoSymlink(target, "media/originals/orig1.png").then(() => true, () => false);
+    const absent = await assertNoSymlink(target, "nouveau/dossier/fichier").then(() => true, () => false);
+    const lastIsLink = await assertNoSymlink(tmp, "donnees-lien").then(() => true, () => false);
+    ok("restauration S3 : assertNoSymlink accepte un chemin réel ou à créer, refuse un lien même en dernier composant", plain && absent && !lastIsLink);
+  }
 
   /* variantes manquantes → remises en file au démarrage (vraie base migrée) */
   const heal = path.join(tmp, "heal");
@@ -425,6 +546,25 @@ try {
     const r0 = await runBackup({ dataDir: data, config: { media: false, keep: 10 }, reason: "calme", reader });
     ok("admin76 manifest : base seule reconnue", (await readArchiveManifest(path.join(data, "backup", r0.name)))?.includesMedia === false);
     ok("admin76 manifest : fichier absent ou illisible = null", (await readArchiveManifest(path.join(data, "backup", "portfolio-19990101-000000.tar.gz"))) === null);
+  }
+  // audit de sécurité P1 : de bout en bout, sur un dossier à part (session volée : « garder 1 » puis « Sauvegarder maintenant » x2)
+  {
+    const d2 = path.join(tmp, "data-retention");
+    mkdirSync(path.join(d2, "media/originals"), { recursive: true });
+    const m2 = new Database(path.join(d2, "portfolio.db"));
+    m2.pragma("journal_mode = WAL");
+    m2.exec("create table media(id integer primary key, key text, variants text, status text); create table notes(v text);");
+    const r2 = new Database(path.join(d2, "portfolio.db"), { readonly: true, fileMustExist: true });
+    const go = (when, reason, keep) => runBackup({ dataDir: d2, config: { media: true, keep }, reason, reader: r2, now: () => when });
+    const before = await go(new Date(2026, 8, 1, 10, 0, 0), "calme", 3);
+    const recent = await go(new Date(2026, 8, 4, 9, 0, 0), "calme", 3);
+    await go(new Date(2026, 8, 4, 10, 0, 0), "manuel", 1);
+    const last = await go(new Date(2026, 8, 4, 10, 1, 0), "manuel", 1);
+    const names = (await listArchives(path.join(d2, "backup"))).map((a) => a.name);
+    ok("P1 : keep=1 + deux sauvegardes manuelles : l'archive de plus de 48 h est conservée", names.includes(before.name), names.join(","));
+    ok("P1 : l'automatique la plus récente reste aussi (les manuelles ne comptent pas)", names.includes(recent.name) && names.includes(last.name) && names.length === 4 && last.kept === 4 && last.removed === 0, names.join(","));
+    r2.close();
+    m2.close();
   }
   // lot 85 : garde-fou et BACKUP_MEDIA=0
   {

@@ -17,6 +17,8 @@ export const ADMIN_HINT_COOKIE = "portfolio-admin";
 
 export default function EditThisPage() {
   const [href, setHref] = useState<string | null>(null);
+  // Texte et langue du bouton : ceux de l'interface d'admin du compte (envoyés par la route de session ; le site public ne porte pas le catalogue d'admin).
+  const [ui, setUi] = useState<{ label: string; lang: string }>({ label: "", lang: "fr" });
   const router = useRouter();
   // Lot 118 : après « Publier » dans l'éditeur (autre onglet), cette page abandonne le cache de navigation de Next et se relit.
   useEffect(() => {
@@ -30,8 +32,11 @@ export default function EditThisPage() {
     const controller = new AbortController();
     fetch(`/admin/api/editeur/session?chemin=${encodeURIComponent(window.location.pathname)}`, { credentials: "same-origin", cache: "no-store", signal: controller.signal })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { admin?: boolean; editUrl?: string | null } | null) => {
-        if (data?.admin && typeof data.editUrl === "string" && data.editUrl.startsWith("/admin/")) setHref(data.editUrl);
+      .then((data: { admin?: boolean; editUrl?: string | null; label?: string; lang?: string } | null) => {
+        if (data?.admin && typeof data.editUrl === "string" && data.editUrl.startsWith("/admin/")) {
+          setUi({ label: typeof data.label === "string" ? data.label : "", lang: data.lang === "en" ? "en" : "fr" });
+          setHref(data.editUrl);
+        }
         // Session terminée : l'indicateur ne sert plus.
         else if (data && !data.admin) document.cookie = `${ADMIN_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
       })
@@ -44,7 +49,7 @@ export default function EditThisPage() {
     <a
       className="pe-edit-this"
       href={href}
-      lang="fr"
+      lang={ui.lang}
       style={{
         position: "fixed",
         right: 14,
@@ -69,7 +74,7 @@ export default function EditThisPage() {
       <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M11.3 2.3a1.5 1.5 0 0 1 2.1 0l.3.3a1.5 1.5 0 0 1 0 2.1L6 12.4l-3 .6.6-3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
       </svg>
-      Modifier cette page
+      {ui.label}
     </a>
   );
 }

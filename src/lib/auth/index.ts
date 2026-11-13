@@ -11,8 +11,9 @@ import { genericOAuth } from "better-auth/plugins";
 import { getDb, schema } from "@/lib/db";
 
 import { CLIENT_IP_HEADER } from "./client-ip";
-import { identityFromProfile, isOidcIdentityAllowed, OIDC_PROVIDER_ID, readAuthConfig } from "./config";
+import { identityFromProfile, isOidcIdentityAllowed, MIN_PASSWORD_LENGTH, OIDC_PROVIDER_ID, readAuthConfig } from "./config";
 import { forgetIdentity, rememberIdentity } from "./identity";
+import { SESSION_IDLE_S, SESSION_UPDATE_AGE_S } from "./sessions";
 
 export const ADMIN_NOT_ALLOWED = "admin_not_allowed";
 
@@ -43,7 +44,9 @@ function createAuth() {
       enabled: config.passwordEnabled,
       // Pas d'inscription publique : le premier admin est amorcé au démarrage.
       disableSignUp: true,
-      minPasswordLength: 8,
+      // 12 caractères pour tout NOUVEAU mot de passe (changement, réinitialisation). La connexion ne vérifie pas la
+      // longueur : un compte existant au mot de passe plus court reste accessible (docs/SECURITE.md §2.4).
+      minPasswordLength: MIN_PASSWORD_LENGTH,
     },
     user: {
       /**
@@ -64,6 +67,9 @@ function createAuth() {
         // Un `sub` déjà connu qui n'est plus autorisé (retiré du groupe dans
         // Authentik…) perd ses sessions en cours, pas seulement la suivante.
         const revoked = identity ? forgetIdentity(identity.sub) : 0;
+        void import("@/lib/journal/audit").then((j) =>
+          j.recordEvent({ action: "auth:sign-in-oidc", type: "compte", user: null, result: "refus", label: "Connexion Authentik refusée (compte non autorisé)" }),
+        );
         console.warn(
           `[auth] connexion Authentik refusée (sub « ${identity?.sub ?? "?"} », e-mail ${identity?.emailVerified ? "vérifié" : "non vérifié"})` +
             (revoked ? ` : ${revoked} session(s) révoquée(s)` : ""),
@@ -74,11 +80,22 @@ function createAuth() {
         };
       },
     },
+    session: {
+      // Audit de sécurité P3 : durées explicites. Expiration après 3 jours sans utilisation (prolongée au plus une fois par
+      // heure quand la session sert) ; la durée ABSOLUE (7 jours après la connexion) est vérifiée par la garde (guard.ts).
+      expiresIn: SESSION_IDLE_S,
+      updateAge: SESSION_UPDATE_AGE_S,
+    },
     account: {
       // Aucune liaison automatique par e-mail : une identité Authentik qui
       // porte l'e-mail d'un compte existant est refusée (account_not_linked),
       // jamais fusionnée en silence avec lui.
       accountLinking: { disableImplicitLinking: true },
+      // Audit de sécurité P2 : jetons Authentik chiffrés en base (clé = BETTER_AUTH_SECRET, absente de la base et des
+      // sauvegardes). Sans risque pour les comptes existants : le site ne relit JAMAIS ces jetons (l'accès est revérifié par
+      // oidc_identity) ; seuls /get-access-token, /refresh-token et /account-info les déchiffrent, et Better Auth y rend tel quel
+      // un ancien jeton en clair (JWT : pas de l'hexadécimal). Chaque nouvelle connexion réécrit les jetons, chiffrés.
+      encryptOAuthTokens: true,
     },
     rateLimit: {
       enabled: true,
@@ -92,6 +109,10 @@ function createAuth() {
         // Auth ne se remet à zéro qu'après 60 s SANS requête : un admin qui se
         // connecte toutes les 12 s serait bloqué au 6e essai.
         "/sign-in/email": { window: 60, max: 30 },
+        // Même logique pour /change-password : sans cette règle, Better Auth applique sa règle par
+        // défaut des chemins sensibles (3 / 10 s), qui répond 429 avant que le frein maison
+        // (route.ts : 5/min par IP + délai par compte) n'ait compté l'échec.
+        "/change-password": { window: 60, max: 30 },
         "/sign-in/social": { window: 60, max: 10 },
       },
     },
@@ -102,12 +123,25 @@ function createAuth() {
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: isProd },
     },
     hooks: {
+      // Journal (docs/SECURITE.md P5) : connexion Authentik réussie (retour du fournisseur avec une nouvelle session). La connexion
+      // par mot de passe est journalisée par le gestionnaire /api/auth (succès et échecs).
+      after: createAuthMiddleware(async (ctx) => {
+        const user = ctx.context.newSession?.user.id;
+        if (user && /^\/(?:oauth2\/)?callback\//.test(ctx.path)) {
+          void import("@/lib/journal/audit").then((j) => j.recordEvent({ action: "auth:sign-in-oidc", type: "compte", user, result: "ok", label: "Connexion (Authentik)" }));
+        }
+      }),
       before: createAuthMiddleware(async (ctx) => {
         if (!config.passwordEnabled && PASSWORD_PATHS.has(ctx.path)) {
           throw new APIError("FORBIDDEN", {
             code: "PASSWORD_DISABLED",
             message: "La connexion par mot de passe est désactivée sur ce site.",
           });
+        }
+        // Audit de sécurité P3 : changer le mot de passe déconnecte TOUJOURS les autres sessions, quoi que demande le client
+        // (un cookie volé ne survit pas au changement de mot de passe, même fait par un appel direct à l'API).
+        if (ctx.path === "/change-password" && ctx.body && typeof ctx.body === "object") {
+          return { context: { body: { ...(ctx.body as Record<string, unknown>), revokeOtherSessions: true } } };
         }
       }),
     },

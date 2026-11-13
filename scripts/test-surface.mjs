@@ -230,19 +230,19 @@ try {
   const Rich = RichText.default ?? RichText;
   const Title = SectionTitle.default ?? SectionTitle;
   const L = (fr, en = "") => ({ fr, en });
-  const html = (props, edit = false) => renderToStaticMarkup(createElement(Rich, { props, ctx: { locale: "fr", pageId: 1, edit } }));
+  const html = async (props, edit = false) => renderToStaticMarkup(await Rich({ props, ctx: { locale: "fr", pageId: 1, edit } }));
   // Rendu public d'un bloc avec titre : identique à celui de la v0.17 (HTML mesuré avant le lot 19a).
   const TITLED =
     '<section class="shell pt-[var(--section-gap)]"><div class="max-w-2xl"><p class="eyebrow ">E</p><h2 class="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink">T</h2><div class="mt-6 space-y-6 text-base leading-relaxed text-ink-soft"><p>P1</p><p>P2</p></div></div></section>';
-  ok("Texte : rendu public d'un bloc avec titre et étiquette inchangé (au caractère près)", html({ eyebrow: L("E"), title: L("T"), paragraphs: [L("P1"), L("P2")] }) === TITLED);
-  const alone = html({ paragraphs: [L("P")] });
+  ok("Texte : rendu public d'un bloc avec titre et étiquette inchangé (au caractère près)", await html({ eyebrow: L("E"), title: L("T"), paragraphs: [L("P1"), L("P2")] }) === TITLED);
+  const alone = await html({ paragraphs: [L("P")] });
   ok("Texte seul (public) : ni titre, ni étiquette, aucune marge réservée au-dessus du paragraphe", !/<h2|eyebrow|mt-6|mt-4/.test(alone) && /<p>P<\/p>/.test(alone), alone);
-  ok("Texte à titre vide (ancien défaut) : public identique à un Texte seul", html({ title: L("", ""), paragraphs: [L("P")] }) === alone);
-  const edit = html({ paragraphs: [L("P")] }, true);
+  ok("Texte à titre vide (ancien défaut) : public identique à un Texte seul", await html({ title: L("", ""), paragraphs: [L("P")] }) === alone);
+  const edit = await html({ paragraphs: [L("P")] }, true);
   ok("Texte seul (toile) : aucun champ de titre ni texte gris « Titre » ; « + Ajouter un titre » proposé", !/<h2|data-inline="title"|data-placeholder="Titre"|data-inline="eyebrow"/.test(edit) && /data-edit-field-op="add-title"/.test(edit), edit);
-  const editTitled = html({ title: L("T"), paragraphs: [L("P")] }, true);
+  const editTitled = await html({ title: L("T"), paragraphs: [L("P")] }, true);
   ok("Texte avec titre (toile) : champ saisissable, « Retirer le titre » proposé, pas de « Ajouter »", /data-inline="title"/.test(editTitled) && /data-edit-field-op="remove-title"/.test(editTitled) && !/add-title/.test(editTitled));
-  ok("Texte : aucun bouton ni repère d'édition en public", !/data-edit-field-op|pe-field/.test(html({ title: L("T"), paragraphs: [L("P")] })) && !/data-edit-field-op|pe-field/.test(alone));
+  ok("Texte : aucun bouton ni repère d'édition en public", !/data-edit-field-op|pe-field/.test(await html({ title: L("T"), paragraphs: [L("P")] })) && !/data-edit-field-op|pe-field/.test(alone));
   const title = async (props, edit = false) => renderToStaticMarkup(await Title({ props, ctx: { locale: "fr", pageId: 1, edit } }));
   const titleEdit = await title({ title: L("T") }, true);
   ok("Titre seul (toile) : pas de champ « Présentation » ni d'étiquette grise ; « + Ajouter une étiquette » proposé", !/data-inline="intro"|data-inline="eyebrow"|Présentation/.test(titleEdit) && /data-edit-field-op="add-eyebrow"/.test(titleEdit), titleEdit);

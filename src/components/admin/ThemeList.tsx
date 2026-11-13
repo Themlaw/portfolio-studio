@@ -4,6 +4,7 @@
  * Écran Thèmes (lot 60) : « Mon thème » en haut (une vignette réelle de l'accueil, « basé sur », version, état, actions), puis
  * « Repartir d'un modèle » (les thèmes fournis ne se modifient jamais), puis « Mes anciens thèmes » (repliée).
  */
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -31,14 +32,15 @@ import ThemeThumb from "./ThemeThumb";
 import { formatWhen } from "./theme-format";
 
 /** Formulaire natif : l'aperçu s'ouvre dans un nouvel onglet (l'admin reste ici). `id` : un thème, ou `<thème>@<n>` (une version). */
-export function PreviewButton({ id, label = "Prévisualiser", small, testId }: { id: string; label?: string; small?: boolean; testId?: string }) {
+export function PreviewButton({ id, label, small, testId }: { id: string; label?: string; small?: boolean; testId?: string }) {
+  const t = useTranslations("themes");
   return (
     <form method="post" action="/admin/apercu" target="_blank">
       <input type="hidden" name="id" value={id} />
       {/* « Quitter l'aperçu » (bandeau, Échap) ramène à cet écran. */}
       <input type="hidden" name="retour" value="/admin/themes" />
       <button type="submit" className={`a-btn${small ? " a-btn-small" : ""}`} data-testid={testId}>
-        {label} <span aria-hidden="true">↗</span>
+        {label ?? t("preview")} <span aria-hidden="true">↗</span>
       </button>
     </form>
   );
@@ -52,23 +54,24 @@ type Pending =
 
 /** Menu « Kit Photoshop ▾ » de Mon thème : une seule porte d'entrée, télécharger puis renvoyer. */
 function KitMenu({ theme }: { theme: Theme }) {
+  const t = useTranslations("themes");
   const kit = useKitDownload(theme.id);
   const id = encodeURIComponent(theme.id);
   return (
     <>
       <MenuTrigger>
         <AriaButton className="a-btn a-btn-small" data-testid="mine-kit-menu">
-          Kit Photoshop <span aria-hidden="true">▾</span>
+          {t("kitMenu")} <span aria-hidden="true">▾</span>
         </AriaButton>
         <Popover className="a-menu-popover" placement="bottom start" offset={4}>
-          <Menu className="a-menu" aria-label="Kit Photoshop de mon thème">
-            <MenuItem className="a-menu-item" onAction={() => void kit.start()} isDisabled={kit.busy || kit.blocked} textValue="Télécharger le kit Photoshop">
-              <Text slot="label">{kit.busy ? "Préparation du kit…" : "Télécharger le kit Photoshop"}</Text>
-              <Text slot="description">Un fichier de calques à redessiner (comptez jusqu&apos;à 20 secondes de préparation).</Text>
+          <Menu className="a-menu" aria-label={t("kitMenuLabel")}>
+            <MenuItem className="a-menu-item" onAction={() => void kit.start()} isDisabled={kit.busy || kit.blocked} textValue={t("kitDownload")}>
+              <Text slot="label">{kit.busy ? t("kitPreparing") : t("kitDownload")}</Text>
+              <Text slot="description">{t("kitDownloadHelp")}</Text>
             </MenuItem>
-            <MenuItem className="a-menu-item" href={`/admin/themes/${id}/kit`} textValue="Renvoyer le kit rempli" data-testid="mine-kit-send">
-              <Text slot="label">Renvoyer le kit rempli…</Text>
-              <Text slot="description">Après l&apos;avoir redessiné : vérifie, puis ajoute une version à mon thème.</Text>
+            <MenuItem className="a-menu-item" href={`/admin/themes/${id}/kit`} textValue={t("kitSend")} data-testid="mine-kit-send">
+              <Text slot="label">{t("kitSendLabel")}</Text>
+              <Text slot="description">{t("kitSendHelp")}</Text>
             </MenuItem>
           </Menu>
         </Popover>
@@ -76,7 +79,7 @@ function KitMenu({ theme }: { theme: Theme }) {
       {kit.busy && (
         <span className="a-kit-progress" data-testid="kit-card-progress">
           <span className="a-spinner" aria-hidden="true" />
-          {kit.status || "Préparation du kit…"}
+          {kit.status || t("kitPreparing")}
         </span>
       )}
       <span className="sr-only" aria-live="polite">
@@ -88,34 +91,35 @@ function KitMenu({ theme }: { theme: Theme }) {
 
 /** Menu « … » d'une carte : l'archive du thème (se réimporte), et, pour un ancien thème, rien d'autre. */
 function MoreMenu({ theme, colorsLink = false, onDelete }: { theme: Theme; /** Modèle : « Voir les couleurs » (essai en lecture seule, sans rien modifier). */ colorsLink?: boolean; /** Ancien thème (pas en ligne) : « Supprimer » vit ici, pas en gros bouton. */ onDelete?: () => void }) {
+  const t = useTranslations("themes");
   const id = encodeURIComponent(theme.id);
   return (
     <MenuTrigger>
-      <AriaButton className="a-btn a-btn-small a-menu-btn" aria-label={`Plus d'actions pour ${theme.name}`}>
+      <AriaButton className="a-btn a-btn-small a-menu-btn" aria-label={t("moreActionsFor", { name: theme.name })}>
         <span aria-hidden="true">…</span>
       </AriaButton>
       <Popover className="a-menu-popover" placement="bottom end" offset={4}>
-        <Menu className="a-menu" aria-label={`Actions de ${theme.name}`}>
+        <Menu className="a-menu" aria-label={t("actionsOf", { name: theme.name })}>
           {colorsLink && (
-            <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs`} data-testid="theme-da-link" textValue="Voir les couleurs">
-              <Text slot="label">Voir les couleurs</Text>
-              <Text slot="description">Les couleurs du modèle, avec aperçu (rien n&apos;est modifié).</Text>
+            <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs`} data-testid="theme-da-link" textValue={t("viewColors")}>
+              <Text slot="label">{t("viewColors")}</Text>
+              <Text slot="description">{t("viewColorsHelp")}</Text>
             </MenuItem>
           )}
           <MenuItem
             className="a-menu-item"
             href={`/admin/api/themes/${id}/export`}
             download={`theme-${theme.id}.zip`}
-            textValue="Exporter le thème (.zip)"
-            onAction={() => toast(`Archive en cours de téléchargement : theme-${theme.id}.zip`)}
+            textValue={t("exportTheme")}
+            onAction={() => toast(t("exportToast", { id: theme.id }))}
           >
-            <Text slot="label">Exporter le thème (.zip)</Text>
-            <Text slot="description">Une archive à réimporter sur ce site ou un autre.</Text>
+            <Text slot="label">{t("exportTheme")}</Text>
+            <Text slot="description">{t("exportHelp")}</Text>
           </MenuItem>
           {onDelete && (
-            <MenuItem className="a-menu-item a-menu-item-danger" onAction={onDelete} textValue="Supprimer ce thème" data-testid="old-delete">
-              <Text slot="label">Supprimer ce thème…</Text>
-              <Text slot="description">Demande une confirmation. Tes pages et tes œuvres ne changent pas.</Text>
+            <MenuItem className="a-menu-item a-menu-item-danger" onAction={onDelete} textValue={t("deleteTheme")} data-testid="old-delete">
+              <Text slot="label">{t("deleteThemeItem")}</Text>
+              <Text slot="description">{t("deleteThemeHelp")}</Text>
             </MenuItem>
           )}
         </Menu>
@@ -152,6 +156,8 @@ export default function ThemeList({
   editorPageId?: number | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("themes");
+  const locale = useLocale();
   const { activeId, mine, models, olds } = library;
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
@@ -169,31 +175,31 @@ export default function ThemeList({
   const previewTheme = preparing && !previewVersion && !previewsMineDraft ? all.find((t) => t.id === preparing.id) : undefined;
 
   /** Mise en ligne, puis un toast « Revenir au thème précédent » pendant un temps raisonnable (et l'encart permanent). */
-  const publish = (theme: Theme, resetColors: boolean, label: string) =>
+  const publish = (theme: Theme, resetColors: boolean, isMine: boolean) =>
     startTransition(async () => {
       setError(null);
       const before = liveTheme;
       const result = await activateThemeAction(theme.id, { resetColors });
       if (!result.ok) {
-        setError(result.message ?? "L'action a échoué.");
+        setError(result.message ?? t("actionFailed"));
         return;
       }
       setPending(null);
-      toast(`${label} mis en ligne`, "success", before && before.id !== theme.id ? { label: `Revenir à « ${before.name} »`, run: () => void revert(before) } : undefined, UNDO_MS);
+      toast(isMine ? t("publishedMine", { name: theme.name, version: mine?.version ?? "" }) : t("published", { name: theme.name }), "success", before && before.id !== theme.id ? { label: t("revertTo", { name: before.name }), run: () => void revert(before) } : undefined, UNDO_MS);
       router.refresh();
     });
   const revert = (to: Theme) =>
     startTransition(async () => {
       const result = await activateThemeAction(to.id);
-      if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
-      toast(`« ${to.name} » est de nouveau en ligne`);
+      if (!result.ok) return toast(result.message ?? t("actionFailed"), "error");
+      toast(t("backOnline", { name: to.name }));
       router.refresh();
     });
   const resetColors = () =>
     startTransition(async () => {
       const result = await resetSiteColorsAction();
-      if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
-      toast("Les couleurs du thème sont de retour");
+      if (!result.ok) return toast(result.message ?? t("actionFailed"), "error");
+      toast(t("colorsBack"));
       router.refresh();
     });
   /** Lot 63 : prépare ce thème (aperçu admin) puis ouvre l'éditeur dessus, sur la dernière page modifiée. */
@@ -208,7 +214,7 @@ export default function ThemeList({
       window.location.assign(target);
     } catch {
       setWorking(null);
-      toast("Le thème n'a pas pu être ouvert dans l'éditeur. Réessaie.", "error");
+      toast(t("openFailed"), "error");
     }
   };
   const stopPreview = async (done: () => void) => {
@@ -232,8 +238,8 @@ export default function ThemeList({
       if (!result.ok) return toast(result.message, "error");
       toast(
         result.data.published
-          ? `Mon thème créé à partir de « ${model.name} » (version 1) : il est déjà en ligne`
-          : `Mon thème créé à partir de « ${model.name} » (version 1) : pas encore en ligne, prévisualise-le puis publie`,
+          ? t("mineCreatedLive", { name: model.name })
+          : t("mineCreatedDraft", { name: model.name }),
       );
       router.refresh();
     });
@@ -248,10 +254,10 @@ export default function ThemeList({
       }
       setPending(null);
       if (mode === "second") {
-        toast(`Second thème créé : « ${model.name} » (dans « Mes anciens thèmes »)`);
+        toast(t("secondCreated", { name: model.name }));
         router.refresh();
       } else {
-        toast(`Mon thème : version ${result.data.version} créée à partir de « ${model.name} »`);
+        toast(t("newVersionFrom", { version: result.data.version, name: model.name }));
         router.push(`/admin/themes?nouvelle=${result.data.version}&via=model`);
       }
     });
@@ -259,7 +265,7 @@ export default function ThemeList({
     startTransition(async () => {
       const result = await adoptOldThemeAction(old.id);
       if (!result.ok) return toast(result.message, "error");
-      toast(`« ${old.name} » est maintenant Mon thème (version ${result.data.version})`);
+      toast(t("adopted", { name: old.name, version: result.data.version }));
       router.push(`/admin/themes?nouvelle=${result.data.version}&via=adopt`);
     });
   const remove = (theme: Theme) =>
@@ -267,11 +273,11 @@ export default function ThemeList({
       setError(null);
       const result = await deleteThemeAction(theme.id);
       if (!result.ok) {
-        setError(result.message ?? "L'action a échoué.");
+        setError(result.message ?? t("actionFailed"));
         return;
       }
       setPending(null);
-      toast(`« ${theme.name} » supprimé`);
+      toast(t("removed", { name: theme.name }));
       router.refresh();
     });
 
@@ -286,24 +292,23 @@ export default function ThemeList({
     <>
       {liveTheme && (
         <p className="a-theme-live" data-testid="theme-live-banner">
-          Thème en ligne : <strong>{liveTheme.name}</strong>
-          {mine?.live ? <span> (version {mine.publishedVersion})</span> : null}
+          {t.rich("liveBanner", { name: liveTheme.name, b: (c) => <strong>{c}</strong> })}
+          {mine?.live ? <span> {t("liveVersion", { version: mine.publishedVersion ?? "" })}</span> : null}
         </p>
       )}
       {notice && mine && (
         <div className="a-notice" role="status" data-testid="new-version-notice">
           <p>
-            <strong>Version {notice.version} de Mon thème créée</strong>
-            {notice.via === "kit" ? " avec ton kit Photoshop" : notice.via === "import" ? " depuis l'archive importée" : notice.via === "model" ? " à partir du modèle" : notice.via === "adopt" ? " à partir d'un ancien thème" : ""}. Elle n&apos;est pas encore en ligne : tes visiteurs voient toujours{" "}
-            {mine.live ? `la version ${mine.publishedVersion}` : `« ${liveTheme?.name ?? "le thème en ligne"} »`}.
+            <strong>{t("newVersionTitle", { version: notice.version })}</strong>
+            {t("newVersionBody", { via: notice.via, current: mine.live ? t("currentVersion", { version: mine.publishedVersion ?? "" }) : liveTheme ? t("currentTheme", { name: liveTheme.name }) : t("currentThemeFallback") })}
           </p>
           <p className="a-card-actions">
-            <PreviewButton id={mine.id} small label="Prévisualiser" testId="notice-preview" />
+            <PreviewButton id={mine.id} small label={t("preview")} testId="notice-preview" />
             <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme: mine.theme, mine: true })} data-testid="notice-publish">
-              Publier cette version
+              {t("publishVersion")}
             </button>
             <Link className="a-btn a-btn-small a-btn-quiet" href="/admin/themes">
-              Plus tard
+              {t("later")}
             </Link>
           </p>
         </div>
@@ -312,35 +317,35 @@ export default function ThemeList({
         <div className="a-notice a-theme-preparing" role="status" data-testid="theme-preparing-banner">
           {previewVersion ? (
             <p>
-              Tu regardes la <strong>version {previewVersion}</strong> de <strong>{mine?.name ?? "Mon thème"}</strong> : elle n&apos;est pas en ligne.
+              {t.rich("prepVersion", { version: previewVersion ?? "", name: mine?.name ?? t("mineTitle"), b: (c) => <strong>{c}</strong> })}
             </p>
           ) : previewsMineDraft ? (
             <p>
-              Tu prépares la <strong>version {mine?.version}</strong> de <strong>{mine?.name}</strong> (brouillon) : elle n&apos;est pas encore en ligne.
+              {t.rich("prepDraft", { version: mine?.version ?? "", name: mine?.name ?? "", b: (c) => <strong>{c}</strong> })}
             </p>
           ) : (
             <p>
-              Tu prépares le thème <strong>{preparing.name}</strong> : il n&apos;est pas encore en ligne.
+              {t.rich("prepTheme", { name: preparing.name, b: (c) => <strong>{c}</strong> })}
             </p>
           )}
           <p className="a-card-actions">
             {previewsMineDraft && mine && (
               <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme: mine.theme, mine: true })}>
-                Publier cette version
+                {t("publishVersion")}
               </button>
             )}
             {previewTheme && !previewTheme.preset && (
               <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme: previewTheme, mine: false })}>
-                Mettre en ligne
+                {t("goLive")}
               </button>
             )}
             {previewTheme?.preset && (
               <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => chooseModel(previewTheme)} disabled={busy}>
-                Utiliser ce modèle
+                {t("useModel")}
               </button>
             )}
             <button type="button" className="a-btn a-btn-small" onClick={() => void stopPreview(() => router.refresh())} data-testid="theme-stop-preview">
-              Arrêter l&apos;aperçu
+              {t("stopPreview")}
             </button>
           </p>
         </div>
@@ -348,20 +353,20 @@ export default function ThemeList({
       {hasCustom && (
         <div className="a-notice" role="note" data-testid="custom-colors-notice">
           <p>
-            <strong>Couleurs personnalisées du site</strong> : {customNames.join(", ").toLowerCase()}. Elles restent appliquées par-dessus le thème en ligne, quel que soit le thème.
+            {t.rich("customColors", { names: customNames.join(", ").toLowerCase(), b: (c) => <strong>{c}</strong> })}
           </p>
           <p className="a-card-actions">
             <button type="button" className="a-btn a-btn-small" onClick={resetColors} disabled={busy} data-testid="custom-colors-reset">
-              Revenir aux couleurs du thème
+              {t("resetToTheme")}
             </button>
           </p>
         </div>
       )}
       {previous && (
         <p className="a-help" data-testid="theme-previous">
-          Thème précédent : <strong>{previous.name}</strong>{" "}
+          {t.rich("previousTheme", { name: previous.name, b: (c) => <strong>{c}</strong> })}{" "}
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => revert(previous)} disabled={busy} data-testid="theme-revert">
-            Revenir au thème précédent
+            {t("revertPrevious")}
           </button>
         </p>
       )}
@@ -369,7 +374,7 @@ export default function ThemeList({
       {/* ---- Mon thème ---- */}
       <section className="a-themes-section" aria-labelledby="themes-mine-title" data-testid="mine-section">
         <h2 id="themes-mine-title" className="a-themes-title">
-          Mon thème
+          {t("mineTitle")}
         </h2>
         {mine ? (
           <section className="a-card a-theme-card a-mine-card" aria-labelledby={`theme-${mine.id}`} data-active={mine.live} data-preparing={previewsMineDraft || undefined} data-testid="mine-card">
@@ -379,53 +384,53 @@ export default function ThemeList({
                 <h2 id={`theme-${mine.id}`}>{mine.name}</h2>
                 {mine.live ? (
                   <span className="a-badge a-badge-live" data-testid="theme-live">
-                    <span aria-hidden="true">●</span> En ligne
+                    <span aria-hidden="true">●</span> {t("live")}
                   </span>
                 ) : (
                   <span className="a-badge" data-testid="mine-draft-badge">
-                    Brouillon
+                    {t("draft")}
                   </span>
                 )}
                 {previewsMineDraft && (
                   <span className="a-badge a-badge-prep a-badge-live" data-testid="theme-preparing">
-                    <span aria-hidden="true">●</span> En travail
+                    <span aria-hidden="true">●</span> {t("working")}
                   </span>
                 )}
               </div>
               <p className="a-mine-meta" data-testid="mine-based-on">
-                {mine.basedOn ? <>basé sur « {mine.basedOn} »</> : "Mon thème à moi"}
+                {mine.basedOn ? t("basedOn", { name: mine.basedOn }) : t("ownTheme")}
               </p>
               <p className="a-mine-meta" data-testid="mine-version">
-                Version {mine.version} · modifiée le {formatWhen(mine.updatedAt)}
+                {t("versionLine", { version: mine.version, when: formatWhen(mine.updatedAt, locale) })}
               </p>
               <p className="a-mine-state" data-testid="mine-state">
                 {mine.live
                   ? mineDiffers
-                    ? `En ligne : v${mine.publishedVersion} · brouillon : v${mine.version}`
-                    : `En ligne : v${mine.publishedVersion}`
+                    ? t("stateLiveDraft", { published: mine.publishedVersion ?? "", version: mine.version })
+                    : t("stateLive", { published: mine.publishedVersion ?? "" })
                   : mine.publishedVersion != null
-                    ? `Pas en ligne · dernière version publiée : v${mine.publishedVersion} · brouillon : v${mine.version}`
-                    : `Pas encore en ligne · brouillon : v${mine.version}`}
+                    ? t("stateOffline", { published: mine.publishedVersion, version: mine.version })
+                    : t("stateNever", { version: mine.version })}
               </p>
               <ThemeSwatches theme={shown(mine.theme)} />
               <div className="a-card-actions">
                 {mineNeedsPublish && (
                   <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme: mine.theme, mine: true })} data-testid="mine-publish">
-                    {mine.live ? "Publier cette version" : "Mettre en ligne cette version"}
+                    {mine.live ? t("publishVersion") : t("goLiveVersion")}
                   </button>
                 )}
                 {mineNeedsPublish && (
                   <button type="button" className="a-btn a-btn-small" disabled={working !== null} onClick={() => void workOn(mine.theme)} data-testid="theme-work">
-                    Travailler au brouillon dessus
+                    {t("workOnDraft")}
                   </button>
                 )}
                 <Link className="a-btn a-btn-small" href={`/admin/themes/${encodeURIComponent(mine.id)}`} data-testid="mine-edit">
-                  Modifier
+                  {t("edit")}
                 </Link>
                 <PreviewButton id={mine.id} small testId="mine-preview" />
                 <KitMenu theme={mine.theme} />
                 <Link className="a-btn a-btn-small" href={`/admin/themes/${encodeURIComponent(mine.id)}/versions`} data-testid="mine-history">
-                  Historique des versions ({mine.versions})
+                  {t("history", { count: mine.versions })}
                 </Link>
                 <MoreMenu theme={mine.theme} />
               </div>
@@ -433,14 +438,13 @@ export default function ThemeList({
           </section>
         ) : (
           <div className="a-card a-mine-empty" data-testid="mine-empty">
-            <h3>Choisis un modèle pour commencer</h3>
+            <h3>{t("emptyTitle")}</h3>
             <p>
-              Tu n&apos;as pas encore de thème à toi. Choisis un modèle ci-dessous : « Utiliser ce modèle » crée <strong>Mon thème</strong>, que tu fais ensuite évoluer
-              (couleurs, kit Photoshop, import…), version après version : tu peux toujours revenir en arrière. Ton site ne change pas tant que tu ne publies pas.
+              {t.rich("emptyBody", { b: (c) => <strong>{c}</strong> })}
             </p>
             {liveTheme && (
               <p className="a-help">
-                En ce moment, ton site utilise le modèle « {liveTheme.name} ».
+                {t("emptyLive", { name: liveTheme.name })}
               </p>
             )}
           </div>
@@ -450,9 +454,9 @@ export default function ThemeList({
       {/* ---- Repartir d'un modèle ---- */}
       <section className="a-themes-section" aria-labelledby="themes-models-title" data-testid="models-section">
         <h2 id="themes-models-title" className="a-themes-title">
-          {mine ? "Repartir d'un modèle" : "Modèles"}
+          {mine ? t("modelsRestart") : t("modelsTitle")}
         </h2>
-        <p className="a-help">Les modèles ne changent jamais : « Utiliser ce modèle » {mine ? "remplace Mon thème par une nouvelle version" : "crée Mon thème"} (tu pourras revenir en arrière).</p>
+        <p className="a-help">{mine ? t("modelsHelpReplace") : t("modelsHelpCreate")}</p>
         <div className="a-grid a-theme-grid">
           {models.map((theme) => {
             const isActive = theme.id === activeId;
@@ -463,28 +467,28 @@ export default function ThemeList({
                   <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
                   {isActive ? (
                     <span className="a-badge a-badge-live" data-testid="theme-live">
-                      <span aria-hidden="true">●</span> En ligne
+                      <span aria-hidden="true">●</span> {t("live")}
                     </span>
                   ) : isPreparing ? (
                     <span className="a-badge a-badge-prep a-badge-live" data-testid="theme-preparing">
-                      <span aria-hidden="true">●</span> En travail
+                      <span aria-hidden="true">●</span> {t("working")}
                     </span>
                   ) : (
-                    <span className="a-tag">Modèle</span>
+                    <span className="a-tag">{t("modelTag")}</span>
                   )}
                 </div>
                 <ThemeThumb theme={shown(theme)} src={thumbs[theme.id]} />
                 <ThemeSwatches theme={shown(theme)} />
-                {hasCustom && <p className="a-help a-theme-custom-note">Avec tes couleurs personnalisées.</p>}
+                {hasCustom && <p className="a-help a-theme-custom-note">{t("customNote")}</p>}
                 <div className="a-card-actions">
                   {!isActive && (
                     <button type="button" className="a-btn a-btn-small" disabled={working !== null} onClick={() => void workOn(theme)} data-testid="theme-work">
-                      Travailler au brouillon dessus
+                      {t("workOnDraft")}
                     </button>
                   )}
                   <PreviewButton id={theme.id} small />
                   <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => chooseModel(theme)} disabled={busy} data-testid="use-model">
-                    Utiliser ce modèle
+                    {t("useModel")}
                   </button>
                   <MoreMenu theme={theme} colorsLink />
                 </div>
@@ -498,10 +502,10 @@ export default function ThemeList({
       {olds.length > 0 && (
         <details className="a-themes-section a-fold a-olds" data-testid="olds-section" open={Boolean(previewTheme && olds.some((o) => o.theme.id === previewTheme.id)) || undefined}>
           <summary>
-            <span className="a-themes-title">Mes anciens thèmes ({olds.length})</span>
+            <span className="a-themes-title">{t("oldsTitle", { count: olds.length })}</span>
           </summary>
           <p className="a-help">
-            Les copies, kits et imports d&apos;avant, gardés tels quels. « En faire mon thème » en fait une nouvelle version de Mon thème ; rien n&apos;est supprimé sans que tu le demandes.
+            {t("oldsHelp")}
           </p>
           <div className="a-grid a-theme-grid">
             {olds.map(({ theme, updatedAt }) => {
@@ -513,28 +517,28 @@ export default function ThemeList({
                     <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
                     {isActive ? (
                       <span className="a-badge a-badge-live" data-testid="theme-live">
-                        <span aria-hidden="true">●</span> En ligne
+                        <span aria-hidden="true">●</span> {t("live")}
                       </span>
                     ) : isPreparing ? (
                       <span className="a-badge a-badge-prep a-badge-live" data-testid="theme-preparing">
-                        <span aria-hidden="true">●</span> En travail
+                        <span aria-hidden="true">●</span> {t("working")}
                       </span>
                     ) : (
-                      <span className="a-tag">Ancien thème</span>
+                      <span className="a-tag">{t("oldTag")}</span>
                     )}
                   </div>
                   <LiveThumb themeRef={theme.id} stamp={updatedAt} theme={shown(theme)} />
                   <ThemeSwatches theme={shown(theme)} />
-                  <p className="a-help">Modifié le {formatWhen(updatedAt)}</p>
+                  <p className="a-help">{t("modifiedOn", { when: formatWhen(updatedAt, locale) })}</p>
                   <div className="a-card-actions">
                     {!isActive && (
                       <button type="button" className="a-btn a-btn-small" disabled={working !== null} onClick={() => void workOn(theme)} data-testid="theme-work">
-                        Travailler au brouillon dessus
+                        {t("workOnDraft")}
                       </button>
                     )}
                     <PreviewButton id={theme.id} small />
                     <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => adopt(theme)} disabled={busy} data-testid="old-adopt">
-                      En faire mon thème (nouvelle version)
+                      {t("adopt")}
                     </button>
                     <MoreMenu theme={theme} onDelete={isActive ? undefined : () => setPending({ kind: "delete", theme })} />
                   </div>
@@ -547,28 +551,28 @@ export default function ThemeList({
 
       <ConfirmDialog
         open={pending?.kind === "activate"}
-        title={pending?.kind === "activate" && pending.mine ? `Publier la version ${mine?.version ?? ""} de « ${pending.theme.name} » ?` : `Mettre en ligne « ${pending?.kind === "activate" ? pending.theme.name : ""} » ?`}
-        confirmLabel={pending?.kind === "activate" && pending.mine ? "Publier" : "Mettre en ligne"}
+        title={pending?.kind === "activate" && pending.mine ? t("activateMineTitle", { version: mine?.version ?? "", name: pending.theme.name }) : t("activateTitle", { name: pending?.kind === "activate" ? pending.theme.name : "" })}
+        confirmLabel={pending?.kind === "activate" && pending.mine ? t("publish") : t("goLive")}
         busy={busy}
         onClose={() => {
           setPending(null);
           setError(null);
           setKeepColors(true);
         }}
-        onConfirm={() => pending?.kind === "activate" && publish(pending.theme, hasCustom && !keepColors, pending.mine ? `« ${pending.theme.name} », version ${mine?.version ?? ""},` : `« ${pending.theme.name} »`)}
-        extra={pending?.kind === "activate" && <PreviewButton id={pending.theme.id} label="Prévisualiser d'abord" />}
+        onConfirm={() => pending?.kind === "activate" && publish(pending.theme, hasCustom && !keepColors, pending.mine)}
+        extra={pending?.kind === "activate" && <PreviewButton id={pending.theme.id} label={t("previewFirst")} />}
       >
         <p className="a-swap" data-testid="activate-swap">
-          <span>{pending?.kind === "activate" && pending.mine && mine?.live ? `En ligne : v${mine.publishedVersion}` : (liveTheme?.name ?? "Aucun thème")}</span>
+          <span>{pending?.kind === "activate" && pending.mine && mine?.live ? t("stateLive", { published: mine.publishedVersion ?? "" }) : (liveTheme?.name ?? t("noTheme"))}</span>
           <span aria-hidden="true">→</span>
-          <strong>{pending?.kind === "activate" && pending.mine ? `${pending.theme.name} : v${mine?.version}` : pending?.kind === "activate" ? pending.theme.name : ""}</strong>
+          <strong>{pending?.kind === "activate" && pending.mine ? t("swapMine", { name: pending.theme.name, version: mine?.version ?? "" }) : pending?.kind === "activate" ? pending.theme.name : ""}</strong>
         </p>
-        <p className="muted">Tous tes visiteurs verront ce thème dès maintenant, sur toutes les pages.</p>
+        <p className="muted">{t("visitorsSee")}</p>
         {pending?.kind === "activate" && pending.mine && mine?.live && mine.published && (
           <ul className="a-da-changes" data-testid="activate-changes">
             {SITE_ROLES.filter((r) => String(pending.theme.tokens.color[r.key]).toLowerCase() !== String(mine.published!.tokens.color[r.key]).toLowerCase()).map((r) => (
               <li key={r.key}>
-                {r.name} : <span className="a-chip" style={{ background: mine.published!.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{mine.published!.tokens.color[r.key]}</span> →{" "}
+                {t("roleChange", { name: r.name })} <span className="a-chip" style={{ background: mine.published!.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{mine.published!.tokens.color[r.key]}</span> →{" "}
                 <span className="a-chip" style={{ background: pending.theme.tokens.color[r.key] }} aria-hidden="true" /> <span className="mono">{pending.theme.tokens.color[r.key]}</span>
               </li>
             ))}
@@ -576,13 +580,13 @@ export default function ThemeList({
         )}
         {hasCustom && (
           <fieldset className="a-fieldset" data-testid="activate-colors">
-            <legend>Tes couleurs personnalisées</legend>
-            <p className="muted">Tes couleurs personnalisées ({customNames.slice(0, 3).join(", ").toLowerCase()}…) restent appliquées par-dessus.</p>
+            <legend>{t("customLegend")}</legend>
+            <p className="muted">{t("customKeep", { names: customNames.slice(0, 3).join(", ").toLowerCase() })}</p>
             <label className="a-check">
-              <input type="radio" name="keep-colors" checked={keepColors} onChange={() => setKeepColors(true)} /> Les garder
+              <input type="radio" name="keep-colors" checked={keepColors} onChange={() => setKeepColors(true)} /> {t("keepThem")}
             </label>
             <label className="a-check">
-              <input type="radio" name="keep-colors" checked={!keepColors} onChange={() => setKeepColors(false)} /> Revenir aux couleurs du nouveau thème
+              <input type="radio" name="keep-colors" checked={!keepColors} onChange={() => setKeepColors(false)} /> {t("useNewColors")}
             </label>
           </fieldset>
         )}
@@ -591,7 +595,7 @@ export default function ThemeList({
             const ignored = accents.filter((a) => accentProblem(a.accent, pending.theme.tokens.color));
             return ignored.length > 0 ? (
               <div className="a-notice">
-                <p>Avec ce thème, la couleur propre des boutons et liens de ces pages serait peu lisible (elle reste appliquée) :</p>
+                <p>{t("accentWarn")}</p>
                 <ul className="a-refs">
                   {ignored.map((a) => (
                     <li key={a.id}>
@@ -607,8 +611,8 @@ export default function ThemeList({
 
       <ConfirmDialog
         open={pending?.kind === "replace"}
-        title={`Remplacer mon thème (version ${mine?.version ?? ""}) par ${pending?.kind === "replace" ? pending.model.name : ""} ?`}
-        confirmLabel="Remplacer"
+        title={t("replaceTitle", { version: mine?.version ?? "", name: pending?.kind === "replace" ? pending.model.name : "" })}
+        confirmLabel={t("replace")}
         busy={busy}
         onClose={() => {
           setPending(null);
@@ -618,22 +622,22 @@ export default function ThemeList({
         extra={
           pending?.kind === "replace" && (
             <button type="button" className="a-btn" onClick={() => replaceWith(pending.model, "second")} disabled={busy} data-testid="replace-second">
-              Créer un second thème
+              {t("createSecond")}
             </button>
           )
         }
       >
-        <p data-testid="replace-text">Tu pourras revenir à la version {mine?.version}.</p>
+        <p data-testid="replace-text">{t("replaceText", { version: mine?.version ?? "" })}</p>
         <p className="muted">
-          « Remplacer » ajoute une nouvelle version à Mon thème (la version {mine?.version} reste dans l&apos;historique). « Créer un second thème » garde Mon thème tel quel et range le modèle dans « Mes anciens thèmes ». Ton site ne change pas tant que tu ne publies pas.
+          {t("replaceHelp", { version: mine?.version ?? "" })}
         </p>
         {error && <p className="a-alert">{error}</p>}
       </ConfirmDialog>
 
       <ConfirmDialog
         open={pending?.kind === "delete"}
-        title={`Supprimer le thème « ${pending?.kind === "delete" ? pending.theme.name : ""} » ?`}
-        confirmLabel="Supprimer"
+        title={t("deleteTitle", { name: pending?.kind === "delete" ? pending.theme.name : "" })}
+        confirmLabel={t("delete")}
         danger
         busy={busy}
         onClose={() => {
@@ -642,8 +646,8 @@ export default function ThemeList({
         }}
         onConfirm={() => pending?.kind === "delete" && remove(pending.theme)}
       >
-        <p className="muted">Ses couleurs et réglages seront perdus. Tes pages et tes œuvres ne changent pas.</p>
-        {pending?.kind === "delete" && pending.theme.id === previewBase && <p className="muted">Tu es en train de le prévisualiser : l&apos;aperçu s&apos;arrête aussi et le site te montre de nouveau le thème en ligne.</p>}
+        <p className="muted">{t("deleteBody")}</p>
+        {pending?.kind === "delete" && pending.theme.id === previewBase && <p className="muted">{t("deletePreviewing")}</p>}
         {error && <p className="a-alert">{error}</p>}
       </ConfirmDialog>
     </>

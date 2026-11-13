@@ -12,6 +12,7 @@
  * Aperçu : faux onglet clair et sombre à la taille réelle (16 px) et agrandi, icône d'écran d'accueil, avertissement si l'image
  * est trop fine pour 16 px. Le serveur calcule l'aperçu avec le thème EN LIGNE.
  */
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -23,27 +24,22 @@ import type { EditorContext } from "@/blocks/editor-types";
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import type { AdminMediaRow } from "@/lib/admin";
 import type { FaviconPreview } from "@/lib/favicon";
-import { COLOR_LABELS, FAVICON_MODES, LETTERS_RE, MONO_COLOR_KEYS, MONO_SHAPES, SHAPE_LABELS, initialsOf, type FaviconInput, type FaviconModeId, type MonoColorKey, type MonoShape } from "@/lib/favicon-spec";
+import { FAVICON_MODES, LETTERS_RE, MONO_COLOR_KEYS, MONO_SHAPES, initialsOf, type FaviconInput, type MonoColorKey, type MonoShape } from "@/lib/favicon-spec";
 
 import { clone, same, toast, useUnsavedGuard } from "./editing";
 
-const MODE_TEXT: Record<FaviconModeId, { title: string; help: string }> = {
-  auto: { title: "Automatique", help: "Ton logo s'il existe, sinon un monogramme : tes initiales, dans la police de tes titres et les couleurs de ton thème. Elle change avec ton thème." },
-  image: { title: "Une de mes images", help: "Une image de ta médiathèque, que tu recadres en carré." },
-  kit: { title: "Kit Photoshop", help: "Tu la dessines dans le calque « Icône » du kit Photoshop (groupe « 4 · Icône »). Sans dessin, c'est l'icône automatique." },
-};
-
 function Tab({ tone, s16, s48, name }: { tone: "light" | "dark"; s16: string; s48: string; name: string }) {
+  const t = useTranslations("favicon");
   return (
     <figure className="a-fav-tab" data-tone={tone} data-testid={`fav-tab-${tone}`}>
       <div className="a-fav-tabbar">
-        <img src={s16} width={16} height={16} alt={`Icône à la taille réelle (16 pixels), onglet ${tone === "dark" ? "sombre" : "clair"}`} data-testid={`fav-16-${tone}`} />
+        <img src={s16} width={16} height={16} alt={t(`tabAlt_${tone}`)} data-testid={`fav-16-${tone}`} />
         <span className="a-fav-tabname">{name}</span>
         <span aria-hidden="true">×</span>
       </div>
       <div className="a-fav-zoom">
         <img src={s48} width={96} height={96} alt="" data-testid={`fav-zoom-${tone}`} />
-        <figcaption>{tone === "dark" ? "Onglet sombre" : "Onglet clair"} · réel et agrandi</figcaption>
+        <figcaption>{t(`tabCaption_${tone}`)}</figcaption>
       </div>
     </figure>
   );
@@ -68,6 +64,7 @@ export default function FaviconSetting({
   kitHref?: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("favicon");
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(() => clone(initial));
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +121,7 @@ export default function FaviconSetting({
       }
       setError(null);
       setSaved(clone(value));
-      toast("Icône enregistrée · visible sur tout le site");
+      toast(t("saved"));
       setTimeout(() => router.refresh(), 0);
     });
 
@@ -137,8 +134,8 @@ export default function FaviconSetting({
           type="button"
           role="radio"
           aria-checked={value.mono[field] === k}
-          aria-label={COLOR_LABELS[k]}
-          title={COLOR_LABELS[k]}
+          aria-label={t(`color_${k}`)}
+          title={t(`color_${k}`)}
           data-color={k}
           className="a-fav-swatch"
           style={{ background: colors[k] }}
@@ -151,14 +148,14 @@ export default function FaviconSetting({
   return (
     <div className="a-fav" data-testid="favicon-setting" data-scope={scope}>
       <fieldset className="a-fieldset a-fav-modes" data-testid="fav-modes">
-        <legend>Comment choisir l&apos;icône</legend>
-        <p className="a-help">La petite image à côté du nom du site dans l&apos;onglet du navigateur, et sur l&apos;écran d&apos;accueil d&apos;un téléphone.</p>
+        <legend>{t("howTitle")}</legend>
+        <p className="a-help">{t("howHelp")}</p>
         {FAVICON_MODES.map((m) => (
           <label key={m} className="a-logo-choice">
             <input type="radio" name={id("mode")} checked={value.mode === m} onChange={() => set({ mode: m })} data-testid={`fav-mode-${m}`} />
             <span>
-              <strong>{MODE_TEXT[m].title}</strong>
-              <small>{MODE_TEXT[m].help}</small>
+              <strong>{t(`mode_${m}_title`)}</strong>
+              <small>{t(`mode_${m}_help`)}</small>
             </span>
           </label>
         ))}
@@ -167,8 +164,8 @@ export default function FaviconSetting({
       {value.mode === "image" && (
         <div className="a-fav-image" data-testid="fav-image">
           <MediaPicker
-            label="Image de l'icône"
-            help="Une image carrée donne le meilleur résultat. Sinon, tu choisis la partie à garder."
+            label={t("imageLabel")}
+            help={t("imageHelp")}
             value={value.mediaId ?? undefined}
             onChange={(v) => set({ mediaId: v ?? null, crop: null })}
             error={error && !value.mediaId ? error : undefined}
@@ -176,25 +173,25 @@ export default function FaviconSetting({
           />
           {chosen?.preview && chosen.width && chosen.height && (
             <button type="button" className="a-btn a-btn-small" onClick={() => setCropping(true)} data-testid="fav-crop">
-              {value.crop ? "Changer le cadrage…" : "Cadrer en carré…"}
+              {value.crop ? t("cropChange") : t("cropSquare")}
             </button>
           )}
-          {value.crop && <span className="a-help">Cadrage choisi.</span>}
+          {value.crop && <span className="a-help">{t("cropChosen")}</span>}
         </div>
       )}
       {value.mode === "kit" && kitHref && (
         <p className="a-help">
           <Link href={kitHref} className="a-btn a-btn-quiet" data-testid="fav-kit-link">
-            Ouvrir le kit Photoshop
+            {t("openKit")}
           </Link>
         </p>
       )}
 
       {showMono && (
         <div className="a-fav-mono" data-testid="fav-mono">
-          <p className="a-card-label">Monogramme (quand il n&apos;y a pas de logo)</p>
+          <p className="a-card-label">{t("monoTitle")}</p>
           <label className="a-fav-letters">
-            <span>Lettres (2 ou 3)</span>
+            <span>{t("letters")}</span>
             <input
               className="a-input"
               value={value.mono.letters ?? ""}
@@ -204,42 +201,42 @@ export default function FaviconSetting({
               onChange={(e) => setMono({ letters: e.target.value.trim() === "" ? null : e.target.value.trim().toLocaleUpperCase("fr") })}
               data-testid="fav-letters"
             />
-            <small className="a-help">{lettersOk ? "Vide : les initiales de ton nom." : "Écris 2 ou 3 lettres."}</small>
+            <small className="a-help">{lettersOk ? t("lettersEmpty") : t("lettersInvalid")}</small>
           </label>
-          <div role="radiogroup" aria-label="Forme" className="a-fav-shapes" data-testid="fav-shape">
+          <div role="radiogroup" aria-label={t("shape")} className="a-fav-shapes" data-testid="fav-shape">
             {MONO_SHAPES.map((s: MonoShape) => (
               <label key={s} className="a-logo-choice">
                 <input type="radio" name={id("shape")} checked={value.mono.shape === s} onChange={() => setMono({ shape: s })} data-testid={`fav-shape-${s}`} />
-                <span>{SHAPE_LABELS[s]}</span>
+                <span>{t(`shape_${s}`)}</span>
               </label>
             ))}
           </div>
           <div className="a-fav-colors">
             <div>
-              <span className="a-card-label">Couleur du fond</span>
-              {swatches("bg", "Couleur du fond")}
+              <span className="a-card-label">{t("colorBg")}</span>
+              {swatches("bg", t("colorBg"))}
             </div>
             <div>
-              <span className="a-card-label">Couleur des lettres</span>
-              {swatches("ink", "Couleur des lettres")}
+              <span className="a-card-label">{t("colorInk")}</span>
+              {swatches("ink", t("colorInk"))}
             </div>
           </div>
         </div>
       )}
 
       <div className="a-fav-preview" data-testid="fav-preview" aria-live="polite">
-        <p className="a-card-label">Voici comment l&apos;icône apparaîtra (avec le thème en ligne)</p>
+        <p className="a-card-label">{t("previewTitle")}</p>
         {preview ? (
           <>
             <div className="a-fav-tabs">
               <Tab tone="light" s16={preview.light.s16} s48={preview.light.s48} name={siteName} />
               <Tab tone="dark" s16={preview.dark.s16} s48={preview.dark.s48} name={siteName} />
               <figure className="a-fav-phone" data-testid="fav-phone">
-                <img src={preview.light.s180} width={60} height={60} alt="Icône sur l'écran d'accueil d'un téléphone" />
+                <img src={preview.light.s180} width={60} height={60} alt={t("phoneAlt")} />
                 <figcaption>{siteName.slice(0, 14)}</figcaption>
               </figure>
             </div>
-            {preview.fallback === "logo-large" && <p className="a-help">Ton logo est trop large pour une si petite icône : c&apos;est le monogramme qui est utilisé.</p>}
+            {preview.fallback === "logo-large" && <p className="a-help">{t("logoTooWide")}</p>}
             {preview.warnings.map((w) => (
               <p key={w} className="ve-alert ve-warnings" role="status" data-testid="fav-warning">
                 {w}
@@ -247,16 +244,16 @@ export default function FaviconSetting({
             ))}
           </>
         ) : (
-          <p className="a-help">{previewError ?? "Aperçu en préparation…"}</p>
+          <p className="a-help">{previewError ?? t("previewPending")}</p>
         )}
       </div>
 
       <div className="a-fav-save">
         <p className="a-fav-state" aria-live="polite">
-          {saving ? "Enregistrement…" : error ? <span className="a-danger-text">{error}</span> : dirty ? "Modifications non enregistrées" : "✓ Enregistré"}
+          {saving ? t("saving") : error ? <span className="a-danger-text">{error}</span> : dirty ? t("unsaved") : t("savedState")}
         </p>
         <button type="button" className="a-btn a-btn-primary" onClick={save} disabled={saving || !dirty || !lettersOk} data-testid="fav-save">
-          {saving ? "Enregistrement…" : "Enregistrer l'icône"}
+          {saving ? t("saving") : t("saveIcon")}
         </button>
       </div>
 

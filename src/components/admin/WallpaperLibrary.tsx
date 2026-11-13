@@ -6,6 +6,7 @@
  * sa tuile et son opacité par défaut, on le supprime. Supprimer un motif utilisé : une boîte qui liste les endroits, puis la corbeille
  * (30 jours, « Annuler » 10 s) ; il quitte le rendu sans rien casser. Un panneau choisit aussi le papier peint par défaut des cartes.
  */
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -33,13 +34,10 @@ const ORIGIN = "papiers-peints";
 const ACCEPTED = /\.(png|webp|avif)$/i;
 /** Plafond d'opacité d'un papier sur une carte (comme le papier du kit : au-delà le texte se lit mal). */
 
-const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
-
 /** Une phrase par endroit : « Page « Accueil » · composant « Texte » ». */
-function labelOf(u: WallpaperUseRow): string {
-  if (u.kind === "cards") return "Cartes du site · papier par défaut";
-  const where = `Page « ${u.pageTitle} »${u.trashed ? " (à la corbeille)" : ""}`;
-  return u.kind === "page" ? `${where} · papier peint de la page` : `${where} · ${u.blockType}`;
+function labelOf(u: WallpaperUseRow, t: (key: string, values?: Record<string, string | number>) => string): string {
+  if (u.kind === "cards") return t("useCards");
+  return t(u.kind === "page" ? "usePage" : "useBlock", { title: u.pageTitle, trashed: u.trashed ? "yes" : "no", block: u.kind === "page" ? "" : u.blockType });
 }
 
 /** Aperçu d'un motif : deux moitiés, fond clair et fond sombre (les motifs sont dessinés sur transparent). */
@@ -57,6 +55,7 @@ function Preview({ src, size, opacity, compact }: { src: string | null; size: nu
 }
 
 function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: number; onChanged: () => void; onDelete: (w: AdminWallpaper) => void }) {
+  const t = useTranslations("wallpapers");
   const [name, setName] = useState(w.name);
   const [size, setSize] = useState(w.size);
   const [opacity, setOpacity] = useState(w.opacity);
@@ -80,21 +79,21 @@ function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: numbe
       setName(w.name);
       return;
     }
-    toast(`Renommé · « ${next} »`);
+    toast(t("renamed", { name: next }));
     onChanged();
   };
 
   return (
     <li className="a-wp-card" data-testid="wallpaper" data-wallpaper-id={w.id} data-status={w.status}>
       <Preview src={w.thumb} size={size} opacity={opacity} />
-      {w.status === "processing" && <p className="a-help">Traitement du fichier…</p>}
-      {w.status === "failed" && <p className="a-help a-danger-text">Le fichier n&apos;a pas pu être traité : supprime ce motif et renvoie le fichier.</p>}
+      {w.status === "processing" && <p className="a-help">{t("processing")}</p>}
+      {w.status === "failed" && <p className="a-help a-danger-text">{t("failed")}</p>}
       <label className="a-field">
-        <span className="a-field-label">Nom</span>
-        <input className="a-input" value={name} maxLength={60} aria-label={`Nom du motif ${w.name}`} data-testid="wallpaper-name" onChange={(e) => setName(e.target.value)} onBlur={() => void rename()} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
+        <span className="a-field-label">{t("name")}</span>
+        <input className="a-input" value={name} maxLength={60} aria-label={t("patternName", { name: w.name })} data-testid="wallpaper-name" onChange={(e) => setName(e.target.value)} onBlur={() => void rename()} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
       </label>
       <label className="a-field">
-        Taille du motif : {size} px
+        {t("size", { size })}
         <input
           type="range"
           min={WALLPAPER_SIZE_MIN}
@@ -109,7 +108,7 @@ function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: numbe
         />
       </label>
       <label className="a-field">
-        Opacité : {Math.round(opacity * 100)} %
+        {t("opacity", { pct: Math.round(opacity * 100) })}
         <input
           type="range"
           min={Math.round(WALLPAPER_OPACITY_MIN * 100)}
@@ -123,18 +122,18 @@ function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: numbe
           }}
         />
       </label>
-      <p className="a-help">Réglages par défaut du motif : chaque endroit où tu le poses peut les remplacer.</p>
+      <p className="a-help">{t("defaultsHelp")}</p>
       {w.opaque && (
         <p className="a-notice" role="status" data-testid="wallpaper-opaque">
-          Ce fichier n&apos;a pas de transparence : il cachera ce qu&apos;il y a derrière lui. Pour un vrai papier peint, exporte-le en PNG ou WebP sur fond transparent.
+          {t("opaque")}
         </p>
       )}
       <div className="a-wp-foot">
         <span className="a-wp-uses" data-testid="wallpaper-uses">
-          {uses ? `Utilisé à ${uses} endroit${uses > 1 ? "s" : ""}` : "Pas encore utilisé"}
+          {uses ? t("usedAt", { count: uses }) : t("notUsed")}
         </span>
         <button type="button" className="a-btn a-btn-small a-btn-quiet a-danger-text" data-testid="wallpaper-delete" onClick={() => onDelete(w)}>
-          Supprimer
+          {t("delete")}
         </button>
       </div>
     </li>
@@ -143,6 +142,7 @@ function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: numbe
 
 /** Papier peint par défaut des cartes du site : « le papier du thème » (comme avant) ou un motif de la bibliothèque. */
 function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; value: CardWallpaper | null; onChanged: () => void }) {
+  const t = useTranslations("wallpapers");
   const [cur, setCur] = useState<CardWallpaper | null>(value);
   // Nouvelle lecture du serveur : on la reprend, sauf si une modification attend encore d'être enregistrée (curseur en cours).
   const sig = JSON.stringify(value);
@@ -172,35 +172,35 @@ function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; val
   const opacity = cur?.opacity ?? entry?.opacity ?? 1;
   return (
     <section className="a-panel" aria-labelledby="wp-cartes" data-testid="wallpaper-cards">
-      <h2 id="wp-cartes">Papier peint des cartes</h2>
+      <h2 id="wp-cartes">{t("cardsTitle")}</h2>
       <p className="a-help">
-        Les cartes des blocs cachent le papier du site. Ici, tu peux y poser un de tes motifs, pour toutes les cartes du site. Une carte peut garder son propre choix (menu « Carte » sur la page).
+        {t("cardsHelp")}
       </p>
-      <div className="a-seg" role="radiogroup" aria-label="Papier peint des cartes">
+      <div className="a-seg" role="radiogroup" aria-label={t("cardsTitle")}>
         <button type="button" role="radio" aria-checked={!cur} data-testid="wallpaper-cards-none" className="a-btn a-btn-small" onClick={() => save(null)}>
-          Comme avant
+          {t("asBefore")}
         </button>
         <button type="button" role="radio" aria-checked={Boolean(cur)} data-testid="wallpaper-cards-on" className="a-btn a-btn-small" disabled={!ready.length} onClick={() => !cur && ready[0] && save({ wallpaper: ready[0].id })}>
-          Un papier peint
+          {t("aWallpaper")}
         </button>
       </div>
       {cur && (
         <>
-          <div className="a-wp-choices" role="radiogroup" aria-label="Motif des cartes">
+          <div className="a-wp-choices" role="radiogroup" aria-label={t("cardsPattern")}>
             {ready.map((w) => (
               <button key={w.id} type="button" role="radio" aria-checked={cur.wallpaper === w.id} className="a-wp-choice" data-wallpaper-id={w.id} title={w.name} onClick={() => save({ wallpaper: w.id })}>
                 <Preview src={w.thumb} size={w.size} opacity={w.opacity} compact />
                 <span className="a-wp-name">{w.name}</span>
               </button>
             ))}
-            {!entry && <p className="a-help">Ce motif n&apos;est plus dans la bibliothèque : les cartes n&apos;en montrent plus. Choisis-en un autre.</p>}
+            {!entry && <p className="a-help">{t("patternGone")}</p>}
           </div>
           <label className="a-field">
-            Taille du motif : {size} px
+            {t("size", { size })}
             <input type="range" min={WALLPAPER_SIZE_MIN} max={WALLPAPER_SIZE_MAX} step={1} value={size} data-testid="wallpaper-cards-size" onChange={(e) => save({ ...cur, size: Number(e.target.value) }, 350)} />
           </label>
           <label className="a-field">
-            Opacité : {Math.round(opacity * 100)} %
+            {t("opacity", { pct: Math.round(opacity * 100) })}
             <input
               type="range"
               min={Math.round(WALLPAPER_OPACITY_MIN * 100)}
@@ -224,6 +224,7 @@ function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; val
 
 export default function WallpaperLibrary({ initial, trashed, counts, cards }: { initial: AdminWallpaper[]; trashed: AdminWallpaper[]; counts: Record<number, number>; cards: CardWallpaper | null }) {
   const router = useRouter();
+  const t = useTranslations("wallpapers");
   const { addFiles, onMediaCreated, items, batches, dismiss } = useUploadQueue();
   const [list, setList] = useState(initial);
   const [seen, setSeen] = useState(initial);
@@ -246,12 +247,12 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
         if (!mine.current.has(item.batchId)) return;
         void createWallpaperAction(media.id).then((r) => {
           if (!r.ok) toast(r.message, "error");
-          else toast(r.data.reused ? `Déjà dans la bibliothèque · « ${r.data.name} »` : `Papier peint ajouté · « ${r.data.name} »`);
+          else toast(r.data.reused ? t("alreadyInLibrary", { name: r.data.name }) : t("added", { name: r.data.name }));
           dismiss(item.key);
           router.refresh();
         });
       }),
-    [onMediaCreated, dismiss, router],
+    [onMediaCreated, dismiss, router, t],
   );
 
   // Fichier encore en traitement : on relit la bibliothèque tant qu'il n'est pas prêt.
@@ -264,7 +265,7 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
 
   const send = (files: File[]) => {
     const ok = files.filter((f) => ACCEPTED.test(f.name) || /^image\/(png|webp|avif)$/.test(f.type));
-    for (const f of files) if (!ok.includes(f)) toast(`« ${f.name} » : un papier peint doit être un PNG ou un WebP (le JPEG n'a pas de transparence).`, "error");
+    for (const f of files) if (!ok.includes(f)) toast(t("badFormat", { name: f.name }), "error");
     if (!ok.length) return;
     mine.current.add(addFiles(ok, { origin: ORIGIN }));
   };
@@ -280,7 +281,7 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
       const r = await trashWallpaperAction(w.id);
       setTarget(null);
       if (!r.ok) return toast(r.message, "error");
-      undoToast(w.name, () => void restoreWallpaperAction(w.id).then((x) => (x.ok ? (toast(`Restauré · « ${w.name} »`), router.refresh()) : toast(x.message, "error"))));
+      undoToast(w.name, () => void restoreWallpaperAction(w.id).then((x) => (x.ok ? (toast(t("restored", { name: w.name })), router.refresh()) : toast(x.message, "error"))));
       router.refresh();
     });
 
@@ -291,7 +292,7 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
   return (
     <div className="a-wp" data-testid="wallpaper-library">
       <section className="a-panel" aria-labelledby="wp-import">
-        <h2 id="wp-import">Importer des motifs</h2>
+        <h2 id="wp-import">{t("importTitle")}</h2>
         <label
           className="a-wp-drop"
           data-over={over || undefined}
@@ -317,18 +318,18 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
               e.target.value = "";
             }}
           />
-          <span>Dépose tes motifs ici, ou choisis-les</span>
-          <small>PNG ou WebP sur fond transparent, autant que tu veux.</small>
+          <span>{t("dropHere")}</span>
+          <small>{t("dropHelp")}</small>
         </label>
         {mineItems.length > 0 && (
-          <ul className="a-wp-queue" aria-label="Envois en cours">
+          <ul className="a-wp-queue" aria-label={t("uploading")}>
             {mineItems.map((i) => (
               <li key={i.key} data-phase={i.phase}>
                 <span>{i.name}</span>
-                <span>{i.phase === "failed" ? (i.message ?? "Échec") : i.phase === "uploading" ? `Envoi ${Math.round(i.progress * 100)} %` : i.phase === "waiting" ? "En attente" : "Ajout…"}</span>
+                <span>{i.phase === "failed" ? (i.message ?? t("phaseFailed")) : i.phase === "uploading" ? t("phaseUploading", { pct: Math.round(i.progress * 100) }) : i.phase === "waiting" ? t("phaseWaiting") : t("phaseAdding")}</span>
                 {i.phase === "failed" && (
                   <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => dismiss(i.key)}>
-                    Retirer
+                    {t("remove")}
                   </button>
                 )}
               </li>
@@ -339,11 +340,11 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
 
       <section aria-labelledby="wp-liste">
         <h2 id="wp-liste" className="a-wp-h">
-          Ma bibliothèque <span className="muted">{list.length}</span>
+          {t("library")} <span className="muted">{list.length}</span>
         </h2>
         {list.length === 0 ? (
           <p className="a-help" data-testid="wallpaper-empty">
-            Aucun papier peint pour l&apos;instant. Importe ton premier motif ci-dessus.
+            {t("empty")}
           </p>
         ) : (
           <ul className="a-wp-grid">
@@ -359,16 +360,16 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
       {trashed.length > 0 && (
         <section className="a-panel" aria-labelledby="wp-corbeille" data-testid="wallpaper-trash">
           <h2 id="wp-corbeille">
-            Corbeille <span className="muted">{trashed.length}</span>
+            {t("trash")} <span className="muted">{trashed.length}</span>
           </h2>
-          <p className="a-help">Restaurable 30 jours, puis supprimé pour de bon. Les endroits qui l&apos;utilisaient retrouvent leur motif à la restauration.</p>
+          <p className="a-help">{t("trashHelp")}</p>
           <ul className="a-wp-trash">
             {trashed.map((w) => (
               <li key={w.id} data-wallpaper-id={w.id}>
                 <Preview src={w.thumb} size={w.size} opacity={w.opacity} compact />
                 <span className="a-wp-trash-name">
                   {w.name}
-                  <small>{w.deletedAt ? `${daysLeft(w.deletedAt)} ${plural(daysLeft(w.deletedAt), "jour restant", "jours restants")}` : ""}</small>
+                  <small>{w.deletedAt ? t("daysLeft", { count: daysLeft(w.deletedAt) }) : ""}</small>
                 </span>
                 <button
                   type="button"
@@ -377,14 +378,14 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
                   onClick={() =>
                     void restoreWallpaperAction(w.id).then((r) => {
                       if (!r.ok) return toast(r.message, "error");
-                      toast(`Restauré · « ${w.name} »`);
+                      toast(t("restored", { name: w.name }));
                       router.refresh();
                     })
                   }
                 >
-                  Restaurer
+                  {t("restore")}
                 </button>
-                <PurgeItem kind="wallpaper" id={w.id} name={w.name} lost="le fichier est effacé ; les endroits qui l'utilisaient perdent leur motif." />
+                <PurgeItem kind="wallpaper" id={w.id} name={w.name} lost={t("purgeLost")} />
               </li>
             ))}
           </ul>
@@ -393,8 +394,8 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
 
       <ConfirmDialog
         open={target !== null}
-        title={target ? `Supprimer le papier peint « ${target.w.name} » ?` : ""}
-        confirmLabel="Mettre à la corbeille"
+        title={target ? t("deleteTitle", { name: target.w.name }) : ""}
+        confirmLabel={t("toTrash")}
         danger
         busy={busy}
         onConfirm={confirmDelete}
@@ -403,17 +404,17 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
         {target && target.uses.length > 0 ? (
           <div data-testid="wallpaper-delete-uses">
             <p>
-              Ce motif est utilisé à {target.uses.length} endroit{target.uses.length > 1 ? "s" : ""} :
+              {t("usedIn", { count: target.uses.length })}
             </p>
             <ul>
               {target.uses.map((u, i) => (
-                <li key={i}>{labelOf(u)}</li>
+                <li key={i}>{labelOf(u, t)}</li>
               ))}
             </ul>
-            <p>Ces endroits perdront leur motif (ils retrouvent leur couleur, ou le papier du site). Tu pourras le restaurer pendant 30 jours depuis la corbeille.</p>
+            <p>{t("deleteLoses")}</p>
           </div>
         ) : (
-          <p>Il ira à la corbeille, restaurable pendant 30 jours.</p>
+          <p>{t("deleteSimple")}</p>
         )}
       </ConfirmDialog>
     </div>

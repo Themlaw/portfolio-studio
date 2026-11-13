@@ -15,6 +15,8 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 /** En-têtes de sécurité communs à toutes les réponses. */
 const SECURITY_HEADERS = [
+  // HTTPS obligatoire pendant un an, sous-domaines compris (ignoré par le navigateur sur une réponse en http : dev, tests).
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -31,6 +33,14 @@ const SECURITY_HEADERS = [
  */
 const LOW_MEM = process.env.LOW_MEM_BUILD === "1";
 
+/**
+ * CSP minimale du site public, compatible avec les pages en cache (ISR) : ni nonce ni hachage, seulement ce qui ne dépend pas
+ * de la page (docs/SECURITE.md §2.8). Seconde ligne de défense pour le jour où un bloc introduirait une injection : pas de
+ * plugin (`object-src`), pas de `<base>` vers un autre site, pas de formulaire envoyé ailleurs. Même suite dans src/proxy.ts
+ * (vignettes de l'écran Thèmes). `script-src` avec hachages viendra plus tard.
+ */
+const PUBLIC_CSP = "object-src 'none'; base-uri 'self'; form-action 'self'";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   env: { PORTFOLIO_VERSION: appVersion },
@@ -44,10 +54,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
       // CSP minimale du site public. /admin reçoit une CSP complète (nonce)
-      // posée par src/proxy.ts ; /media garde la sienne (sandbox).
+      // posée par src/proxy.ts ; /media, /site-icon et /favicon.ico gardent la leur (sandbox).
       {
-        source: "/:path((?!admin(?:/|$)|media/).*)",
-        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }],
+        source: "/:path((?!admin(?:/|$)|media/|site-icon/|favicon\\.ico$).*)",
+        headers: [{ key: "Content-Security-Policy", value: `frame-ancestors 'none'; ${PUBLIC_CSP}` }],
       },
       // Lot 118 : pages du site (HTML et RSC) toujours REVALIDÉES par le navigateur et par tout cache partagé placé devant (Pangolin,
       // Traefik, CDN). Next les annonce `s-maxage=31536000` (un an) parce qu'il compte sur la revalidation à la demande, que ces
@@ -64,11 +74,23 @@ const nextConfig: NextConfig = {
       // cookie) gardent DENY / frame-ancestors 'none'. Règle déclarée en
       // dernier : elle remplace les deux en-têtes ci-dessus.
       {
-        source: "/:path((?!admin(?:/|$)|media/|api/).*)",
+        source: "/:path((?!admin(?:/|$)|media/|api/|site-icon/|favicon\\.ico$).*)",
         has: [{ type: "cookie", key: "__prerender_bypass" }],
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "Content-Security-Policy", value: `frame-ancestors 'self'; ${PUBLIC_CSP}` },
+        ],
+      },
+      // Vignettes de l'écran Thèmes (`/fr?vignette=…`, cadre de même origine). src/proxy.ts pose déjà ces en-têtes sur la réponse ; avec Next
+      // 16.4, le serveur de DÉVELOPPEMENT y rejoue les règles de ce fichier d'après le cookie d'aperçu du NAVIGATEUR (que la vignette n'a pas)
+      // et remettait DENY : vignette bloquée (batterie `themes`, B9). Même cadre « même origine » que ci-dessus, déclaré aussi ici. Un visiteur
+      // qui ajoute `?vignette=` à une adresse publique obtient un cadre de même origine seulement, jamais un cadre depuis un autre site.
+      {
+        source: "/:locale(fr|en)",
+        has: [{ type: "query", key: "vignette" }],
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: `frame-ancestors 'self'; ${PUBLIC_CSP}` },
         ],
       },
     ];
@@ -106,6 +128,9 @@ const nextConfig: NextConfig = {
     isrFlushToDisk: false,
     // forbidden() (403) pour les server actions et routes de l'admin sans session.
     authInterrupts: true,
+    // Corps mis en mémoire par le proxy avant toute route (défaut de Next : 10 Mo par requête, même refusée) : 1 Mo, comme la
+    // limite des server actions (docs/SECURITE.md N1). Les envois de fichiers (/admin/api) sont hors du proxy et lus en flux.
+    proxyClientMaxBodySize: "1mb",
     ...(LOW_MEM ? { cpus: 1, workerThreads: false } : {}),
   },
   images: {

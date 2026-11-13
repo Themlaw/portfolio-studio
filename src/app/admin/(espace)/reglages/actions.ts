@@ -13,9 +13,11 @@ import { getSite } from "@/lib/settings";
 import { getPublishedTheme } from "@/lib/theme";
 import { revalidateSettings, revalidateTheme } from "@/lib/revalidate";
 import { audited } from "@/lib/journal/audit";
+import { adminT } from "@/i18n/admin-msg";
 
 export const saveSettingsAction = audited("saveSettingsAction", async function saveSettingsAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
   const result = saveSettings(input);
   if (result.ok) revalidateSettings();
   return result;
@@ -24,6 +26,7 @@ export const saveSettingsAction = audited("saveSettingsAction", async function s
 /** Partage et moteurs de recherche (lot 52) : description du site, image de partage, icône de l'onglet. */
 export const saveSeoAction = audited("saveSeoAction", async function saveSeoAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
   const result = await saveSeo(input);
   if (result.ok) revalidateSettings();
   return result;
@@ -32,6 +35,7 @@ export const saveSeoAction = audited("saveSeoAction", async function saveSeoActi
 /** Icône de l'onglet (lot 83) : un seul réglage de site, enregistré depuis Réglages ET depuis l'étape « Logo » de l'éditeur de thème. */
 export const saveFaviconAction = audited("saveFaviconAction", async function saveFaviconAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
   const result = await saveFavicon(input);
   if (result.ok) {
     revalidateSettings();
@@ -43,13 +47,14 @@ export const saveFaviconAction = audited("saveFaviconAction", async function sav
 /** Aperçu de l'icône pour un réglage pas encore enregistré (thème en ligne) : onglet clair et sombre, écran d'accueil, avertissements. */
 export async function previewFaviconAction(input: unknown): Promise<ActionResult<FaviconPreview>> {
   await assertAdmin();
+  const t = adminT("actions");
   const parsed = FaviconInputSchema.safeParse(input);
-  if (!parsed.success) return fail("Réglage invalide.");
+  if (!parsed.success) return fail(t("invalidSetting"));
   const { mode, mediaId, mono, crop } = parsed.data;
   const seo = readStoredSeo();
   let favicon = seo.favicon;
   if (mode === "image") {
-    if (mediaId === null) return fail("Choisis d'abord une image de la médiathèque.");
+    if (mediaId === null) return fail(t("chooseImageFirst"));
     const built = await buildFavicons(mediaId, crop);
     if (!built.ok) return fail(built.message);
     favicon = { mediaId, dir: built.dir };
@@ -63,6 +68,7 @@ export async function previewFaviconAction(input: unknown): Promise<ActionResult
 /** Supprime une police téléchargée inutilisée (Réglages → Polices téléchargées). */
 export const deleteFontAction = audited("deleteFontAction", async function deleteFontAction(family: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
+  const t = adminT("actions");
   const result = await deleteFont(family);
   if (!result.ok) return result;
   revalidateSettings();

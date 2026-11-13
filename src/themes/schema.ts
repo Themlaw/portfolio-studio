@@ -266,6 +266,11 @@ export const KitAssetsSchema = z
       .strict()
       .optional(),
     stroke: kitImage.optional(),
+    /** Lot 132 (boiling line) : dessins SUPPLÉMENTAIRES (1 à 5, en plus de celui du kit) alternés à 8 i/s pour le trait, la signature et le cadre. Absent = rendu d'avant. */
+    boil: z
+      .object({ stroke: z.array(kitImage).min(1).max(5).optional(), signature: z.array(kitImage).min(1).max(5).optional(), frame: z.array(kitImage).min(1).max(5).optional() })
+      .strict()
+      .optional(),
     icons: z
       .object({ arrowLeft: kitImage.optional(), arrowRight: kitImage.optional(), close: kitImage.optional(), play: kitImage.optional() })
       .strict()

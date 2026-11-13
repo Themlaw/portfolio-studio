@@ -39,13 +39,16 @@ export function cursorVisibility(rgba: ArrayLike<number>, grounds: string[]): Cu
 }
 
 /** Message d'avertissement si le curseur se perd sur un des fonds, sinon null. */
-export function cursorProblem(rgba: ArrayLike<number>, grounds: { hex: string; label: string }[]): string | null {
+export function cursorProblem(rgba: ArrayLike<number>, grounds: { hex: string; label: string }[], t?: (key: string, values?: Record<string, string | number>) => string): string | null {
   const res = cursorVisibility(
     rgba,
     grounds.map((g) => g.hex),
   );
-  if (res.every((r) => r.opaque === 0)) return "Curseur vide.";
+  if (res.every((r) => r.opaque === 0)) return t ? t("cursorEmpty") : "Curseur vide.";
   const bad = res.map((r, i) => ({ ...r, label: grounds[i].label })).filter((r) => r.visible < CURSOR_MIN_VISIBLE);
   if (!bad.length) return null;
-  return `Curseur presque invisible sur ${bad.map((b) => b.label).join(", ")} (${Math.round(bad[0].visible * 100)} % de ses pixels ressortent à ${CURSOR_PIXEL_CONTRAST}:1) : ajoute un contour clair ou foncé.`;
+  const labels = bad.map((b) => b.label).join(", ");
+  const percent = Math.round(bad[0].visible * 100);
+  if (t) return t("cursorProblem", { labels, percent });
+  return `Curseur presque invisible sur ${labels} (${percent} % de ses pixels ressortent à ${CURSOR_PIXEL_CONTRAST}:1) : ajoute un contour clair ou foncé.`;
 }

@@ -1,0 +1,17 @@
+{
+  "title": "Messages",
+  "intro": "What visitors write to you from a contact form.",
+  "noEmail": "Messages arrive here. Remember to check in.",
+  "newCount": "{count, plural, one {# new message} other {# new messages}}",
+  "full": "Inbox full ({total} messages): new submissions are rejected. Delete some messages to receive new ones.",
+  "summary": "{total, plural, one {{total} message} other {{total} messages}} (kept for a year, {cap} at most).",
+  "empty": "No messages yet. Add a “Contact form” to a page from the editor.",
+  "badgeNew": "New",
+  "onPage": " · page “{page}”",
+  "replyTo": "Reply to {email}",
+  "deletedOne": "Message deleted",
+  "deleteAll": "Delete all",
+  "deleteAllTitle": "Delete all {count} messages?",
+  "deletedMany": "{count, plural, one {# message deleted} other {# messages deleted}}",
+  "irreversible": "This cannot be undone."
+}

@@ -11,18 +11,27 @@ import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
 import { airVariables } from "./backdrop-air";
 import { resolvePalette, type PaletteColors } from "./palette";
 import { applySitePalette, type SitePalette } from "./site-palette";
+import { boilCounts, boilCss } from "@/lib/animation/boil";
 import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
 
-/** Image d'un asset du kit : SVG, ou AVIF + WebP (image-set). Chemins validés par le schéma. */
+/** Image d'un asset du kit : SVG, ou WebP par défaut (repli universel, lisible partout). Chemins validés par le schéma. */
 function kitImage(k: KitImage): string {
+  return k.svg ? `url("${k.svg}")` : `url("${k.webp}")`;
+}
+/** Variante améliorée (AVIF + WebP via image-set) pour les navigateurs qui comprennent `image-set(… type())`. */
+function kitImageSet(k: KitImage): string {
   return k.svg ? `url("${k.svg}")` : `image-set(url("${k.avif}") type("image/avif"), url("${k.webp}") type("image/webp"))`;
 }
 /** Masque (mask-image) : SVG, sinon le WebP (alpha) — image-set n'est pas sûr dans mask-image. */
 function kitMask(k: KitImage): string {
   return `url("${k.svg ?? k.webp}")`;
 }
-/** Lot 99 : le dessin en couleurs d'origine (barre, flèches) : AVIF + WebP en image-set, jamais en masque. */
+/** Lot 99 : le dessin en couleurs d'origine (barre, flèches) : WebP par défaut. */
 function kitColorImage(k: KitImage): string | null {
+  return k.color ? `url("${k.color.webp}")` : null;
+}
+/** Variante améliorée (AVIF + WebP via image-set) du dessin en couleurs. */
+function kitColorImageSet(k: KitImage): string | null {
   return k.color ? `image-set(url("${k.color.avif}") type("image/avif"), url("${k.color.webp}") type("image/webp"))` : null;
 }
 /** Lot 99 : affichage des flèches du kit = la moitié de la case du kit (dessinée en 2×, comme la tuile du papier), en px CSS. */
@@ -59,16 +68,19 @@ export function activeCursors(kit: KitAssets | undefined): { default?: KitCursor
 }
 /* ---- fin Curseurs (lot 4) ---- */
 
-/** Variables des éléments dessinés (aucune si le thème n'en a pas : rendu inchangé). */
-export function kitVariables(kit: KitAssets | undefined): Record<string, string> {
+/** Variables des éléments dessinés (aucune si le thème n'en a pas : rendu inchangé).
+ *  `enhanced` : émet les variantes `image-set(…type("image/avif")…)` pour les navigateurs qui les comprennent. */
+export function kitVariables(kit: KitAssets | undefined, enhanced = false): Record<string, string> {
+  const img = enhanced ? kitImageSet : kitImage;
+  const colorImg = enhanced ? kitColorImageSet : kitColorImage;
   const v: Record<string, string> = {};
   if (!kit) return v;
   if (kit.signature) {
-    v["--t-kit-signature"] = kit.signature.colors ? kitImage(kit.signature) : kitMask(kit.signature);
+    v["--t-kit-signature"] = kit.signature.colors ? img(kit.signature) : kitMask(kit.signature);
     v["--t-kit-signature-ratio"] = `${kit.signature.w} / ${kit.signature.h}`;
   }
   if (kit.paper) {
-    v["--t-kit-paper"] = kitImage(kit.paper.image);
+    v["--t-kit-paper"] = img(kit.paper.image);
     // Tuile dessinée en 2× : affichée à la moitié de sa taille.
     v["--t-kit-paper-size"] = `${Math.round(kit.paper.image.w / 2)}px ${Math.round(kit.paper.image.h / 2)}px`;
     if (kit.paper.overHero !== undefined) v["--t-kit-paper-hero"] = String(kit.paper.overHero);
@@ -76,7 +88,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   }
   if (kit.frame) {
     const [t, r, b, l] = kit.frame.slice;
-    v["--t-kit-frame"] = kitImage(kit.frame.image);
+    v["--t-kit-frame"] = img(kit.frame.image);
     v["--t-kit-frame-slice"] = `${t} ${r} ${b} ${l}`;
     // Épaisseurs (px, sans unité : elles se réduisent proportionnellement sur petit écran, variants.css). `fw*` = ce que le dessin occupe vraiment
     // (épaisseur pleine mesurée, lot 79, sinon la découpe) : c'est la bordure, donc la place que le cadre prend AUTOUR de la photo, au contact de
@@ -95,7 +107,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   }
   if (kit.stroke) {
     v["--t-kit-stroke"] = kitMask(kit.stroke);
-    const color = kitColorImage(kit.stroke);
+    const color = colorImg(kit.stroke);
     if (color) {
       v["--t-kit-stroke-color"] = color;
       // Bouts de la barre : la moitié de la hauteur du dessin (en % de sa largeur, donc quelle que soit la finesse du fichier), pour qu'ils
@@ -103,11 +115,19 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
       v["--t-kit-stroke-cap"] = `${Math.min(49, (50 * kit.stroke.h) / kit.stroke.w).toFixed(3)}%`;
     }
   }
+  // Lot 132 : dessins alternés (boiling line), seulement s'il y en a.
+  const boil = boilCounts(kit);
+  for (const el of ["stroke", "signature", "frame"] as const) {
+    if (!boil[el]) continue;
+    kit.boil![el]!.slice(0, boil[el]).forEach((d, i) => {
+      v[`--t-kit-boil-${el}-${i + 1}`] = el === "frame" || (el === "signature" && kit.signature?.colors) ? img(d) : kitMask(d);
+    });
+  }
   for (const [key, name] of ICONS) {
     const icon = kit.icons?.[key];
     if (!icon) continue;
     v[`--t-kit-icon-${name}`] = kitMask(icon);
-    const color = kitColorImage(icon);
+    const color = colorImg(icon);
     if (color && (key === "arrowLeft" || key === "arrowRight")) {
       v[`--t-kit-icon-${name}-color`] = color;
       v[`--t-kit-icon-${name}-w`] = `${Math.round(icon.w * KIT_ARROW_SCALE)}px`;
@@ -116,10 +136,10 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   }
   for (const [key, name] of VICONS) {
     const icon = kit.vicons?.[key];
-    if (icon) v[`--t-kit-vicon-${name}`] = key === "badge" ? kitImage(icon) : kitMask(icon);
+    if (icon) v[`--t-kit-vicon-${name}`] = key === "badge" ? img(icon) : kitMask(icon);
   }
   if (kit.tape) {
-    v["--t-kit-tape"] = kitImage(kit.tape);
+    v["--t-kit-tape"] = img(kit.tape);
     v["--t-kit-tape-ratio"] = `${kit.tape.w} / ${kit.tape.h}`;
   }
   const cursors = activeCursors(kit);
@@ -134,6 +154,15 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   return v;
 }
 
+/** Variables raster en variante améliorée (image-set AVIF + WebP), seulement celles qui diffèrent de la valeur par défaut — pour le bloc @supports. */
+export function kitVariablesImageSet(kit: KitAssets | undefined): Record<string, string> {
+  const base = kitVariables(kit, false);
+  const enhanced = kitVariables(kit, true);
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(enhanced)) if (enhanced[k] !== base[k]) out[k] = enhanced[k];
+  return out;
+}
+
 /** Attributs des éléments dessinés présents (les règles CSS du kit s'y accrochent). */
 export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string}`, string> {
   const a: Record<`data-${string}`, string> = {};
@@ -146,6 +175,8 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.frame) a["data-kit-frame"] = "";
   if (kit.stroke) a["data-kit-stroke"] = "";
   if (kit.stroke?.color) a["data-kit-stroke-color"] = "";
+  const boiled = Object.keys(boilCounts(kit));
+  if (boiled.length) a["data-kit-boil"] = boiled.join(" ");
   for (const [key, name] of ICONS) {
     if (!kit.icons?.[key]) continue;
     a[`data-kit-icon-${name}`] = "";
@@ -308,7 +339,14 @@ export function themeToCss(theme: Theme): string {
   const decls = Object.entries(themeVariables(theme))
     .map(([k, v]) => `${k}:${v};`)
     .join("");
-  return `:root{color-scheme:${themeScheme(theme)};${decls}}`.replace(/</g, "\\3c ");
+  const supportsVars = kitVariablesImageSet(theme.assets.kit);
+  const supportsDecl = Object.entries(supportsVars)
+    .map(([k, v]) => `${k}:${v};`)
+    .join("");
+  const supportsBlock = supportsDecl
+    ? `@supports (background-image: image-set(url("data:,") type("image/avif"))){:root{${supportsDecl}}}`
+    : "";
+  return `:root{color-scheme:${themeScheme(theme)};${decls}}${supportsBlock}${boilCss(theme.assets.kit)}`.replace(/</g, "\\3c ");
 }
 
 /**

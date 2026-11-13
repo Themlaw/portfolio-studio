@@ -325,7 +325,7 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   neuf en hérite. Sinon, `src/lib/db/writable.ts` arrête le démarrage avec la
   commande de réparation (nom du volume ou chemin du bind lus dans
   `/proc/self/mountinfo`) ; service compose `fix-permissions` (profil `setup`,
-  CAP_CHOWN seule).
+  CAP_CHOWN et CAP_DAC_READ_SEARCH seules, alpine épinglée par digest).
 - Conteneur `--read-only --cap-drop ALL --no-new-privileges --memory 1g` : vidéo
   1080p 20 s convertie (ffmpeg 1000:1000, 11 fils à nice 10, pic 311 Mo, cgroup
   788 Mo, aucun OOM), image traitée, écriture hors `/data` → EROFS.

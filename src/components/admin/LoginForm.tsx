@@ -1,27 +1,28 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
 import { authClient } from "@/lib/auth/client";
 
 /** Messages précis par code d'erreur Better Auth (jamais un message générique). */
-function passwordError(error: { status?: number; code?: string; message?: string }): string {
-  if (error.status === 429) return "Trop de tentatives. Attends une minute avant de réessayer.";
+function passwordError(error: { status?: number; code?: string; message?: string }, t: (key: string) => string): string {
+  if (error.status === 429) return t("tooMany");
   switch (error.code) {
     case "INVALID_EMAIL_OR_PASSWORD":
-      return "Identifiants incorrects.";
+      return t("badCredentials");
     case "INVALID_EMAIL":
-      return "Cette adresse e-mail n'est pas valide.";
+      return t("invalidEmail");
     case "PASSWORD_TOO_SHORT":
-      return "Mot de passe trop court.";
+      return t("passwordTooShort");
     case "EMAIL_PASSWORD_DISABLED":
     case "PASSWORD_DISABLED":
-      return "La connexion par mot de passe est désactivée : utilise Authentik.";
+      return t("passwordDisabled");
     case "ACCOUNT_THROTTLED":
-      return error.message ?? "Trop d'échecs pour ce compte : attends quelques secondes avant de réessayer.";
+      return error.message ?? t("throttled");
     default:
-      return "La connexion a échoué. Réessaie, ou utilise l'autre méthode.";
+      return t("failed");
   }
 }
 
@@ -35,6 +36,7 @@ export default function LoginForm({
   initialError: string | null;
 }) {
   const router = useRouter();
+  const t = useTranslations("login");
   const [error, setError] = useState<string | null>(initialError);
   const [pending, setPending] = useState(false);
   // Avant hydratation, aucun envoi possible : un envoi natif du formulaire
@@ -56,7 +58,7 @@ export default function LoginForm({
     });
     setPending(false);
     if (error) {
-      setError(passwordError(error));
+      setError(passwordError(error, t));
       return;
     }
     router.replace("/admin");
@@ -75,8 +77,8 @@ export default function LoginForm({
       setPending(false);
       setError(
         error.status === 429
-          ? "Trop de tentatives. Attends une minute avant de réessayer."
-          : `Authentik est injoignable pour l'instant (code ${error.status ?? "?"}).`,
+          ? t("tooMany")
+          : t("authentikDown", { code: String(error.status ?? "?") }),
       );
     }
   }
@@ -89,26 +91,26 @@ export default function LoginForm({
       </div>
       {oidc && (
         <button type="button" className="a-btn a-btn-primary a-btn-block" onClick={onAuthentik} disabled={pending || !ready}>
-          Se connecter avec Authentik
+          {t("withAuthentik")}
         </button>
       )}
-      {oidc && password && <div className="a-login-sep">ou</div>}
+      {oidc && password && <div className="a-login-sep">{t("or")}</div>}
       {password && (
         <form method="post" onSubmit={onPassword} noValidate>
           <div className="a-field">
-            <label htmlFor="email">Adresse e-mail</label>
+            <label htmlFor="email">{t("email")}</label>
             <input id="email" name="email" type="email" autoComplete="username" required className="a-input" />
           </div>
           <div className="a-field">
-            <label htmlFor="password">Mot de passe</label>
+            <label htmlFor="password">{t("password")}</label>
             <input id="password" name="password" type="password" autoComplete="current-password" required className="a-input" />
           </div>
           <button type="submit" className={`a-btn a-btn-block ${oidc ? "" : "a-btn-primary"}`} disabled={pending || !ready}>
-            {pending ? "Connexion…" : "Se connecter"}
+            {pending ? t("signingIn") : t("signIn")}
           </button>
         </form>
       )}
-      {!oidc && !password && <p className="a-alert">Aucune méthode de connexion n&apos;est configurée.</p>}
+      {!oidc && !password && <p className="a-alert">{t("noMethod")}</p>}
     </div>
   );
 }

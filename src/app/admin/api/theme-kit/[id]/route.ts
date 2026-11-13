@@ -11,10 +11,12 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 
 import { assertAdmin } from "@/lib/auth/guard";
+import { recordEvent } from "@/lib/journal/audit";
 import { wakeWorker } from "@/lib/jobs/worker";
 import { kitFile, lastKitFailure, loadSavedTheme, kitVersion, requestKitExport } from "@/lib/kit/export-job";
 import { isKitRole, kitParts, openKitPart, readKitMeta } from "@/lib/kit/parts";
 import { isSameOrigin } from "@/lib/preview";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,10 +30,11 @@ const validId = (id: string) => /^[a-z0-9-]{1,80}$/.test(id);
 
 export async function POST(request: Request, { params }: Params) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return json(403, { ok: false, message: t("originRefusedDot") });
   const { id } = await params;
   const theme = validId(id) ? loadSavedTheme(id) : null;
-  if (!theme) return json(404, { ok: false, message: "Ce thème n'existe plus." });
+  if (!theme) return json(404, { ok: false, message: t("themeNoLongerExists") });
   const state = await requestKitExport(theme, wakeWorker);
   if (state.ready) {
     const zip = kitFile(theme.id, state.version);
@@ -43,18 +46,21 @@ export async function POST(request: Request, { params }: Params) {
 }
 
 export async function GET(request: Request, { params }: Params) {
-  await assertAdmin();
+  const session = await assertAdmin();
+  const t = adminT("actions");
   const { id } = await params;
   const theme = validId(id) ? loadSavedTheme(id) : null;
-  if (!theme) return json(404, { ok: false, message: "Ce thème n'existe plus." });
+  if (!theme) return json(404, { ok: false, message: t("themeNoLongerExists") });
   const file = kitFile(theme.id, kitVersion(theme));
   // Lot 122 : une seule partie du kit (le .psd de l'archive).
   const part = new URL(request.url).searchParams.get("part");
   if (part !== null) {
-    if (!isKitRole(part)) return json(400, { ok: false, message: "Partie du kit inconnue." });
+    if (!isKitRole(part)) return json(400, { ok: false, message: t("unknownKitPart") });
     const opened = await openKitPart(file, part).catch(() => null);
-    if (!opened) return json(404, { ok: false, ready: false, message: "Le kit n'est pas encore prêt." });
+    if (!opened) return json(404, { ok: false, ready: false, message: t("kitNotReady") });
     const name = (await kitParts(null)).find((p) => p.role === part)!.file;
+    // #64 : une partie du kit (le .psd tel quel) est un téléchargement comme l'archive : journalisée de la même façon.
+    recordEvent({ action: "download:kit", type: "telechargement", user: session.user.id, result: "ok", label: t("kitPartDownloaded", { part }), target: theme.id });
     return new Response(Readable.toWeb(opened.stream) as ReadableStream, {
       headers: {
         "Content-Type": "image/vnd.adobe.photoshop",
@@ -66,7 +72,8 @@ export async function GET(request: Request, { params }: Params) {
     });
   }
   const info = await stat(file).catch(() => null);
-  if (!info) return json(404, { ok: false, ready: false, message: "Le kit n'est pas encore prêt." });
+  if (!info) return json(404, { ok: false, ready: false, message: t("kitNotReady") });
+  recordEvent({ action: "download:kit", type: "telechargement", user: session.user.id, result: "ok", label: t("photoshopKitDownloaded"), target: theme.id });
   return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
     headers: {
       "Content-Type": "application/zip",

@@ -1,0 +1,14 @@
+{
+  "keys": [
+    "collection",
+    "portrait",
+    "image",
+    "cvPdf",
+    "messages",
+    "rotation",
+    "pageId",
+    "messageN",
+    "imageN",
+    "imageWord"
+  ]
+}

@@ -11,11 +11,40 @@ set -uo pipefail
 
 ID=$1
 shift
-ROOT_TMP=${RUNNER_TEMP:-/tmp}
+# Fichiers créés ici (base de test, pot de cookies de la session admin, journaux) : lisibles par nous seuls.
+umask 077
+# #49 : sans RUNNER_TEMP (poste de dev), jamais /tmp tout entier (un DATA_DIR=/tmp/<n'importe quoi> serait effaçable) : un dossier à nous
+# seuls, par utilisateur, sous TMPDIR (ou /tmp) ; refusé s'il existe déjà sans être à nous ou s'il est un lien (posé d'avance par un tiers).
+if [ -n "${RUNNER_TEMP:-}" ]; then
+  ROOT_TMP=$RUNNER_TEMP
+else
+  ROOT_TMP="${TMPDIR:-/tmp}/e2e-$(id -u)"
+  mkdir -p -m 700 -- "$ROOT_TMP" 2>/dev/null
+  if [ -L "$ROOT_TMP" ] || [ ! -d "$ROOT_TMP" ] || [ ! -O "$ROOT_TMP" ]; then
+    echo "::error::$ROOT_TMP n'est pas un dossier à nous : refus. Définir RUNNER_TEMP vers un dossier jetable." >&2
+    exit 2
+  fi
+  chmod 700 -- "$ROOT_TMP"
+fi
 PORT=${PORT:-3001}
 export BASE="http://localhost:$PORT"
 export DATA_DIR="${DATA_DIR:-$ROOT_TMP/data-$ID}"
 export SHOTS="${SHOTS:-$ROOT_TMP/shots/$ID}"
+# Garde-fou : DATA_DIR est EFFACÉ plus bas (rm -rf). Une valeur héritée du shell (DATA_DIR=./data, la base de dev ;
+# /data…) ne doit jamais l'être : seul un dossier strictement SOUS $ROOT_TMP est accepté (chemin résolu : ni « .. »,
+# ni lien qui sortirait). Même règle pour SHOTS, créé ici.
+under_root_tmp() {
+  local root real
+  root=$(realpath -m -- "$ROOT_TMP") || return 1
+  real=$(realpath -m -- "$1") || return 1
+  [ "$real" != "$root" ] && [ "${real#"$root"/}" != "$real" ]
+}
+for var in DATA_DIR SHOTS; do
+  if ! under_root_tmp "${!var}"; then
+    echo "::error::$var=${!var} n'est pas sous $ROOT_TMP (RUNNER_TEMP) : refus (ce script efface DATA_DIR). Lancer sans $var, ou avec un $var sous RUNNER_TEMP." >&2
+    exit 2
+  fi
+done
 export ADMIN_EMAIL="${ADMIN_EMAIL:-ci-admin@example.test}"
 export ADMIN_PASSWORD="${ADMIN_PASSWORD:-ci-mot-de-passe-de-test-42}"
 export BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-ci-secret-0123456789abcdef-0123456789abcdef}"
@@ -31,7 +60,8 @@ mkdir -p "$DATA_DIR"
 
 # Groupe de processus à part (setsid) : npx, next dev et ses workers arrêtés ensemble.
 start_dev() {
-  setsid npx next dev -p "$PORT" >>"$LOGS/$ID-server.log" 2>&1 &
+  # PORTFOLIO_DEV=1 : mode développement explicite (aperçu de thème ouvert, secret de dev ; src/lib/dev-mode.ts).
+  PORTFOLIO_DEV=1 setsid npx next dev -p "$PORT" >>"$LOGS/$ID-server.log" 2>&1 &
   DEV=$!
 }
 # Serveur de production : standalone + ressources que l'image Docker y copie
@@ -44,8 +74,16 @@ start_prod() {
     exec setsid node server.js >>"$LOGS/$ID-server.log" 2>&1) &
   DEV=$!
 }
-stop() { kill -- -"$DEV" 2>/dev/null; wait "$DEV" 2>/dev/null || true; }
-trap stop EXIT
+stop() {
+  [ -n "${DEV:-}" ] || return 0 # aucun serveur lancé (arrêt avant le démarrage)
+  kill -- -"$DEV" 2>/dev/null
+  wait "$DEV" 2>/dev/null || true
+}
+cleanup() {
+  stop
+  [ -n "${JAR_DIR:-}" ] && rm -rf -- "$JAR_DIR"
+}
+trap cleanup EXIT
 
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 180 "$@"; }
 
@@ -105,8 +143,10 @@ echo "prêt en $(($(date +%s) - t0)) s"
 for p in /fr /en /fr/personnages /en/characters /fr/a-propos /admin/connexion; do
   echo "$p → $(code "$BASE$p")"
 done
-# Une session (1 connexion sur les 5/min autorisées) pour compiler l'admin.
-JAR="$ROOT_TMP/jar-$ID"
+# Une session (1 connexion sur les 5/min autorisées) pour compiler l'admin. Pot de cookies dans un dossier
+# au nom imprévisible (mktemp -d, 0700), supprimé à la sortie : il contient un cookie de session valide.
+JAR_DIR=$(mktemp -d "$ROOT_TMP/jar-$ID.XXXXXXXX")
+JAR="$JAR_DIR/cookies"
 curl -s -o /dev/null -c "$JAR" -H "content-type: application/json" -H "origin: $BASE" \
   --data "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$BASE/api/auth/sign-in/email"
 for p in /admin /admin/pages /admin/projets /admin/medias /admin/themes /admin/reglages /admin/messages; do

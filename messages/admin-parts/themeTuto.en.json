@@ -1,0 +1,174 @@
+{
+  "principe": {
+    "title": "The principle",
+    "alt": "Three steps: the Themes page with the download button, the kit's three Photoshop files, then the site with the drawings.",
+    "b1": "You download an archive with three spacious Photoshop files that contain your site as it is today.",
+    "b2": "You redraw whatever you like, BIG: the backdrop, the logo, the icons… The site scales it down on its own.",
+    "b3": "You send back the files you changed: the site takes on your style, after you approve it.",
+    "note_etape1": "1 · Download",
+    "note_etape2": "2 · Draw",
+    "note_etape3": "3 · Send back"
+  },
+  "telecharger": {
+    "title": "Download the kit",
+    "alt": "The admin Themes page, with the “Download the Photoshop kit” button of the live theme circled.",
+    "b1": "In Themes, each theme has its own “Download the Photoshop kit” button.",
+    "b2": "You get a .zip: three .psd files and a LISEZ-MOI.txt (the readme). The kit reproduces the theme as it is saved: its layers, your logo, your drawings already applied.",
+    "b3": "A few seconds of preparation, then the archive lands in your downloads.",
+    "note_telecharger": "Download the kit"
+  },
+  "ouvrir": {
+    "title": "The three files",
+    "alt": "The kit's three files side by side: the home backdrop in large format, the logo with the paper and the line, the icons with the cursors, the frame and the tape. Each has its instructions at the top.",
+    "b1": "1 · Home backdrop: one large frame, free layers. 2 · Logo and paper: what repeats or stretches. 3 · Icons and cursors: the small objects (the frame and the tape too).",
+    "b2": "At the top of each file, a strip of instructions with an example. The cards and the _guides group are locked: don't touch them.",
+    "b3": "You don't have to redraw everything, or send everything back: a missing file stays unchanged.",
+    "note_entete-decor": "File instructions",
+    "note_decor": "1 · Backdrop",
+    "note_logo": "2 · Logo and paper",
+    "note_icones": "3 · Icons and cursors"
+  },
+  "carte": {
+    "title": "Reading a card",
+    "alt": "The logo card: the large box to draw in, its caption with the displayed size, the sentence, the site thumbnail and the instructions.",
+    "b1": "The title gives the element and the size of its box: it is a large box, you have plenty of room.",
+    "b2": "The box outlined in pink is where you draw. The blue dotted lines mark the useful area.",
+    "b3": "Below, the size displayed on the site: the box is really scaled down (here by half).",
+    "b4": "The thumbnail shows in pink where it appears on your site; next to it, what is ignored and “Don't feel like it?”.",
+    "note_titre": "Title and size",
+    "note_zone": "Your box, in large format",
+    "note_legende": "Displayed size",
+    "note_vignette": "Where on the site",
+    "note_consignes": "Instructions"
+  },
+  "paysage": {
+    "title": "1 · Home backdrop",
+    "alt": "The backdrop file in the kit: the instructions strip, then the large frame; below, the home page before and after (a drawn test theme).",
+    "b1": "FREE layers: each top-level layer (or group) becomes a plane. The lowest in the stack is the farthest away.",
+    "b2": "You choose the number of planes (up to 8) and their order: create, delete and move layers as you like. A hidden layer is ignored.",
+    "b3": "The file already contains the current backdrop, split into its planes: start from it, or start from scratch.",
+    "b4": "The background plane can be opaque (a sky); keep the title area (pink frame) calm.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "signature": {
+    "title": "2 · Logo",
+    "alt": "The logo card, then the site header with the name written out, and with a drawn logo.",
+    "b1": "The box (2400 × 600 px) contains your name as the site writes it today.",
+    "b2": "Draw your logo on a transparent background. Colours kept, or a single colour tinted by the Site name: several colours are kept; a single one follows the theme.",
+    "b3": "The site displays it small (about 160 × 40 px to start with, adjustable with “Logo size”): keep thick strokes.",
+    "b4": "It replaces the name at the top left of every page.",
+    "b5": "Don't feel like it? Leave it as is: it is recognised and kept.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "papier": {
+    "title": "2 · Paper",
+    "alt": "The paper card with the tile and the 3 × 3 preview beside it, then a page background without and with the painted tile.",
+    "b1": "A 1024 × 1024 px tile, halved (512 × 512) and repeated on the background of every page.",
+    "b2": "Beside it, the preview of the current tile repeated 3 × 3: the pink dotted lines mark the seams.",
+    "b3": "No visible seam: check with Filter > Other > Offset.",
+    "b4": "A fine, shapeless grain: a pattern would draw a grid. Don't feel like it? Leave it as is: it is recognised and kept.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "trait": {
+    "title": "3 · Line",
+    "alt": "The line card, then the scroll bar under the boards, straight and then drawn.",
+    "b1": "It underlines the menu, separates the sections and serves as the bar under the boards.",
+    "b2": "A single colour, transparent background; 2400 × 160 px box, halved.",
+    "b3": "It is stretched in both directions: keep an even thickness.",
+    "b4": "Don't feel like it? Leave it as is: it is recognised and kept.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "icones": {
+    "title": "Icons (file 3)",
+    "alt": "The icons card (four large boxes), then the “next” arrow of a board on the site (on hover): before, and after with the arrow drawn by the artist.",
+    "b1": "Four 512 × 512 px boxes: the arrows at the edges of the boards, the close cross of the enlarged image, the play button.",
+    "b2": "Draw it BIG: the site scales it down on its own, cleanly.",
+    "b3": "A single colour each, transparent background: the site tints them. The blue dotted lines mark the useful area.",
+    "b4": "Redrawing only one arrow? We offer its mirror image for the other.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "curseur": {
+    "title": "Cursors (file 3)",
+    "alt": "The cursors card in the kit, “Normal” and “Click” boxes; below, the mouse over a link on the site, system arrow then drawn cursor.",
+    "b1": "Two 512 × 512 px boxes: “Normal” everywhere, “Click” on whatever can be clicked. Displayed at 32 × 32 px.",
+    "b2": "The pink “hot spot” circle marks the point that clicks: move it along with your drawing.",
+    "b3": "A light outline and a dark one: your mouse stays visible on every background.",
+    "b4": "You can go back to the system mouse in the theme editor, without losing your drawings.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "cadre": {
+    "title": "Frame of the collection entries (file 3)",
+    "alt": "The frame card with its green lines, then the collection entries on the home page with the current mount and with a drawn frame.",
+    "b1": "It surrounds the large image of each collection (Characters, Backdrops…) on the home page.",
+    "b2": "Option A (recommended): draw ONE complete square frame in the 900 × 900 px box (scaled down to a third). The green lines show the cut: the corners stay as they are, the sides repeat their pattern in a loop, without being stretched, even on a panorama or a tall photo.",
+    "b3": "Option B (advanced): draw only the top-left corner and the top side (orange frames) and leave the rest empty: the site rotates them to make the whole frame.",
+    "b4": "When you send it, the preview shows the frame on a square, a panorama and a portrait before applying. It can also dress your photos: on a photo, choose “Theme frame” in its Frame button, or, in Themes, set “Theme frame on all photos” to Yes.",
+    "b5": "Leave the centre transparent: the image shows there.",
+    "b6": "Don't feel like it? Leave it as is: it is recognised and kept.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "scotch": {
+    "title": "Tape (file 3)",
+    "alt": "The tape card, then a board image without tape and with the drawn tape.",
+    "b1": "The same piece is placed at the top of each board image. 1200 × 480 px box, scaled down to a third.",
+    "b2": "Transparent background; partial transparency (translucent tape) is kept.",
+    "b3": "Once redrawn, it turns on the “tape” variant of the boards in the new version.",
+    "b4": "Don't feel like it? Leave it as is: it is recognised and kept.",
+    "note_carte": "In the kit",
+    "note_avant": "Before",
+    "note_apres": "After"
+  },
+  "regles": {
+    "title": "The golden rules",
+    "alt": "The instructions strip at the top of the backdrop file.",
+    "b1": "Draw BIG in the boxes: the site scales down, not you.",
+    "b2": "Rasterise effects, text and smart objects (Layer > Rasterise).",
+    "b3": "Stay in RGB 8-bit and don't resize the document.",
+    "b4": "Don't rename the numbered groups in files 2 and 3; you can add layers inside them. The backdrop is free.",
+    "b5": "Grain goes in the paper (file 2), not in the backdrop. Colours are chosen in the site editor."
+  },
+  "renvoyer": {
+    "title": "Save and send back",
+    "alt": "A theme's kit screen, with the “Send back the finished kit” area circled.",
+    "b1": "Ctrl+S in Photoshop: PSD format, accept “Maximise compatibility”.",
+    "b2": "In the admin, open the theme then “Send back the finished kit”: the .zip archive, a single .psd, or several .psd files chosen together.",
+    "b3": "You can send only the files you changed; files are recognised by their content, not by their name.",
+    "b4": "The upload resumes on its own after an interruption.",
+    "note_renvoyer": "Send back the finished kit"
+  },
+  "revue": {
+    "title": "The review screen",
+    "alt": "The review screen for the kit sent back by the artist: the summary, an “unchanged” card and the “Right arrow: redrawn” card with before and after.",
+    "b1": "The review is grouped by file; a file that was not sent is shown as “not sent: unchanged”.",
+    "b2": "✓ unchanged: what you didn't touch is kept as is. ✓ redrawn: before / after, the chosen format and its weight.",
+    "b3": "Free backdrop: the number of planes read, and whether their composition changed.",
+    "b4": "⚠ or ✗: a problem, with the reason and how to fix it in Photoshop.",
+    "note_resume": "Summary",
+    "note_inchange": "Unchanged",
+    "note_redessinee": "Redrawn"
+  },
+  "appliquer": {
+    "title": "Apply and publish",
+    "alt": "The “Apply to my theme” panel, with the arrow mirror checkbox.",
+    "b1": "“Apply to my theme” adds a new version to My theme with your drawings (nothing is copied: no more “(kit 2)”).",
+    "b2": "You see it as a preview on your real pages, and you can always go back to the previous version.",
+    "b3": "When it's right: “Publish this version” in Themes.",
+    "b4": "The site never changes without your approval.",
+    "note_miroir": "Suggested mirror",
+    "note_appliquer": "Apply"
+  }
+}

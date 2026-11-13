@@ -16,18 +16,20 @@ import { assertAdmin } from "@/lib/auth/guard";
 import { getDb, schema } from "@/lib/db";
 import { DRAFT_VIEW_COOKIE } from "@/lib/draft-view";
 import { isSameOrigin } from "@/lib/preview";
+import { adminT } from "@/i18n/admin-msg";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   await assertAdmin();
-  if (!isSameOrigin(request)) return new Response("Origine refusée", { status: 403 });
+  const t = adminT("actions");
+  if (!isSameOrigin(request)) return new Response(t("originRefused"), { status: 403 });
   const url = new URL(request.url);
   const id = Number(url.searchParams.get("page"));
   const locale = url.searchParams.get("langue") === "en" ? "en" : "fr";
   const page = Number.isInteger(id) && id > 0 ? getDb().select({ slug: schema.pages.slug }).from(schema.pages).where(eq(schema.pages.id, id)).get() : undefined;
-  if (!page) return new Response("Page inconnue", { status: 404 });
+  if (!page) return new Response(t("unknownPageNoDot"), { status: 404 });
 
   (await draftMode()).enable();
   (await cookies()).set(DRAFT_VIEW_COOKIE, "1", {

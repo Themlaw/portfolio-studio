@@ -8,6 +8,7 @@
  * annoncées (toast + aria-live) ; les textes d'un emplacement se modifient dans
  * le panneau et s'enregistrent avec son bouton.
  */
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -48,16 +49,13 @@ import { MediaPickerDialog } from "./MediaLibrary";
 import { DragHandle, SortableItems } from "./Sortable";
 import Uploader from "./Uploader";
 import { isUploaded, useUploadQueue, type QueueItem } from "./UploadQueue";
-import { ACCEPT, formatSent, hasFiles, useMediaWatch } from "./uploads";
+import { ACCEPT, hasFiles, useMediaWatch, useSizeFormat } from "./uploads";
 import AltMissing from "./AltMissing";
 import { formatDuration, isLoop } from "@/lib/video/limits";
 
 const STRIP_H = 180;
-const COLLECTIONS = [
-  { value: "characters" as const, label: "Personnages" },
-  { value: "backgrounds" as const, label: "Décors" },
-  { value: "animation" as const, label: "Animation" },
-];
+const COLLECTIONS = ["characters", "backgrounds", "animation"] as const;
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 /** Ratio de la place : celui de l'image, sinon celui de la dernière image retirée, sinon 4:3. */
 const ratioOf = (slot: AdminSlot) => (slot.media?.width && slot.media.height ? slot.media.width / slot.media.height : (slot.aspect ?? 4 / 3));
@@ -68,7 +66,7 @@ export function suggestTitle(filename: string): string {
   return base ? base.charAt(0).toLocaleUpperCase("fr-FR") + base.slice(1) : "";
 }
 /** Nom d'une image du projet (lot 67, CONC-13) : son titre, sinon le nom du fichier d'origine ; « Emplacement N » seulement pour une place vide. */
-const slotLabel = (slot: AdminSlot, index: number) => slot.title.fr.trim() || slot.media?.name?.trim() || `Emplacement ${index + 1}`;
+const slotLabel = (slot: AdminSlot, index: number, t: Translate) => slot.title.fr.trim() || slot.media?.name?.trim() || t("slotEmpty", { n: index + 1 });
 
 /* ---- Informations du projet ------------------------------------------------- */
 
@@ -76,6 +74,7 @@ type Meta = Pick<AdminProjectEdit, "title" | "context" | "description" | "year" 
 
 function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; legacyFeatured: { pageId: number; pageTitle: string }[] }) {
   const router = useRouter();
+  const t = useTranslations("projectEditor");
   const initial: Meta = { title: project.title, context: project.context, description: project.description, year: project.year, featured: project.featured };
   const [saved, setSaved] = useState(initial);
   const [meta, setMeta] = useState(() => clone(initial));
@@ -87,18 +86,18 @@ function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; l
   const set = <K extends keyof Meta>(k: K, v: Meta[K]) => setMeta((m) => ({ ...m, [k]: v }));
   return (
     <section className="a-panel" aria-labelledby="pr-infos">
-      <h2 id="pr-infos">Informations</h2>
+      <h2 id="pr-infos">{t("infos")}</h2>
       <div className="a-form-grid">
-        <TextI18n label="Titre" value={meta.title} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
-        <TextI18n label="Contexte" help="Nature du projet et ton rôle (ex. Court métrage · Character design)." value={meta.context} onChange={(v) => set("context", v)} error={errorAt(errors, "context")} />
-        <TextareaI18n label="Description" value={meta.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
+        <TextI18n label={t("title")} value={meta.title} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+        <TextI18n label={t("context")} help={t("contextHelp")} value={meta.context} onChange={(v) => set("context", v)} error={errorAt(errors, "context")} />
+        <TextareaI18n label={t("description")} value={meta.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
         <div>
-          <TextField label="Année ou période" help="Affichée telle quelle (ex. 2023–2024)." value={meta.year} onChange={(v) => set("year", v)} error={errors.year} />
+          <TextField label={t("yearPeriod")} help={t("yearPeriodHelp")} value={meta.year} onChange={(v) => set("year", v)} error={errors.year} />
           {/* Le réglage ne sert qu'à l'ancien bloc « Projets mis en avant » (sans projets choisis) : sans lui, il n'a plus d'effet. */}
           {legacyFeatured.length > 0 && (
             <Toggle
-              label="À la une de l'ancien bloc « Projets mis en avant »"
-              help={`Cet ancien bloc, encore présent sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les blocs « Projet » n'en tiennent pas compte.`}
+              label={t("legacyFeatured")}
+              help={t("legacyFeaturedHelp", { pages: legacyFeatured.map((p) => t("quotedName", { name: p.pageTitle })).join(", ") })}
               checked={meta.featured}
               onChange={(v) => set("featured", v)}
             />
@@ -122,11 +121,11 @@ function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; l
             if (r.data.textsHeld) {
               // Les textes sont tenus par une page : seul le réglage « à la une » est enregistré, les textes restent à enregistrer.
               setSaved((s) => ({ ...s, featured: meta.featured }));
-              setError(`Les textes n'ont pas été enregistrés. ${r.data.textsHeld}`);
-              toast("Textes non enregistrés", "error");
+              setError(t("textsNotSaved", { detail: r.data.textsHeld }));
+              toast(t("textsNotSavedToast"), "error");
             } else {
               setSaved(clone(meta));
-              toast("Projet enregistré");
+              toast(t("projectSaved"));
             }
             setTimeout(() => router.refresh(), 0);
           })
@@ -168,9 +167,10 @@ function SlotTile({
   onFiles: (files: File[]) => void;
   onLibrary: () => void;
 }) {
+  const t = useTranslations("projectEditor");
   const [over, setOver] = useState(false);
   const media = slot.media;
-  const label = slotLabel(slot, index);
+  const label = slotLabel(slot, index, t);
   const dropProps = {
     onDragOver: (e: React.DragEvent) => {
       if (!hasFiles(e.dataTransfer)) return;
@@ -192,13 +192,13 @@ function SlotTile({
       <div className="a-slot a-slot-empty" data-slot={slot.id} data-found={match === "found" || undefined} data-dim={match === "dim" || undefined} data-over={over || hint === "fill" || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
         <div className="a-slot-bar">
           <DragHandle />
-          <button type="button" className="a-slot-open" onClick={onOpen} aria-label={`Modifier ${label} (vide)`}>
+          <button type="button" className="a-slot-open" onClick={onOpen} aria-label={t("editEmpty", { label })}>
             {label}
           </button>
         </div>
-        <p>Dépose une image ici, ou glisses-en une de la Bibliothèque</p>
+        <p>{t("dropHere")}</p>
         <button type="button" className="a-btn a-btn-small" onClick={onLibrary}>
-          Choisir dans la médiathèque
+          {t("pickFromLibrary")}
         </button>
       </div>
     );
@@ -206,7 +206,7 @@ function SlotTile({
   const src = media.thumb ?? preview;
   return (
     <div className="a-slot" data-slot={slot.id} data-found={match === "found" || undefined} data-dim={match === "dim" || undefined} data-status={media.status} data-over={over || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
-      <button type="button" className="a-slot-image" onClick={onOpen} aria-label={`Modifier ${label}`} style={media.color ? { backgroundColor: media.color } : undefined}>
+      <button type="button" className="a-slot-image" onClick={onOpen} aria-label={t("edit", { label })} style={media.color ? { backgroundColor: media.color } : undefined}>
         {src && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt="" />
@@ -215,20 +215,20 @@ function SlotTile({
           <span className="a-duration-badge">
             <span aria-hidden="true">▶ </span>
             {formatDuration(media.duration)}
-            {isLoop(media) && " · boucle"}
+            {isLoop(media) && ` · ${t("loop")}`}
           </span>
         )}
         {media.status !== "ready" && (
           <span className="a-slot-overlay">
             {media.status === "processing" ? (
               <>
-                <span>{media.kind === "video" ? (media.progress ? `Conversion… ${media.progress} %` : "Conversion en attente…") : "Traitement…"}</span>
+                <span>{media.kind === "video" ? (media.progress ? t("converting", { progress: media.progress }) : t("conversionWaiting")) : t("processing")}</span>
                 <span className="a-progress" aria-hidden="true">
                   <span data-indeterminate style={{ width: "100%" }} />
                 </span>
               </>
             ) : (
-              <span>Échec : remplace l&apos;image</span>
+              <span>{t("failedReplace")}</span>
             )}
           </span>
         )}
@@ -243,6 +243,8 @@ function SlotTile({
 }
 
 function PendingTile({ item }: { item: QueueItem }) {
+  const t = useTranslations("projectEditor");
+  const { formatSent } = useSizeFormat();
   return (
     <li className="a-sortable-item" style={{ width: Math.round(STRIP_H * item.ratio) }}>
       <div className="a-slot" data-status={item.phase === "failed" ? "failed" : "processing"}>
@@ -258,14 +260,14 @@ function PendingTile({ item }: { item: QueueItem }) {
               <>
                 <span>
                   {item.phase === "waiting"
-                    ? "En attente"
+                    ? t("waiting")
                     : item.phase === "uploading"
                       ? item.size > 8 * 1024 * 1024
-                        ? `Envoi ${formatSent(item.sent, item.size)}`
-                        : `Envoi ${Math.round(item.progress * 100)} %`
+                        ? t("sending", { amount: formatSent(item.sent, item.size) })
+                        : t("sendingPercent", { percent: Math.round(item.progress * 100) })
                       : item.video
-                        ? "Conversion…"
-                        : "Traitement…"}
+                        ? t("conversion")
+                        : t("processing")}
                 </span>
                 <span className="a-progress" aria-hidden="true">
                   <span style={{ width: item.phase === "uploading" ? `${Math.round(item.progress * 100)}%` : "100%" }} data-indeterminate={item.phase !== "uploading" || undefined} />
@@ -300,6 +302,7 @@ function SlotPanel({
   onLibrary: () => void;
 }) {
   const router = useRouter();
+  const t = useTranslations("projectEditor");
   const initial: SlotForm = {
     title: slot.title,
     description: slot.description,
@@ -316,7 +319,9 @@ function SlotPanel({
   const dirty = !same(form, saved);
   useUnsavedGuard(dirty);
   const fileId = useId();
-  const label = slotLabel(slot, index);
+  const label = slotLabel(slot, index, t);
+  const collections = COLLECTIONS.map((value) => ({ value, label: t(`collection_${value}`) }));
+  const collectionLabel = collections.find((c) => c.value === form.collection)?.label ?? form.collection;
   const set = <K extends keyof SlotForm>(k: K, v: SlotForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = () =>
@@ -333,7 +338,7 @@ function SlotPanel({
       }
       setErrors({});
       setSaved(clone(form));
-      toast("Emplacement enregistré");
+      toast(t("slotSaved"));
       setTimeout(() => router.refresh(), 0);
     });
 
@@ -341,14 +346,14 @@ function SlotPanel({
     <aside className="a-sidepanel a-slot-panel" aria-labelledby="sp-title">
       <div className="a-sidepanel-head">
         <h2 id="sp-title">{label}</h2>
-        <button type="button" className="a-icon-btn" aria-label="Fermer le panneau" onClick={onClose}>
+        <button type="button" className="a-icon-btn" aria-label={t("closePanel")} onClick={onClose}>
           ✕
         </button>
       </div>
       {slot.media?.status === "failed" && <p className="a-alert">{slot.media.error}</p>}
       <TextI18n
-        label="Titre"
-        help="Sous l'image et dans la visionneuse. Sans titre, seule l'année s'affiche."
+        label={t("title")}
+        help={t("slotTitleHelp")}
         value={form.title}
         onChange={(v) => set("title", v)}
         error={errorAt(errors, "title")}
@@ -356,63 +361,63 @@ function SlotPanel({
       {!form.title.fr.trim() && slot.media && suggestTitle(slot.media.name) && (
         <p className="a-suggest">
           <button type="button" className="a-btn a-btn-small" onClick={() => set("title", { fr: suggestTitle(slot.media!.name), en: form.title.en || suggestTitle(slot.media!.name) })}>
-            Titre suggéré : {suggestTitle(slot.media.name)}
+            {t("suggestedTitle", { title: suggestTitle(slot.media.name) })}
           </button>
         </p>
       )}
-      <TextareaI18n label="Description" value={form.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
+      <TextareaI18n label={t("description")} value={form.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
       <div className="a-form-grid">
         <Select
-          label="Collection"
-          help="Le rayon où cette image est rangée : elle apparaît dans la page de cette collection, et la tuile de l'accueil la compte."
+          label={t("collection")}
+          help={t("collectionHelp")}
           value={form.collection}
-          options={COLLECTIONS}
+          options={collections}
           onChange={(v) => v && set("collection", v)}
           error={errors.collection}
         />
-        <Field label="Année" error={errors.year} htmlFor={`${fileId}-year`}>
+        <Field label={t("year")} error={errors.year} htmlFor={`${fileId}-year`}>
           <input id={`${fileId}-year`} className="a-input" type="number" min={1900} max={2200} value={form.year} onChange={(e) => set("year", Number(e.target.value))} />
         </Field>
       </div>
       <Toggle
-        label={`Couverture de « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} »`}
-        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (bloc « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
+        label={t("coverOf", { name: collectionLabel })}
+        help={t("coverHelp", { name: collectionLabel })}
         checked={form.featured}
         onChange={(v) => set("featured", v)}
       />
       {slot.media && (
         <>
           <TextI18n
-            label="Description de l'image (pour les personnes malvoyantes et Google)"
-            help="Décris ce qu'on voit, en une phrase. Commun à tous les emplacements qui montrent cette image."
+            label={t("altLabel")}
+            help={t("altHelp")}
             value={form.alt}
             onChange={(v) => set("alt", v)}
             error={errorAt(errors, "alt")}
           />
-          {!form.alt.fr.trim() && <p className="a-notice">Description manquante : le titre sera lu à la place.</p>}
+          {!form.alt.fr.trim() && <p className="a-notice">{t("altMissing")}</p>}
         </>
       )}
       <div className="a-panel-actions">
         <span className="a-save-state" aria-live="polite">
           {dirty ? (
             <>
-              <span className="a-dot" aria-hidden="true" /> Non enregistré
+              <span className="a-dot" aria-hidden="true" /> {t("unsaved")}
             </>
           ) : (
             <>
-              <span aria-hidden="true">✓</span> Enregistré
+              <span aria-hidden="true">✓</span> {t("saved")}
             </>
           )}
         </span>
         <button type="button" className="a-btn a-btn-primary" disabled={!dirty || busy} onClick={save}>
-          Enregistrer
+          {t("save")}
         </button>
       </div>
 
-      <h3 className="a-subhead">Image</h3>
+      <h3 className="a-subhead">{t("image")}</h3>
       <div className="a-panel-buttons">
         <label htmlFor={fileId} className="a-btn a-file-btn">
-          {slot.media ? "Remplacer l'image" : "Envoyer une image"}
+          {slot.media ? t("replaceImage") : t("sendImage")}
         </label>
         <input
           id={fileId}
@@ -426,24 +431,24 @@ function SlotPanel({
           }}
         />
         <button type="button" className="a-btn" onClick={onLibrary}>
-          Choisir dans la médiathèque
+          {t("pickFromLibrary")}
         </button>
         {slot.media && (
           <button type="button" className="a-btn a-btn-quiet a-danger-text" onClick={() => setConfirm("remove")}>
-            Retirer l&apos;image
+            {t("removeImage")}
           </button>
         )}
       </div>
       <div className="a-panel-danger">
         <button type="button" className="a-btn a-btn-quiet a-danger-text" onClick={() => setConfirm("delete")}>
-          Supprimer l&apos;emplacement
+          {t("deleteSlot")}
         </button>
       </div>
 
       <ConfirmDialog
         open={confirm === "remove"}
-        title={`Retirer l'image de « ${label} » ?`}
-        confirmLabel="Retirer l'image"
+        title={t("removeTitle", { label })}
+        confirmLabel={t("removeImage")}
         danger
         busy={busy}
         onClose={() => setConfirm(null)}
@@ -452,17 +457,17 @@ function SlotPanel({
             const r = await setSlotMediaAction(slot.id, null);
             if (!r.ok) return toast(r.message, "error");
             setConfirm(null);
-            toast("Image retirée · l'emplacement garde sa place");
+            toast(t("imageRemoved"));
             setTimeout(() => router.refresh(), 0);
           })
         }
       >
-        <p className="muted">L&apos;emplacement reste sur le projet, vide (invisible sur le site). L&apos;image reste dans la médiathèque.</p>
+        <p className="muted">{t("removeBody")}</p>
       </ConfirmDialog>
       <ConfirmDialog
         open={confirm === "delete"}
-        title={`Supprimer l'emplacement « ${label} » ?`}
-        confirmLabel="Supprimer l'emplacement"
+        title={t("deleteTitle", { label })}
+        confirmLabel={t("deleteSlot")}
         danger
         busy={busy}
         onClose={() => setConfirm(null)}
@@ -471,13 +476,13 @@ function SlotPanel({
             const r = await deleteSlotAction(slot.id);
             if (!r.ok) return toast(r.message, "error");
             setConfirm(null);
-            toast("Emplacement supprimé");
+            toast(t("slotDeleted"));
             onClose();
             setTimeout(() => router.refresh(), 0);
           })
         }
       >
-        <p className="muted">Son titre et sa description sont perdus. L&apos;image reste dans la médiathèque.</p>
+        <p className="muted">{t("deleteBody")}</p>
       </ConfirmDialog>
     </aside>
   );
@@ -487,12 +492,13 @@ function SlotPanel({
 
 /** Fin de la bande : cible de dépôt (Bibliothèque) et ajout de fichiers. */
 function StripEnd({ fileId, onFiles, onPicker, active }: { fileId: string; onFiles: (files: File[]) => void; onPicker: () => void; active: boolean }) {
+  const t = useTranslations("projectEditor");
   const { setNodeRef } = useDroppable({ id: "strip-end" });
   return (
     <li ref={setNodeRef} className="a-strip-end" data-drop={active ? "before" : undefined}>
       <label htmlFor={fileId} className="a-strip-add">
         <span aria-hidden="true">+</span>
-        Ajouter des images ou vidéos
+        {t("addMedia")}
       </label>
       <input
         id={fileId}
@@ -507,7 +513,7 @@ function StripEnd({ fileId, onFiles, onPicker, active }: { fileId: string; onFil
         }}
       />
       <button type="button" className="a-btn a-btn-small" onClick={onPicker}>
-        Depuis la médiathèque
+        {t("fromLibrary")}
       </button>
     </li>
   );
@@ -522,6 +528,7 @@ const axis: Modifier = (args) => (args.active && isLib(args.active.id) ? args.tr
 
 export default function ProjectEditor({ project, library, legacyFeatured }: { project: AdminProjectEdit; library: AdminMediaRow[]; legacyFeatured: { pageId: number; pageTitle: string }[] }) {
   const router = useRouter();
+  const t = useTranslations("projectEditor");
   const queue = useUploadQueue();
   const [slots, setSlots] = useState(project.slots);
   const [source, setSource] = useState(project.slots);
@@ -572,7 +579,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
         toast(r.message, "error");
         return;
       }
-      toast("Ordre des images enregistré");
+      toast(t("orderSaved"));
       refresh();
     });
   };
@@ -583,7 +590,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
   const place = async (media: AdminMediaRow, target: { index: number } | { fill: number }) => {
     const r = "fill" in target ? await setSlotMediaAction(target.fill, media.id) : await addSlotsAction(project.id, [media.id], target.index);
     if (!r.ok) return toast(r.message, "error");
-    toast("fill" in target ? "Média placé dans l'emplacement" : `Média placé en position ${target.index + 1}`);
+    toast("fill" in target ? t("placedInSlot") : t("placedAt", { position: target.index + 1 }));
     refresh();
   };
 
@@ -600,7 +607,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
   // Recherche par nom dans les images du projet (lot 67, CONC-13) : repère les trouvées, estompe les autres, amène la première.
   const [nameQuery, setNameQuery] = useState("");
   const needle = plain(nameQuery.trim());
-  const matches = (s: AdminSlot, i: number) => !needle || plain(slotLabel(s, i)).includes(needle) || plain(s.media?.name ?? "").includes(needle);
+  const matches = (s: AdminSlot, i: number) => !needle || plain(slotLabel(s, i, t)).includes(needle) || plain(s.media?.name ?? "").includes(needle);
   const foundCount = needle ? slots.filter(matches).length : 0;
   const firstFound = needle ? slots.find(matches)?.id : undefined;
   useEffect(() => {
@@ -628,16 +635,16 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const labelOf = (id: string | number) => {
-    if (isLib(id)) return `« ${library.find((m) => `${LIB_PREFIX}${m.id}` === String(id))?.name ?? "média"} »`;
+    if (isLib(id)) return `« ${library.find((m) => `${LIB_PREFIX}${m.id}` === String(id))?.name ?? t("mediaFallback")} »`;
     const i = slots.findIndex((s) => String(s.id) === String(id));
-    return i >= 0 ? `« ${slotLabel(slots[i], i)} »` : "l'élément";
+    return i >= 0 ? `« ${slotLabel(slots[i], i, t)} »` : t("itemFallback");
   };
   const pos = (id: string | number | undefined) => (id === undefined ? 0 : slots.findIndex((s) => String(s.id) === String(id)) + 1);
   const announcements: Announcements = {
-    onDragStart: ({ active }) => (isLib(active.id) ? `${labelOf(active.id)} saisi depuis la Bibliothèque.` : `${labelOf(active.id)} saisi, position ${pos(active.id)} sur ${slots.length}.`),
-    onDragOver: ({ active, over: o }) => (o ? `${labelOf(active.id)} au-dessus de la position ${o.id === "strip-end" ? slots.length + 1 : pos(o.id)}.` : `${labelOf(active.id)} hors de la bande.`),
-    onDragEnd: ({ active, over: o }) => (o ? `${labelOf(active.id)} posé.` : `${labelOf(active.id)} reposé.`),
-    onDragCancel: ({ active }) => `Déplacement annulé : ${labelOf(active.id)}.`,
+    onDragStart: ({ active }) => (isLib(active.id) ? t("dragStartLibrary", { item: labelOf(active.id) }) : t("dragStart", { item: labelOf(active.id), position: pos(active.id), total: slots.length })),
+    onDragOver: ({ active, over: o }) => (o ? t("dragOver", { item: labelOf(active.id), position: o.id === "strip-end" ? slots.length + 1 : pos(o.id) }) : t("dragOutside", { item: labelOf(active.id) })),
+    onDragEnd: ({ active, over: o }) => (o ? t("dragDropped", { item: labelOf(active.id) }) : t("dragReturned", { item: labelOf(active.id) })),
+    onDragCancel: ({ active }) => t("dragCancel", { item: labelOf(active.id) }),
   };
   /** Position visée par une vignette de la Bibliothèque. */
   const hintFor = (e: DragMoveEvent | DragEndEvent): DropHint => {
@@ -665,13 +672,13 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
 
       <section className="a-panel a-planche-panel" aria-labelledby="pr-planche">
         <div className="a-panel-head">
-          <h2 id="pr-planche">Mise en page</h2>
+          <h2 id="pr-planche">{t("layout")}</h2>
           <span className="muted">
-            {slots.length} emplacement{slots.length > 1 ? "s" : ""}
-            {slots.some((s) => !s.media) && ` · ${slots.filter((s) => !s.media).length} vide${slots.filter((s) => !s.media).length > 1 ? "s" : ""} (masqué${slots.filter((s) => !s.media).length > 1 ? "s" : ""} sur le site)`}
+            {t("slotCount", { count: slots.length })}
+            {slots.some((s) => !s.media) && ` · ${t("emptyCount", { count: slots.filter((s) => !s.media).length })}`}
           </span>
         </div>
-        <Uploader origin={origin} target={{ kind: "end", projectId: project.id }} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
+        <Uploader origin={origin} target={{ kind: "end", projectId: project.id }} libraryLabel={t("seeInLibrary")} onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
         <DndContext
           id={dndId}
           sensors={sensors}
@@ -700,26 +707,25 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
           accessibility={{
             announcements,
             screenReaderInstructions: {
-              draggable: "Pour déplacer un emplacement : Espace pour saisir, flèches gauche et droite pour choisir la place, Espace pour poser, Échap pour annuler.",
+              draggable: t("dragInstructions"),
             },
           }}
         >
           {slots.length >= SEARCH_FROM && (
             <div className="a-slot-search">
               <label>
-                <span className="sr-only">Chercher une image du projet</span>
-                <input className="a-input" type="search" aria-label="Chercher une image du projet" placeholder="Chercher une image par son nom…" value={nameQuery} onChange={(e) => setNameQuery(e.target.value)} />
+                <span className="sr-only">{t("searchImage")}</span>
+                <input className="a-input" type="search" aria-label={t("searchImage")} placeholder={t("searchPlaceholder")} value={nameQuery} onChange={(e) => setNameQuery(e.target.value)} />
               </label>
               {needle && (
                 <span className="muted" role="status">
-                  {foundCount > 0 ? `${foundCount} image${foundCount > 1 ? "s" : ""} trouvée${foundCount > 1 ? "s" : ""}` : "Aucune image ne porte ce nom"}
+                  {foundCount > 0 ? t("foundCount", { count: foundCount }) : t("noneFound")}
                 </span>
               )}
             </div>
           )}
           <p className="a-help a-panel-intro">
-            Dépose des images ou des vidéos sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
-            pour réordonner (clavier : Espace, flèches gauche et droite, Espace). Clique sur une image pour la modifier.
+            {t("planchIntro")}
           </p>
           <div
             ref={plancheRef}
@@ -743,7 +749,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
             <SortableItems
               items={slots}
               getId={(s) => String(s.id)}
-              getLabel={(s) => slotLabel(s, slots.indexOf(s))}
+              getLabel={(s) => slotLabel(s, slots.indexOf(s), t)}
               layout="horizontal"
               className="a-strip"
               itemStyle={(s) => ({ width: Math.round(STRIP_H * ratioOf(s)) })}
@@ -789,9 +795,9 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
         </DndContext>
         <p className="a-help">
           <Link href={`/fr`} target="_blank" rel="noopener">
-            Voir le site ↗
+            {t("seeSite")}
           </Link>{" "}
-          · les images en traitement apparaissent sur le site dès qu&apos;elles sont prêtes.
+          · {t("processingNote")}
         </p>
       </section>
 
@@ -809,14 +815,14 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
       <MediaPickerDialog
         open={picker !== null}
         media={library}
-        title={picker?.slotId === "end" ? "Ajouter une image de la médiathèque" : "Choisir l'image de cet emplacement"}
+        title={picker?.slotId === "end" ? t("pickerAdd") : t("pickerChoose")}
         onClose={() => setPicker(null)}
         onPick={async (m) => {
           const target = picker?.slotId;
           setPicker(null);
           const r = target === "end" ? await addSlotsAction(project.id, [m.id]) : await setSlotMediaAction(target, m.id);
           if (!r.ok) return toast(r.message, "error");
-          toast(target === "end" ? "Image ajoutée au projet" : "Image placée");
+          toast(target === "end" ? t("imageAdded") : t("imagePlaced"));
           refresh();
         }}
       />

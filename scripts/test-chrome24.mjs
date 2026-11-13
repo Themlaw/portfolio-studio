@@ -8,7 +8,13 @@
  */
 import assert from "node:assert/strict";
 
-import { describeProblems, fieldLabel } from "../src/components/admin/editor/problems.ts";
+import { describeProblems, fieldLabel as fieldLabelT } from "../src/components/admin/editor/problems.ts";
+import { makeAdminTranslator } from "../src/i18n/admin-lang.ts";
+import frMessages from "../messages/admin.fr.json" with { type: "json" };
+
+// Lot 130b : les problèmes sont dits par un traducteur (interface en français ici).
+const tp = makeAdminTranslator("fr", frMessages, "editorProblems");
+const fieldLabel = (rest) => fieldLabelT(rest, tp);
 
 const label = (t) => ({ "rich-text": "Texte", image: "Image", grid: "Grille", "section-title": "Titre" })[t] ?? t;
 const blocks = [
@@ -34,6 +40,7 @@ const list = describeProblems(
     accent: "Teinte illisible.",
   },
   label,
+  tp,
 );
 assert.deepEqual(
   list.map((p) => p.key),
@@ -55,7 +62,7 @@ assert.equal(list[4].field, "Collection de la page");
 assert.equal(list[5].kind, "form");
 for (const p of list) assert.ok(!/blocks\.|props\./.test(`${p.where} ${p.field ?? ""}`), `chaîne technique dans « ${p.where} ${p.field} »`);
 // Une clé qui ne désigne aucun bloc (brouillon modifié depuis) devient un problème de page, sans planter.
-assert.equal(describeProblems(blocks, { "blocks.9.props.title.fr": "x" }, label)[0].uid, null);
+assert.equal(describeProblems(blocks, { "blocks.9.props.title.fr": "x" }, label, tp)[0].uid, null);
 
 // 2. Lisibilité en mots
 import { frRatio, ratioTip, readability, readabilityText } from "../src/components/edit/readability.ts";

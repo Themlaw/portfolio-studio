@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -13,6 +14,7 @@ import SocialsEditor from "./SocialsEditor";
 
 export default function SettingsForm({ initial, pending }: { initial: AdminSettings; pending: { pageId: number; pageTitle: string } | null }) {
   const router = useRouter();
+  const t = useTranslations("settings");
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(() => clone(initial));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -35,7 +37,7 @@ export default function SettingsForm({ initial, pending }: { initial: AdminSetti
       setError(null);
       setErrors({});
       setSaved(clone(value));
-      toast("Enregistré · visible sur tout le site");
+      toast(t("saved"));
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
       setTimeout(() => router.refresh(), 0);
     });
@@ -45,11 +47,10 @@ export default function SettingsForm({ initial, pending }: { initial: AdminSetti
     {pending && (
       <div className="a-notice" role="status" data-testid="site-draft-notice">
         <p>
-          <strong>Des modifications du site sont en attente dans l&apos;éditeur.</strong> Le menu, l&apos;en-tête, le pied de page ou les styles y ont été changés mais ne sont pas
-          encore en ligne : ils le seront quand tu publieras n&apos;importe quelle page. Les champs ci-dessous montrent déjà ce qui est en attente pour le nom, le métier, l&apos;e-mail, la mention et les réseaux : les enregistrer ici les met en ligne tout de suite. Le reste des modifications en attente (menu, styles, logo) ne change pas.
+          <strong>{t("draftPending")}</strong>{t("draftBody")}
         </p>
         <Link className="a-btn a-btn-small" href={`/admin/pages/${pending.pageId}/editer`}>
-          Ouvrir l&apos;éditeur
+          {t("openEditor")}
         </Link>
       </div>
     )}
@@ -61,25 +62,25 @@ export default function SettingsForm({ initial, pending }: { initial: AdminSetti
       }}
     >
       <section className="a-panel" aria-labelledby="s-identite">
-        <h2 id="s-identite">Identité</h2>
+        <h2 id="s-identite">{t("identity")}</h2>
         <div className="a-form-grid">
-          <TextI18n label="Nom affiché" help="En haut de chaque page et dans l'onglet du navigateur. Vide en anglais : le nom français est repris." value={site.name} onChange={(name) => setSite({ name })} error={errorAt(errors, "site.name")} />
+          <TextI18n label={t("siteName")} help={t("siteNameHelp")} value={site.name} onChange={(name) => setSite({ name })} error={errorAt(errors, "site.name")} />
           <TextField
-            label="Adresse de contact"
+            label={t("contact")}
             type="email"
-            help="Les boutons « Écrire » ouvrent un e-mail vers cette adresse."
+            help={t("contactHelp")}
             value={site.email}
             onChange={(email) => setSite({ email })}
             error={errorAt(errors, "site.email")}
           />
-          <TextI18n label="Métier" help="Sous ton nom (ex. Illustratrice & character designer)." value={site.role} onChange={(role) => setSite({ role })} error={errorAt(errors, "site.role")} />
-          <TextI18n label="Mention en pied de page" help="Ex. Tous droits réservés." value={site.credit} onChange={(credit) => setSite({ credit })} error={errorAt(errors, "site.credit")} />
+          <TextI18n label={t("role")} help={t("roleHelp")} value={site.role} onChange={(role) => setSite({ role })} error={errorAt(errors, "site.role")} />
+          <TextI18n label={t("credit")} help={t("creditHelp")} value={site.credit} onChange={(credit) => setSite({ credit })} error={errorAt(errors, "site.credit")} />
         </div>
       </section>
 
       <section className="a-panel" aria-labelledby="s-reseaux">
-        <h2 id="s-reseaux">Réseaux</h2>
-        <p className="a-help">Affichés en pied de page et sur la page À propos, dans cet ordre.</p>
+        <h2 id="s-reseaux">{t("socials")}</h2>
+        <p className="a-help">{t("socialsHelp")}</p>
         <SocialsEditor
           items={value.socials}
           onChange={(socials) => setValue((v) => ({ ...v, socials }))}
@@ -87,8 +88,8 @@ export default function SettingsForm({ initial, pending }: { initial: AdminSetti
           error={errors.socials}
         />
         <Toggle
-          label="Icônes des réseaux dans l'en-tête"
-          help="Juste avant le choix de langue (FR / EN), icônes seules ; sur téléphone, dans le menu."
+          label={t("headerSocials")}
+          help={t("headerSocialsHelp")}
           checked={Boolean(site.headerSocials)}
           onChange={(headerSocials) => setSite({ headerSocials })}
         />

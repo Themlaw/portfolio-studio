@@ -21,6 +21,8 @@ import sharp from "sharp";
 
 import { dataDir, getDb, schema } from "@/lib/db";
 import { isHeavyImage } from "@/lib/images/budget";
+import { animOf } from "@/lib/animation/sheet";
+import { processAnimation } from "@/lib/animation/process";
 import { originalFile, processImage, processingError } from "@/lib/images/process";
 import { purgeTrash } from "@/lib/edit/trash";
 import { enqueueCropWarmAll, runCropWarm } from "@/lib/jobs/crop-warm";
@@ -168,7 +170,9 @@ async function runImageJob(job: { id: number; mediaId: number; attempts: number 
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error(`traitement : trop de temps (plus de ${MAX_JOB_MS / 1000} s)`)), MAX_JOB_MS);
       });
-      return Promise.race([processImage(media.key, hash16), timeout]).finally(() => clearTimeout(timer));
+      // Lot 132 : une animation (définition dans `variants.anim`, conservée par l'envoi et par la restauration) n'est jamais réduite.
+      const anim = animOf(media.variants);
+      return Promise.race([anim ? processAnimation(media.key, hash16, anim) : processImage(media.key, hash16), timeout]).finally(() => clearTimeout(timer));
     };
     // Image lourde : jamais en même temps qu'un import ou un export de kit (mémoire du conteneur) ; le délai ne court qu'une fois la porte prise.
     const out = (await heavyImageOf(media.id)) ? await memoryGate().run("image", work) : await work();

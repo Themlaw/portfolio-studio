@@ -1,0 +1,59 @@
+{
+  "header": {
+    "title": "Header",
+    "help": "Layout of the name and the menu at the top of the page.",
+    "options": {
+      "inline": "On one line",
+      "centered": "Centred"
+    }
+  },
+  "hero": {
+    "title": "Home opening",
+    "help": "The shape of the big banner on the home page.",
+    "options": {
+      "parallax-layers": "Layered depth",
+      "spotlight": "Spotlight",
+      "type-only": "Typographic"
+    }
+  },
+  "strip": {
+    "title": "Board strips",
+    "help": "How a project's images are presented.",
+    "options": {
+      "edge": "Edge to edge",
+      "taped": "Taped"
+    }
+  },
+  "caption": {
+    "title": "Captions",
+    "help": "The style of the text under the images.",
+    "options": {
+      "mono-split": "Technical",
+      "handwritten": "Handwritten"
+    }
+  },
+  "lightbox": {
+    "title": "Viewer",
+    "help": "How an enlarged image is shown.",
+    "options": {
+      "passe-partout": "Mat",
+      "full-bleed": "Full screen"
+    }
+  },
+  "button": {
+    "title": "Buttons",
+    "help": "The shape of the buttons.",
+    "options": {
+      "pill": "Rounded",
+      "square": "Square"
+    }
+  },
+  "texture": {
+    "title": "Site background",
+    "help": "A plain background, or a discreet dotted paper.",
+    "options": {
+      "none": "Plain background",
+      "paper-dots": "Dotted paper"
+    }
+  }
+}

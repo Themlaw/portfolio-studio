@@ -1,0 +1,20 @@
+{
+  "addLabel": "+ Add a label",
+  "removeLabel": "Remove the label",
+  "addTitle": "+ Add a title",
+  "removeTitle": "Remove the title",
+  "addIntro": "+ Add an introduction",
+  "removeIntro": "Remove the introduction",
+  "addEmailButton": "+ Add an email button",
+  "removeButton": "Remove the button",
+  "addCaption": "+ Add a caption",
+  "removeCaption": "Remove the caption",
+  "addName": "+ Add your name",
+  "removeName": "Remove your name",
+  "addContactLabel": "+ Add the contact label",
+  "removeContactLabel": "Remove the contact label",
+  "removeEmailButton": "Remove the email button",
+  "addSocialLabel": "+ Add the social networks label",
+  "removeSocialLabel": "Remove the social networks label",
+  "addShortTitle": "+ Title"
+}

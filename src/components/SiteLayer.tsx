@@ -16,6 +16,7 @@
  *   « Autre lien ». Le réseau est reconnu d'après l'adresse collée.
  * Toute modification part vers l'éditeur (`site-op`), qui valide et enregistre.
  */
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -72,6 +73,8 @@ type Hover = { kind: "nav" | "social"; index: number; list: Element } | null;
 type PopState = { kind: "nav-add"; anchor: Element } | { kind: "social-add"; anchor: Element } | { kind: "social-edit"; index: number; key: string | null; anchor: Element; href: string } | null;
 
 export default function SiteLayer({ mode, host, selected, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; selected: string | null; announce: (t: string) => void }) {
+  const t = useTranslations("canvasSite");
+  const uiLang = useLocale().slice(0, 2);
   const [, setTick] = useState(0);
   const [hover, setHover] = useState<Hover>(null);
   const [headerNear, setHeaderNear] = useState(false);
@@ -199,7 +202,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
     const { key, index } = rankOf(kind, el, Number.isFinite(fallback) ? fallback : at);
     const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index, ...(key ? { key } : {}), to: target });
     if (key) previewList(kind, { t: "move", key, to: target }, seq);
-    announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
+    announce(t(kind === "nav" ? "movedNav" : "movedSocial", { position: target + 1 }));
   }
 
   /** Glisser un lien du menu ou un réseau pour le réordonner. */
@@ -248,7 +251,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         const target = to > from ? to - 1 : to;
         const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, ...(draggedKey ? { key: draggedKey } : {}), to: target });
         if (draggedKey) previewList(kind, { t: "move", key: draggedKey, to: target }, seq);
-        announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
+        announce(t(kind === "nav" ? "movedNav" : "movedSocial", { position: target + 1 }));
       }
     };
     handle.addEventListener("pointermove", move);
@@ -265,7 +268,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   const headerSelected = selected === "site-header";
 
   return createPortal(
-    <div className="pe-layer pe-site-layer" lang="fr">
+    <div className="pe-layer pe-site-layer" lang={uiLang}>
       {hover && hovBox && (
         <div
           className="pe-item-tools"
@@ -277,13 +280,13 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             setHover(hover);
           }}
           role="toolbar"
-          aria-label={hover.kind === "nav" ? "Lien du menu" : "Réseau"}
+          aria-label={hover.kind === "nav" ? t("navItem") : t("social")}
         >
           <button
             type="button"
             className="pe-grip-sm"
-            aria-label="Glisser pour déplacer (ou flèches)"
-            title="Glisser pour déplacer"
+            aria-label={t("gripArrows")}
+            title={t("grip")}
             onPointerDown={(e) => startDrag(e, hover.kind, rankOf(hover.kind, hovEl, hover.index).index, hover.list)}
             onKeyDown={(e) => {
               const back = hover.kind === "nav" ? "ArrowLeft" : "ArrowUp";
@@ -300,8 +303,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           {hover.kind === "social" && (
             <button
               type="button"
-              aria-label="Modifier le lien"
-              title="Modifier le lien"
+              aria-label={t("editLink")}
+              title={t("editLink")}
               onClick={(e) => setPop({ kind: "social-edit", index: rankOf("social", hovEl, hover.index).index, key: rankOf("social", hovEl, hover.index).key, anchor: e.currentTarget, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
             >
               ✎
@@ -311,8 +314,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             <button
               type="button"
               data-testid="nav-rename"
-              aria-label="Renommer ce lien du menu"
-              title="Renommer (ou double-clic sur le lien)"
+              aria-label={t("renameAria")}
+              title={t("renameTitle")}
               onClick={() => {
                 const field = hovEl?.querySelector<HTMLElement>('[data-site-inline="nav"]');
                 setHover(null);
@@ -325,8 +328,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           <button
             type="button"
             className="pe-danger"
-            aria-label={hover.kind === "nav" ? "Retirer ce lien du menu" : "Retirer ce réseau"}
-            title="Retirer"
+            aria-label={hover.kind === "nav" ? t("removeNav") : t("removeSocial")}
+            title={t("remove")}
             onClick={() => {
               const { key, index } = rankOf(hover.kind, hovEl, hover.index);
               const seq = post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index, ...(key ? { key } : {}) });
@@ -355,7 +358,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           }}
           onClick={(e) => setPop({ kind: "nav-add", anchor: e.currentTarget })}
         >
-          + Ajouter un lien
+          {t("addLink")}
         </button>
       )}
 
@@ -363,7 +366,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           const r = rectOf(list);
           return (
             <button key={i} type="button" className="pe-add-chip" data-testid="social-add" aria-haspopup="menu" aria-expanded={pop?.kind === "social-add"} style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: e.currentTarget })}>
-              + Réseau
+              {t("addSocial")}
             </button>
           );
         })}
@@ -384,20 +387,21 @@ const panelKeys = (onClose: () => void) => (e: React.KeyboardEvent) => {
 
 /** « + Ajouter un lien » : une page du site (recherche), ou un lien libre. */
 function NavAddPopover({ anchor, pages, onClose }: { anchor: Element; pages: { id: number; title: string }[]; onClose: () => void }) {
+  const t = useTranslations("canvasSite");
   const [q, setQ] = useState("");
   const [href, setHref] = useState("");
   const [label, setLabel] = useState("");
   const shown = useMemo(() => pages.filter((p) => !q || fold(p.title).includes(fold(q))).slice(0, 20), [pages, q]);
   const hrefOk = safeNavHref(href.trim());
   return (
-    <Popover className="pe-popover" focusFirst anchor={anchor} label="Ajouter un lien au menu" onClose={onClose} onKeyDown={panelKeys(onClose)}>
-      <p className="pe-popover-title">Ajouter un lien au menu</p>
+    <Popover className="pe-popover" focusFirst anchor={anchor} label={t("addNavTitle")} onClose={onClose} onKeyDown={panelKeys(onClose)}>
+      <p className="pe-popover-title">{t("addNavTitle")}</p>
       <label className="pe-board-field">
-        <span>Une page du site</span>
-        <input type="search" autoFocus placeholder="Chercher une page…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span>{t("aPage")}</span>
+        <input type="search" autoFocus placeholder={t("searchPage")} value={q} onChange={(e) => setQ(e.target.value)} />
       </label>
-      <ul className="pe-popover-list" role="listbox" aria-label="Pages du site">
-        {shown.length === 0 && <li className="pe-popover-empty">{pages.length ? "Aucune page ne correspond." : "Toutes les pages sont déjà dans le menu."}</li>}
+      <ul className="pe-popover-list" role="listbox" aria-label={t("sitePages")}>
+        {shown.length === 0 && <li className="pe-popover-empty">{pages.length ? t("noMatch") : t("allInMenu")}</li>}
         {shown.map((p) => (
           <li key={p.id} role="option" aria-selected={false}>
             <button
@@ -424,18 +428,18 @@ function NavAddPopover({ anchor, pages, onClose }: { anchor: Element; pages: { i
           onClose();
         }}
       >
-        <span className="pe-popover-sub">ou un lien libre</span>
+        <span className="pe-popover-sub">{t("freeLink")}</span>
         <label className="pe-board-field">
-          <span>Texte du lien</span>
+          <span>{t("linkText")}</span>
           <input type="text" maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
         </label>
         <label className="pe-board-field">
-          <span>Adresse</span>
-          <input type="text" maxLength={300} placeholder="https://… ou /une-page" value={href} onChange={(e) => setHref(e.target.value)} aria-invalid={href.trim() !== "" && !hrefOk} />
+          <span>{t("address")}</span>
+          <input type="text" maxLength={300} placeholder={t("addressPlaceholder")} value={href} onChange={(e) => setHref(e.target.value)} aria-invalid={href.trim() !== "" && !hrefOk} />
         </label>
-        {href.trim() && !hrefOk && <small className="pe-popover-error">Une adresse https://… ou un chemin du site (/…).</small>}
+        {href.trim() && !hrefOk && <small className="pe-popover-error">{t("addressError")}</small>}
         <button type="submit" className="pe-btn" disabled={!hrefOk || !label.trim()}>
-          Ajouter ce lien
+          {t("addThisLink")}
         </button>
       </form>
     </Popover>
@@ -455,8 +459,9 @@ const PICKER_CLASSES = {
 
 /** « + Réseau » (ou modifier un lien) : le choix de réseau partagé avec l'écran Réglages (SocialPicker). */
 function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }: { anchor: Element; editIndex?: number; editKey?: string | null; initialHref?: string; onClose: () => void }) {
+  const t = useTranslations("canvasSite");
   return (
-    <Popover className="pe-popover" focusFirst anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose} onKeyDown={panelKeys(onClose)}>
+    <Popover className="pe-popover" focusFirst anchor={anchor} label={editIndex !== undefined ? t("editSocialLink") : t("addSocialTitle")} onClose={onClose} onKeyDown={panelKeys(onClose)}>
       <SocialPicker
         mode={editIndex !== undefined ? "edit" : "add"}
         initialHref={initialHref}
@@ -488,6 +493,8 @@ const NEW_FIELD_LABELS = { text: ["Ton nom", "Your name"], email: ["Ton e-mail",
  * ou d'erreur montré à la demande du panneau (`form-preview`).
  */
 export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null }) {
+  const t = useTranslations("canvasSite");
+  const uiLang = useLocale().slice(0, 2);
   const [, setTick] = useState(0);
   const [hover, setHover] = useState<{ uid: string; index: number } | null>(null);
   const [menu, setMenu] = useState<{ uid: string; anchor: Element } | null>(null);
@@ -590,10 +597,10 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
   };
 
   return createPortal(
-    <div className="pe-layer pe-form-layer" lang="fr">
+    <div className="pe-layer pe-form-layer" lang={uiLang}>
       {hover && hovBox && (
-        <div className="pe-item-tools" data-kind="field" style={{ top: hovBox.top, left: hovBox.left + hovBox.width + 8, ...(drag ? { visibility: "hidden" as const } : {}) }} onPointerEnter={() => setHover(hover)} role="toolbar" aria-label="Champ du formulaire">
-          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer ce champ" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.uid, fieldRank(hover.uid, hovEl, hover.index).index)}>
+        <div className="pe-item-tools" data-kind="field" style={{ top: hovBox.top, left: hovBox.left + hovBox.width + 8, ...(drag ? { visibility: "hidden" as const } : {}) }} onPointerEnter={() => setHover(hover)} role="toolbar" aria-label={t("formField")}>
+          <button type="button" className="pe-grip-sm" aria-label={t("gripField")} title={t("grip")} onPointerDown={(e) => startDrag(e, hover.uid, fieldRank(hover.uid, hovEl, hover.index).index)}>
             ⠿
           </button>
           <button
@@ -606,13 +613,13 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
               setHover(null);
             }}
           >
-            {hovEl?.hasAttribute("data-form-has-help") ? "Retirer l'aide" : "+ Ajouter une aide"}
+            {hovEl?.hasAttribute("data-form-has-help") ? t("removeHelp") : t("addHelp")}
           </button>
           <button
             type="button"
             className="pe-danger"
-            aria-label="Retirer ce champ"
-            title={hovEl?.hasAttribute("data-form-reply") ? "Ce champ sert à te répondre" : "Retirer"}
+            aria-label={t("removeField")}
+            title={hovEl?.hasAttribute("data-form-reply") ? t("replyField") : t("remove")}
             onClick={() => {
               const { key, index } = fieldRank(hover.uid, hovEl, hover.index);
               const seq = post({ kind: "form-field", uid: hover.uid, op: "remove", index });
@@ -643,20 +650,20 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
             aria-expanded={menu?.uid === uid}
             onClick={(e) => setMenu({ uid, anchor: e.currentTarget })}
           >
-            + Ajouter un champ
+            {t("addField")}
           </button>
         );
       })}
       {menu && (
-        <Popover className="pe-popover" focusFirst anchor={menu.anchor} label="Ajouter un champ" onClose={() => setMenu(null)} onKeyDown={panelKeys(() => setMenu(null))}>
-          <p className="pe-popover-title">Ajouter un champ</p>
-          <ul className="pe-popover-list" role="menu" aria-label="Types de champ">
+        <Popover className="pe-popover" focusFirst anchor={menu.anchor} label={t("addFieldTitle")} onClose={() => setMenu(null)} onKeyDown={panelKeys(() => setMenu(null))}>
+          <p className="pe-popover-title">{t("addFieldTitle")}</p>
+          <ul className="pe-popover-list" role="menu" aria-label={t("fieldTypes")}>
             {(
               [
-                ["text", "Texte court"],
-                ["email", "E-mail"],
-                ["textarea", "Texte long"],
-                ["select", "Choix dans une liste"],
+                ["text", t("typeText")],
+                ["email", t("typeEmail")],
+                ["textarea", t("typeTextarea")],
+                ["select", t("typeSelect")],
               ] as const
             ).map(([type, label]) => (
               <li key={type} role="none">

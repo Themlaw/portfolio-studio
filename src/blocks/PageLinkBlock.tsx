@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { hrefForPage } from "@/lib/pages";
 
 import { inline, localized, pageRef, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const pageLinkSchema = z.object({
   /** Texte du lien. */
@@ -19,13 +20,14 @@ export const pageLinkSchema = z.object({
  * toile, le lien reste visible pour qu'on le règle.
  */
 export default async function PageLinkBlock({ props, ctx }: { props: z.infer<typeof pageLinkSchema>; ctx: BlockContext }) {
+  const { ta } = await editI18n(ctx);
   const href = props.pageId ? await hrefForPage(props.pageId, ctx.locale) : null;
   if (!href && !ctx.edit) return null;
   return (
     <section className="shell">
       <Link className="link-underline text-sm" href={href ?? "/"}>
         {ctx.edit || textStyle(ctx, "label").style ? (
-          <span {...inline(ctx, "label")} data-placeholder="Voir plus">
+          <span {...inline(ctx, "label")} data-placeholder={ta("seeMore")}>
             {tr(props.label, ctx.locale)}
           </span>
         ) : (

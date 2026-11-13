@@ -6,6 +6,7 @@ import { FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
 import { formAnchor } from "./contact-target";
 import { inline, textStyle, tr, type BlockContext } from "./types";
+import { editI18n } from "./edit-i18n";
 
 export const contactFormSchema = ContactFormSchema;
 
@@ -16,7 +17,8 @@ export const contactFormSchema = ContactFormSchema;
  * POST /api/contact, validé contre la version PUBLIÉE du bloc (`formId` stable).
  * Sur la toile : textes modifiables en place, envoi impossible.
  */
-export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typeof ContactFormSchema.parse>; ctx: BlockContext }) {
+export default async function ContactFormBlock({ props, ctx }: { props: ReturnType<typeof ContactFormSchema.parse>; ctx: BlockContext }) {
+  const { ta } = await editI18n(ctx);
   const L = (v: { fr: string; en: string } | undefined) => (v ? tr(v, ctx.locale) : "");
   // Un champ vide n'occupe aucune place en public ; sur la toile, un champ présent reste saisissable (lot 27).
   const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
@@ -34,17 +36,17 @@ export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typ
         {hasHead && (
           <div className="max-w-xl">
             {shown(props.eyebrow) && (
-              <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette" } : {})}>
+              <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": ta("label") } : {})}>
                 {L(props.eyebrow)}
               </Eyebrow>
             )}
             {shown(props.title) && (
-              <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} {...(ctx.edit ? { "data-placeholder": "Titre" } : {})}>
+              <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} {...(ctx.edit ? { "data-placeholder": ta("title") } : {})}>
                 {L(props.title)}
               </h2>
             )}
             {shown(props.intro) && (
-              <p className="mt-5 text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...(ctx.edit ? { "data-placeholder": "Présentation" } : {})}>
+              <p className="mt-5 text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...(ctx.edit ? { "data-placeholder": ta("intro") } : {})}>
                 {L(props.intro)}
               </p>
             )}

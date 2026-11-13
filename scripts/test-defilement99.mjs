@@ -37,7 +37,7 @@ ok("schéma : champ inconnu dans `color` refusé", !KitAssetsSchema.safeParse({ 
 
 const vars = kitVariables(withColor);
 const attrs = kitAttributes(withColor);
-ok("variables : image en couleurs du trait et des deux flèches (image-set AVIF + WebP)", /image-set\(.*\.avif.*\.webp/.test(vars["--t-kit-stroke-color"]) && /\.avif/.test(vars["--t-kit-icon-arrow-left-color"]) && /\.webp/.test(vars["--t-kit-icon-arrow-right-color"]));
+ok("variables : image en couleurs du trait et des deux flèches (WebP par défaut, AVIF via @supports)", /url\(".*\.webp"\)/.test(vars["--t-kit-stroke-color"]) && /\.webp/.test(vars["--t-kit-icon-arrow-left-color"]) && /\.webp/.test(vars["--t-kit-icon-arrow-right-color"]));
 ok("variables : le masque teinté reste là (soulignement, filets, visionneuse)", Boolean(vars["--t-kit-stroke"] && vars["--t-kit-icon-arrow-left"] && vars["--t-kit-icon-close"]));
 ok("variables : taille des flèches = moitié de la case du kit (64 px pour 128)", KIT_ARROW_SCALE === 0.5 && vars["--t-kit-icon-arrow-left-w"] === "64px" && vars["--t-kit-icon-arrow-right-h"] === "64px", JSON.stringify(vars));
 ok("variables : bouts de la barre = moitié de sa hauteur, en % de sa largeur (2,414 %)", vars["--t-kit-stroke-cap"] === "2.414%", vars["--t-kit-stroke-cap"]);

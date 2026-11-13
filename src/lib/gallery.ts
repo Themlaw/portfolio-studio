@@ -7,16 +7,24 @@
  * `collection` dit par quel métier elle entre dans le site. L'ordre global
  * des œuvres (collections, couverture, demoreel) est l'ordre des slots (id).
  * Un slot sans média (image retirée) est masqué côté public.
+ *
+ * Projet « masqué » (docs/SECURITE.md N4) : un projet qu'aucune page publiée
+ * n'affiche n'est pas sur le site. Il n'entre donc ni dans les couvertures et
+ * compteurs des collections, ni dans la demoreel, ni dans les planches d'une
+ * collection, ni dans le repli des projets mis en avant (`displayedIds`, une
+ * seule lecture par rendu, étiquetée par page).
  * ----------------------------------------------------------------------- */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { isProjectStrip, layoutMediaIds, readLayout, type BoardItem, type OwnText } from "@/blocks/board-layout";
+import { extractProjectRefs } from "@/blocks/refs";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
-import { draftViewPage, isDraftView } from "./draft-view";
+import { draftViewPage, getDraftBlocks, isDraftView } from "./draft-view";
 import { getDb, schema } from "./db";
 import type { PictureSources } from "./images/variants";
+import { parseJson } from "./json";
 import { mediaSources, mediaUrl, videoView, type VideoView } from "./media";
 
 export type Collection = "characters" | "backgrounds" | "animation";
@@ -143,6 +151,99 @@ async function projectIds(): Promise<number[]> {
       .all()
       .map((r) => r.id),
   );
+}
+
+/* ---------------------------------------------------- Projets affichés -- */
+
+/** Pages visibles du public : publiées, hors corbeille (pages spéciales comprises : la 404 est publique). */
+function livePageIds(): number[] {
+  return getDb()
+    .select({ id: schema.pages.id })
+    .from(schema.pages)
+    .where(and(eq(schema.pages.published, true), isNull(schema.pages.deletedAt)))
+    .orderBy(asc(schema.pages.id))
+    .all()
+    .map((p) => p.id);
+}
+
+type AnyBlock = { type: string; props: unknown };
+
+/**
+ * Projets AFFICHÉS par ces pages (lecture directe, sans cache ; exportée pour les tests sur une vraie base) :
+ * - tout projet cité par un bloc (`extractProjectRefs` : Projet, Titre lié, conteneurs, anciens projets choisis), comme
+ *   « Une œuvre au hasard » (random-works.ts) ;
+ * - anciens blocs encore lus : « Projets mis en avant » sans choix (les projets marqués), planches d'une collection
+ *   (`collection-projects` : les projets qui ont une œuvre de ce métier).
+ * `view` (vue brouillon) : les blocs du brouillon de cette page remplacent les siens, et les projets créés dans ce
+ * brouillon comptent. Sinon : pages publiées seulement, projets publiés seulement.
+ */
+export function readDisplayedProjects(view?: { pageId: number; blocks: AnyBlock[] }): Set<number> {
+  const db = getDb();
+  const pages = livePageIds().filter((id) => id !== view?.pageId);
+  const rows: AnyBlock[] = pages.length
+    ? db
+        .select({ type: schema.blocks.type, props: schema.blocks.props })
+        .from(schema.blocks)
+        .where(inArray(schema.blocks.pageId, pages))
+        .all()
+        .map((b) => ({ type: b.type, props: parseJson(b.props) }))
+    : [];
+  if (view) rows.push(...view.blocks);
+  const slugs = new Set<string>();
+  const collections = new Set<string>();
+  let featured = false;
+  const visit = (b: AnyBlock, depth: number) => {
+    const p = b.props && typeof b.props === "object" ? (b.props as Record<string, unknown>) : {};
+    if (b.type === "collection-projects" && typeof p.collection === "string") collections.add(p.collection);
+    if (b.type === "featured-projects" && !(Array.isArray(p.projects) && p.projects.length)) featured = true;
+    if (depth < 2 && Array.isArray(p.children)) for (const c of p.children) if (c && typeof c === "object" && typeof (c as AnyBlock).type === "string") visit(c as AnyBlock, depth + 1);
+  };
+  for (const b of rows) {
+    for (const slug of extractProjectRefs(b.type, b.props)) slugs.add(slug);
+    visit(b, 0);
+  }
+  const projects = db
+    .select({ id: schema.projects.id, slug: schema.projects.slug, featured: schema.projects.featured, draftPageId: schema.projects.draftPageId })
+    .from(schema.projects)
+    .where(isNull(schema.projects.deletedAt))
+    .all()
+    .filter((p) => p.draftPageId === null || (view !== undefined && p.draftPageId === view.pageId));
+  const inCollection = new Set(
+    collections.size
+      ? db
+          .select({ projectId: schema.slots.projectId, state: schema.slots.draftState })
+          .from(schema.slots)
+          .where(inArray(schema.slots.collection, [...collections] as Collection[]))
+          .all()
+          .filter((r) => view !== undefined || r.state !== "added")
+          .map((r) => r.projectId)
+      : [],
+  );
+  return new Set(projects.filter((p) => slugs.has(p.slug) || (featured && p.featured) || inCollection.has(p.id)).map((p) => p.id));
+}
+
+/**
+ * Projets affichés, une lecture par rendu. Version publiée : étiquetée par les projets, le menu et chaque page publiée
+ * (une page qui ajoute ou retire un projet, une page publiée ou dépubliée, la rafraîchit). Vue brouillon : directe.
+ */
+async function displayedIds(): Promise<Set<number>> {
+  if (await isDraftView()) {
+    const pageId = draftViewPage();
+    if (pageId === null) return readDisplayedProjects();
+    const draft = await getDraftBlocks(pageId);
+    const blocks =
+      draft ??
+      getDb()
+        .select({ type: schema.blocks.type, props: schema.blocks.props })
+        .from(schema.blocks)
+        .where(eq(schema.blocks.pageId, pageId))
+        .all()
+        .map((b) => ({ type: b.type, props: parseJson(b.props) }));
+    return readDisplayedProjects({ pageId, blocks });
+  }
+  const pages = livePageIds();
+  const ids = await cached(["displayed-projects", pages.join(",")], [TAGS.projects, TAGS.nav, ...pages.map(TAGS.page)], () => [...readDisplayedProjects()]);
+  return new Set(ids);
 }
 
 type SlotRow = typeof schema.slots.$inferSelect;
@@ -432,14 +533,14 @@ function localizeProject(
 
 /** Les œuvres d'une collection donnée, dans l'ordre global. */
 export async function getCollection(collection: Collection, locale: AppLocale): Promise<LocalizedArtwork[]> {
-  const { artworks } = await snapshot();
-  return artworks.filter((a) => shown(a) && a.collection === collection).map((a) => localize(a, locale));
+  const [{ artworks }, displayed] = await Promise.all([snapshot(), displayedIds()]);
+  return artworks.filter((a) => shown(a) && a.collection === collection && displayed.has(a.projectId)).map((a) => localize(a, locale));
 }
 
 /** La demoreel : première œuvre marquée `reel` de la collection animation. */
 export async function getReel(locale: AppLocale): Promise<LocalizedArtwork | undefined> {
-  const { artworks } = await snapshot();
-  const found = artworks.find((a) => shown(a) && a.collection === "animation" && a.reel);
+  const [{ artworks }, displayed] = await Promise.all([snapshot(), displayedIds()]);
+  const found = artworks.find((a) => shown(a) && a.collection === "animation" && a.reel && displayed.has(a.projectId));
   return found ? localize(found, locale) : undefined;
 }
 
@@ -448,18 +549,19 @@ export async function getCollectionCover(
   collection: Collection,
   locale: AppLocale,
 ): Promise<LocalizedArtwork | undefined> {
-  const { artworks } = await snapshot();
-  const items = artworks.filter((a) => shown(a) && a.collection === collection);
+  const [{ artworks }, displayed] = await Promise.all([snapshot(), displayedIds()]);
+  const items = artworks.filter((a) => shown(a) && a.collection === collection && displayed.has(a.projectId));
   const cover = items.find((a) => a.featured) ?? items[0];
   return cover ? localize(cover, locale) : undefined;
 }
 
 /** Nombre d'œuvres visibles par collection. */
 export async function countCollection(collection: Collection): Promise<number> {
-  const { projects, artworks } = await snapshot();
-  // Les planches des projets qui ont du travail dans ce métier, comptées par la règle commune (`workCount`).
+  const [{ projects, artworks }, displayed] = await Promise.all([snapshot(), displayedIds()]);
+  // Les planches des projets AFFICHÉS qui ont du travail dans ce métier, comptées par la règle commune (`workCount`).
   let n = 0;
   for (const p of projects) {
+    if (!displayed.has(p.id)) continue;
     const own = artworks.filter((a) => a.projectId === p.id && shown(a) && a.collection === collection);
     if (own.length) n += workCount(p, own);
   }
@@ -476,8 +578,9 @@ export async function getProjectsForCollection(
   collection: Collection,
   locale: AppLocale,
 ): Promise<LocalizedProject[]> {
-  const { projects, artworks } = await snapshot();
+  const [{ projects, artworks }, displayed] = await Promise.all([snapshot(), displayedIds()]);
   return projects
+    .filter((p) => displayed.has(p.id))
     .map((p) => localizeProject(p, artworks, locale, (a) => a.collection === collection))
     .filter((p) => p.artworks.some((a) => !a.edit?.empty));
 }
@@ -491,8 +594,11 @@ export async function getFeaturedProjects(locale: AppLocale, limit = 2, chosen?:
       .filter((p): p is (typeof projects)[number] => Boolean(p))
       .map((p) => localizeProject(p, artworks, locale));
   }
-  const pool = projects.filter((p) => p.featured);
-  return (pool.length > 0 ? pool : projects).slice(0, limit).map((p) => localizeProject(p, artworks, locale));
+  // Sans choix : les projets marqués, à défaut les premiers projets — jamais un projet qu'aucune page n'affiche.
+  const displayed = await displayedIds();
+  const visible = projects.filter((p) => displayed.has(p.id));
+  const pool = visible.filter((p) => p.featured);
+  return (pool.length > 0 ? pool : visible).slice(0, limit).map((p) => localizeProject(p, artworks, locale));
 }
 
 /** Une œuvre (plan de planche) par son slug, si elle est affichable. */

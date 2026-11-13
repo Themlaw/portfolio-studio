@@ -7,8 +7,8 @@
 # Fichier de machines (une par ligne, # = commentaire) :
 #   nom|hôte ssh|worktree distant|lanceur|créneaux|port min|port max|capacité
 #   ex. ssp|ssp|~/pf/wt-104||14|4200|4399|2.5
-#       machine-de-dev|machine-de-dev|~/pf/wt-104|~/pf/pw.sh|6|3800|3859|1
-# - lanceur : commande qui exécute dans le worktree (pw.sh sur machine-de-dev, vide sur ssp) ;
+#       machine-b|machine-b|~/pf/wt-104|~/pf/pw.sh|6|3800|3859|1
+# - lanceur : commande qui exécute dans le worktree (pw.sh sur machine-b, vide sur ssp) ;
 # - capacité : poids relatif de la machine dans le partage des suites (voir --capacity de test-all-local.sh) ;
 # - chaque machine doit avoir le worktree au commit demandé, avec node_modules (vérifié, jamais modifié ici).
 # Sortie : <out>/<tag>/<machine>/{*.log,.res/*,run.out} et <out>/<tag>/recap.txt (PASS/FAIL cumulés, durée = la plus lente).

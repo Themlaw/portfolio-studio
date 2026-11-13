@@ -26,7 +26,8 @@
  * TK = kit (export, import), TM = kit (mémoire), TH = thèmes (archive), PDF = CV, VM1/VM2 = mesures de conversion (1080p ; 4K et boucle).
  */
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -44,8 +45,10 @@ const run = onlyOf(process.env.AUTH_ONLY);
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
 // Données de test : sur disque si TEST_AUTH_TMP le dit (le /tmp de la VM est un tmpfs : les
-// mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K).
-const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
+// mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K). Sinon un dossier au nom imprévisible (mkdtemp, 0700) :
+// un chemin /tmp fixe pourrait être préparé d'avance par un autre utilisateur (lien symbolique) ou relu (cookies, base).
+const TMP_GIVEN = Boolean(process.env.TEST_AUTH_TMP);
+const TMP = process.env.TEST_AUTH_TMP ?? mkdtempSync(path.join(tmpdir(), "portfolio-test-auth-"));
 // Ports réglables (BATT_AUTH_PORT) : plusieurs batteries peuvent lancer la suite sur la même machine (défaut 3200 et 3290).
 const PORT = Number(process.env.BATT_AUTH_PORT ?? 3200);
 const MOCK_PORT = Number(process.env.BATT_AUTH_MOCK_PORT ?? PORT + 90);
@@ -212,6 +215,16 @@ function query(dataDir, sql, ...params) {
   return row;
 }
 const userCount = (dataDir) => query(dataDir, "select count(*) n from user").n;
+/** Lignes du journal d'édition (base à part, edit-log.db). */
+function logRows(dataDir, where = "1 = 1", ...params) {
+  const file = path.join(dataDir, "edit-log.db");
+  if (!existsSync(file)) return [];
+  const db = new Database(file, { readonly: true });
+  db.pragma("busy_timeout = 2000");
+  const rows = db.prepare(`select action, type, user, result, label, target from edit_log where ${where} order by id`).all(...params);
+  db.close();
+  return rows;
+}
 
 /** Server actions de l'admin (même liste que scripts/test-admin-guard.mjs). */
 const ADMIN_ACTIONS = [
@@ -289,6 +302,10 @@ const ADMIN_ACTIONS = [
   "saveCardWallpaperAction",
   "saveThemeFrameAllAction",
   "listWallpapersAction",
+  "unlockBackupDownloadAction",
+  "changePasswordAction",
+  "revokeOtherSessionsAction",
+  "setAdminLangAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -482,7 +499,8 @@ async function pngOf(W, H, depth, colorType, orientation = 0) {
 /* ----------------------------------------------------------------- tests -- */
 
 prepareStandalone();
-rmSync(TMP, { recursive: true, force: true });
+// Dossier donné par TEST_AUTH_TMP : vidé comme avant. Dossier mkdtemp : neuf, gardé tel quel (0700).
+if (TMP_GIVEN) rmSync(TMP, { recursive: true, force: true });
 const baseEnv = { BETTER_AUTH_SECRET: SECRET, ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password };
 const ids = actionIds();
 
@@ -491,7 +509,8 @@ if (run("A")) {
 console.log("\n== A. mot de passe");
 let s = startServer(dirA, baseEnv);
 ok("A0 démarrage", await s.ready);
-ok("A1 premier admin amorcé", s.text().includes(`premier administrateur créé : ${ADMIN.email}`));
+ok("A1 premier admin amorcé (e-mail masqué dans le journal, N20)", s.text().includes("premier administrateur créé : a***@example.test"));
+ok("A1e aucune ligne [auth] du journal ne contient l'adresse en clair (N20)", !s.text().split("\n").some((l) => l.includes("[auth]") && l.includes(ADMIN.email)));
 ok("A1b mot de passe absent des journaux", !s.text().includes(ADMIN.password));
 ok("A1c avertissement : PUBLIC_BASE_URL en http en production", s.text().includes("PUBLIC_BASE_URL est en http"));
 
@@ -499,6 +518,96 @@ let r = await http("/admin");
 ok("A2 /admin sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
 r = await http("/admin/themes");
 ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.status));
+// docs/SECURITE.md §2.2 / §5.1 : un cookie de session INVENTÉ + une requête RSC (navigation simulée, layout supposé déjà affiché)
+// lisait toute l'admin (messages, réglages, journal, brouillons). Le proxy vérifie maintenant la session en base : 307, aucun contenu.
+{
+  const fakeCookie = "__Secure-better-auth.session_token=totally.made.up.AAAA; better-auth.session_token=totally.made.up.AAAA";
+  const tree = encodeURIComponent(JSON.stringify(["", { children: ["admin", { children: ["(espace)", { children: ["pages", { children: ["__PAGE__", {}] }] }] }] }, null, null, true]));
+  const ADMIN_PAGES = [
+    "/admin", "/admin/messages", "/admin/reglages", "/admin/journal", "/admin/sauvegardes", "/admin/pages", "/admin/pages/1",
+    "/admin/pages/1/editer", "/admin/projets", "/admin/projets/1", "/admin/medias", "/admin/themes", "/admin/themes/galerie-lumineuse",
+    "/admin/themes/galerie-lumineuse/kit", "/admin/themes/galerie-lumineuse/versions", "/admin/cadres", "/admin/papiers-peints",
+  ];
+  const leaks = [];
+  for (const page of ADMIN_PAGES) {
+    for (const url of [`${page}?_rsc`, page]) {
+      const rscHeaders = { cookie: fakeCookie, RSC: "1", "Next-Router-State-Tree": tree, "Next-Url": "/admin/pages" };
+      let res = await http(url, { headers: rscHeaders });
+      // Next renvoie d'abord vers l'empreinte `_rsc` attendue : on la suit, comme un vrai client.
+      const loc = res.headers.get("location");
+      if (res.status === 307 && loc?.includes("_rsc=")) res = await http(loc, { headers: rscHeaders });
+      const body = await res.text();
+      if (res.status !== 307 || !res.headers.get("location")?.endsWith("/admin/connexion") || body.length > 200) leaks.push(`${url} ${res.status} ${body.length} o`);
+    }
+  }
+  ok("A2i faux cookie + RSC: 1 (+ ?_rsc) sur chaque page de l'admin → 307 vers la connexion, aucun contenu", leaks.length === 0, leaks.join(" ; ").slice(0, 300));
+}
+// docs/SECURITE.md N5 : un chemin à point ne sort plus du proxy (liste fermée), et /admin passe AVANT : /admin/x.y est gardé,
+// /fr/a.b est un vrai 404 jamais mis en cache ; les fichiers de la racine et de public/ restent servis tels quels.
+{
+  r = await http("/admin/x.y");
+  ok("A2j /admin/x.y sans session → redirigé par la garde de l'admin", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
+  const dotted = [];
+  for (const u of ["/fr/a.b", "/fr/x.1", "/en/a.b", "/wp-login.php"]) {
+    let res = await http(u);
+    if (res.status === 307 || res.status === 308) res = await http(res.headers.get("location") ?? "/");
+    await res.text();
+    if (res.status !== 404 || !/no-store/.test(res.headers.get("cache-control") ?? "") || res.headers.get("x-nextjs-cache")) dotted.push(`${u} ${res.status} ${res.headers.get("cache-control")} ${res.headers.get("x-nextjs-cache")}`);
+  }
+  ok("A2k chemins à point (/fr/a.b, /wp-login.php…) → 404 no-store, jamais en cache ISR", dotted.length === 0, dotted.join(" ; "));
+  const files = [];
+  for (const u of ["/favicon.ico", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/kit/Figtree.ttf"]) {
+    const res = await http(u);
+    await res.arrayBuffer();
+    if (res.status !== 200) files.push(`${u} ${res.status}`);
+  }
+  ok("A2l fichiers de la racine et de public/ toujours servis (favicon, robots, sitemap, manifeste, /kit)", files.length === 0, files.join(" ; "));
+}
+// docs/SECURITE.md N1 : le proxy mettait en mémoire jusqu'à 10 Mo de chaque POST (même refusé), et la route d'auth lisait tout le
+// corps sans borne avant la limite par IP. Corps du proxy borné à 1 Mo ; route d'auth : lecture en flux bornée à 16 Ko → 413.
+{
+  const big = Buffer.alloc(5 * 1024 * 1024, 0x61);
+  const before = procMem(s.child.pid).rss;
+  const sized = await Promise.all(
+    Array.from({ length: 10 }, (_, i) =>
+      http("/api/auth/sign-in/email", { method: "POST", raw: big, headers: { "content-type": "application/json", origin: BASE, "x-forwarded-for": `203.0.113.${200 + i}` } }).then(async (res) => (await res.text(), res.status)),
+    ),
+  );
+  const grown = procMem(s.child.pid).rss - before;
+  ok("A2m 10 POST de 5 Mo vers /api/auth/sign-in/email → 413, mémoire du serveur contenue", sized.every((x) => x === 413) && grown < 60, `${sized.join(",")} ; +${grown} Mo`);
+  // Sans Content-Length (flux découpé) : la route s'arrête à 16 Ko.
+  const chunks = (async function* () {
+    for (let i = 0; i < 64; i++) yield new Uint8Array(32 * 1024).fill(0x61);
+  })();
+  const res = await fetch(`${BASE}/api/auth/sign-in/email`, { method: "POST", body: chunks, duplex: "half", headers: { "content-type": "application/json", origin: BASE, "x-forwarded-for": "203.0.113.230" } });
+  ok("A2n corps de 2 Mo sans Content-Length → 413", res.status === 413, String(res.status));
+  // Limite du proxy lui-même : Next le dit dans son journal (« Request body exceeded 1MB »).
+  await http("/api/contact", { method: "POST", raw: Buffer.alloc(2 * 1024 * 1024, 0x61), headers: { "content-type": "application/json", origin: BASE } }).then((x) => x.text());
+  await sleep(200);
+  ok("A2o corps lu par le proxy plafonné à 1 Mo (proxyClientMaxBodySize)", /Request body exceeded 1MB/.test(s.text()) && !/Request body exceeded 10MB/.test(s.text()), (/Request body exceeded [^.]*/.exec(s.text()) ?? [""])[0]);
+}
+// docs/SECURITE.md §2.12, P7, N20 : page 404 servie par une requête interne (port fixé, en-têtes en liste blanche, secret comparé en
+// temps constant) : ni `Expect: 100-continue`, ni un port dans `Host`, ni un faux en-tête interne ne la détournent.
+{
+  const notFoundOk = async (headers) => {
+    const res = await new Promise((resolve) => {
+      const req = httpRequest({ host: "127.0.0.1", port: PORT, path: "/fr/page-qui-n-existe-pas", method: "GET", headers }, (out) => {
+        let text = "";
+        out.on("data", (d) => (text += d));
+        out.on("end", () => resolve({ status: out.statusCode, text, cache: out.headers["cache-control"] }));
+      });
+      req.on("error", (e) => resolve({ status: -1, text: String(e) }));
+      req.end();
+    });
+    return { pass: res.status === 404 && res.text.length > 500 && /no-store/.test(res.cache ?? ""), detail: `${res.status} ${res.text.length} o` };
+  };
+  let res = await notFoundOk({ expect: "100-continue" });
+  ok("A2p page inconnue avec « Expect: 100-continue » → vraie page 404 (requête interne saine)", res.pass, res.detail);
+  res = await notFoundOk({ host: "127.0.0.1:9" });
+  ok("A2q port de l'en-tête Host ignoré pour la requête interne → vraie page 404", res.pass, res.detail);
+  res = await notFoundOk({ "x-portfolio-internal": "00000000-0000-4000-8000-000000000000" });
+  ok("A2r faux en-tête interne → traité comme une requête publique (404)", res.pass, res.detail);
+}
 r = await http("/admin/connexion");
 const loginHtml = await r.text();
 ok("A2c connexion : formulaire, noindex, pas d'Authentik", r.status === 200 && loginHtml.includes("Adresse e-mail") && loginHtml.includes("noindex") && !loginHtml.includes("Authentik"));
@@ -514,7 +623,7 @@ r = await http("/fr");
 ok(
   "A2e en-têtes publics (XFO, frame-ancestors, Referrer, nosniff, Permissions, sans X-Powered-By)",
   r.headers.get("x-frame-options") === "DENY" &&
-    r.headers.get("content-security-policy") === "frame-ancestors 'none'" &&
+    r.headers.get("content-security-policy") === "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" &&
     r.headers.get("referrer-policy") === "strict-origin-when-cross-origin" &&
     r.headers.get("x-content-type-options") === "nosniff" &&
     (r.headers.get("permissions-policy") ?? "").includes("camera=()") &&
@@ -523,6 +632,33 @@ ok(
 const mediaKey = (await (await http("/fr/personnages")).text()).match(/\/media\/[a-z0-9-]+\.svg/)?.[0];
 r = await http(mediaKey);
 ok("A2f /media garde sa CSP (sandbox) et XFO", (r.headers.get("content-security-policy") ?? "").includes("sandbox") && r.headers.get("x-frame-options") === "DENY");
+// docs/SECURITE.md §2.8, §2.12 : HSTS partout, CSP minimale du site public (compatible ISR), icône de l'onglet en CSP sandbox.
+{
+  const pub = await http("/fr/personnages");
+  await pub.text();
+  const adm = await http("/admin/connexion");
+  await adm.text();
+  ok(
+    "A2s HSTS (un an, sous-domaines) sur le site public et l'admin",
+    [pub, adm].every((x) => x.headers.get("strict-transport-security") === "max-age=31536000; includeSubDomains"),
+    `${pub.headers.get("strict-transport-security")} / ${adm.headers.get("strict-transport-security")}`,
+  );
+  // Lot 118 : les pages publiques sont servies « public, max-age=0, must-revalidate » (revalidées par tout cache placé devant) ; elles restent
+  // préparées à l'avance (ISR : x-nextjs-prerender, x-nextjs-cache) et jamais « private » ni « no-store » : la CSP publique n'a pas de nonce par requête.
+  const pubCache = pub.headers.get("cache-control") ?? "";
+  ok("A2t page publique toujours en cache malgré la CSP (ISR : préparée à l'avance, jamais private ni no-store)", /^public\b/.test(pubCache) && !/private|no-store/.test(pubCache) && (pub.headers.get("x-nextjs-prerender") === "1" || /^(HIT|MISS|STALE)$/.test(pub.headers.get("x-nextjs-cache") ?? "")), `${pubCache} | prerender ${pub.headers.get("x-nextjs-prerender")} | cache ${pub.headers.get("x-nextjs-cache")}`);
+  const icons = [];
+  for (const u of ["/site-icon/icon.svg", "/site-icon/32.png", "/site-icon/192.png", "/favicon.ico"]) {
+    const res = await http(u);
+    await res.arrayBuffer();
+    if (res.status === 200) icons.push([u, res.headers.get("content-security-policy") ?? ""]);
+  }
+  ok(
+    "A2u icône de l'onglet (/site-icon, /favicon.ico) : CSP sandbox, sans la CSP du site",
+    icons.length > 0 && icons.every(([, c]) => c === "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+    icons.map(([u, c]) => `${u} « ${c} »`).join(" ; ") || "aucune icône servie",
+  );
+}
 
 // Erreurs de connexion : table de codes, aucun texte venu de l'URL (M4)
 r = await http("/admin/connexion?error=%3Cscript%3Ealert(1)%3C%2Fscript%3E&error_description=PIRATE");
@@ -548,13 +684,42 @@ ok("A4b cookie Secure, HttpOnly, SameSite=Lax", /Secure/i.test(cookieAttrs) && /
 r = await http("/admin", { jar });
 ok("A5 tableau de bord avec session", r.status === 200 && (await r.text()).includes("Tableau de bord"), String(r.status));
 ok("A5b admin non mise en cache", !r.headers.get("x-nextjs-cache") && /no-store|private/i.test(r.headers.get("cache-control") ?? ""));
+// docs/SECURITE.md N6 : l'admin s'isole des fenêtres ouvertes par un autre site (COOP), et une URL profonde ouverte depuis un autre
+// site (lien, window.open) revient à l'accueil de l'admin sans rendu ni effet (messages marqués lus, aperçu de thème…).
+ok("A5c Cross-Origin-Opener-Policy: same-origin sur l'admin", r.headers.get("cross-origin-opener-policy") === "same-origin", r.headers.get("cross-origin-opener-policy") ?? "absent");
+{
+  const deep = [];
+  for (const [site, expect] of [["cross-site", 307], ["same-site", 307], ["same-origin", 200], ["none", 200], [null, 200]]) {
+    const headers = site ? { "sec-fetch-site": site, "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } : {};
+    const res = await http("/admin/messages", { jar, headers });
+    await res.text();
+    const good = res.status === expect && (expect !== 307 || (res.headers.get("location")?.endsWith("/admin") && res.headers.get("cross-origin-opener-policy") === "same-origin"));
+    if (!good) deep.push(`${site} → ${res.status} ${res.headers.get("location") ?? ""}`);
+  }
+  const fromOutside = await http("/admin", { jar, headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });
+  if (fromOutside.status !== 200) deep.push(`/admin cross-site → ${fromOutside.status}`);
+  await fromOutside.text();
+  ok("A5d URL profonde de l'admin ouverte depuis un autre site → /admin (même site, barre d'adresse, accueil de l'admin : servis)", deep.length === 0, deep.join(" ; "));
+}
+// docs/SECURITE.md P5 : connexion réussie et échec journalisés (compte interne pour la réussite ; ni e-mail, ni IP, ni mot de passe).
+{
+  const auth = logRows(dirA, "action = 'auth:sign-in'");
+  const dump = JSON.stringify(auth);
+  ok(
+    "A5e journal : connexion réussie (compte interne) et échec (anonyme), sans e-mail ni IP",
+    auth.some((x) => x.result === "ok" && x.user && x.type === "compte") && auth.some((x) => x.result === "refus" && x.user === null) && !dump.includes(ADMIN.email) && !dump.includes("203.0.113") && !dump.includes(ADMIN.password),
+    dump.slice(0, 300),
+  );
+}
 
 ok("A6a identifiant de la server action de déconnexion trouvé", Boolean(ids.signOutAction), Object.keys(ids).join(","));
 const forged = new Jar();
 forged.cookies.set("__Secure-better-auth.session_token", "jeton-forge.signature");
 const actionHeaders = { "next-action": ids.signOutAction, "content-type": "text/plain;charset=UTF-8", origin: BASE };
 r = await http("/admin", { jar: forged, method: "POST", headers: actionHeaders, raw: "[]" });
-ok("A6 server action avec un cookie forgé (proxy franchi) → 403", r.status === 403, String(r.status));
+// Depuis docs/SECURITE.md §2.2 le proxy vérifie la session EN BASE : un cookie forgé ne le franchit plus (assertAdmin() en tête de
+// chaque action reste vérifié statiquement par test-admin-guard).
+ok("A6 server action avec un cookie forgé → redirigée par le proxy (session vérifiée en base)", r.status === 307, String(r.status));
 r = await http("/admin", { method: "POST", headers: actionHeaders, raw: "[]" });
 ok("A6b server action sans cookie → redirigée par le proxy", r.status === 307, String(r.status));
 
@@ -570,7 +735,7 @@ r = await postForm(jar, "/admin/apercu", { id: "pro" }, { referer: `${BASE}/admi
 ok("A7b aperçu (formulaire natif) → 303 /fr + draft mode", r.status === 303 && r.headers.get("location") === "/fr" && jar.cookies.has("__prerender_bypass") && jar.cookies.get("theme-preview") === "pro", `${r.status} ${r.headers.get("location")}`);
 r = await http("/fr", { jar });
 const previewHtml = await r.text();
-ok("A7c l'admin voit l'aperçu (pro) et le bandeau", previewHtml.includes('data-theme="pro"') && /class="preview-banner"[\s\S]*Aperçu du thème : <strong>Pro<\/strong>/.test(previewHtml));
+ok("A7c l'admin voit l'aperçu (pro) et le bandeau", previewHtml.includes('data-theme="pro"') && /class="preview-banner"[\s\S]*Aperçu du thème :(?:<!-- -->)? <strong>Pro<\/strong>/.test(previewHtml));
 const noSession = jar.copy((k) => !k.includes("session_token"));
 r = await http("/fr", { jar: noSession });
 const noSessionHtml = await r.text();
@@ -614,6 +779,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /[vV]ersion/.test(name) ? "/admin/themes/mon-theme/versions"
     : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
+    : /Backup/.test(name) ? "/admin/sauvegardes"
+    : /Password|Sessions/.test(name) ? "/admin/compte"
     : /Draft|[bB]oard|Font|FromEditor/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
@@ -625,7 +792,90 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
-  ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
+  // Cookie forgé : arrêté par le proxy (session vérifiée en base, §2.2) avant même l'action ; rien n'est exécuté ni rendu.
+  ok(`A10 ${name} avec un cookie forgé → refusée (307 du proxy)`, res.status === 307 && !res.text.includes('"ok":'), `${res.status} ${res.text.slice(0, 120)}`);
+}
+// docs/SECURITE.md §2.7 : un refus SANS session n'écrit rien dans le journal (stdout seulement, agrégé). Sous /admin, le cookie forgé
+// est arrêté par le proxy avant l'action (§2.2) ; une server action reste appelable depuis une page publique : on y envoie les mêmes appels.
+for (const name of ["savePageAction", "saveSettingsAction", "addMediaTagsAction"].filter((n) => ids[n])) await callActionJson(forged, ids[name], ["x", {}], "/fr");
+await sleep(500);
+{
+  const anon = logRows(dirA, "user is null and result = 'refus' and action not like 'auth:%'");
+  ok("A10b refus sans session : aucune ligne dans le journal d'édition (stdout agrégé « edit-anon »)", anon.length === 0 && /"t":"edit-anon"/.test(s.text()), `${anon.length} lignes`);
+}
+// Audit de sécurité P2 : télécharger une sauvegarde exige une confirmation récente (connexion < 10 min ou mot de passe retapé).
+{
+  const name = "portfolio-20260101-000000.tar.gz";
+  mkdirSync(path.join(dirA, "backup"), { recursive: true });
+  writeFileSync(path.join(dirA, "backup", name), "archive-de-test-P2");
+  const url = `/api/admin/sauvegardes/${name}`;
+  let r = await http(url, { jar });
+  ok("A10p téléchargement, connexion de moins de 10 min : 200", r.status === 200, `${r.status}`);
+  writeDb(dirA, "update session set created_at = ?", Date.now() - 3_600_000);
+  r = await http(url, { jar });
+  ok("A10p session de plus de 10 min (cookie volé), sans confirmation : 403, rien n'est servi", r.status === 403 && !(await r.text()).includes("archive-de-test-P2"), `${r.status}`);
+  ok("A10p sans session : 401", (await http(url)).status === 401);
+  const unlock = (args, j = jar) => callActionJson(j, ids.unlockBackupDownloadAction, [args], "/admin/sauvegardes");
+  // Cookie forgé : arrêté par le proxy (307, §2.2) avant même l'action ; 403 si l'action est atteinte.
+  const forgedUnlock = await unlock({ password: ADMIN.password }, forged);
+  ok("A10p déverrouillage sans session (cookie forgé) : refusé", [307, 403].includes(forgedUnlock.status) && !forged.cookies.has("pf-backup-unlock"), String(forgedUnlock.status));
+  let a = await unlock({});
+  ok("A10p déverrouillage sans mot de passe : demandé", a.text.includes('"reauth":"password"') && !jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  a = await unlock({ password: "pas-le-bon-mot-de-passe" });
+  ok("A10p mauvais mot de passe : refusé, aucun cookie", a.text.includes('"reauth":"wrong"') && !jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  a = await unlock({ password: ADMIN.password });
+  ok("A10p bon mot de passe : cookie de déverrouillage posé", a.text.includes('"ok":true') && jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  r = await http(url, { jar });
+  ok("A10p après confirmation : 200, archive servie", r.status === 200 && (await r.text()) === "archive-de-test-P2", `${r.status}`);
+  const [exp] = (jar.cookies.get("pf-backup-unlock") ?? "").split(".");
+  const fake = jar.copy();
+  fake.cookies.set("pf-backup-unlock", `${exp}.${"A".repeat(43)}`);
+  ok("A10p cookie de déverrouillage falsifié : 403", (await http(url, { jar: fake })).status === 403);
+  // Oracle du mot de passe : même frein que la connexion (5 essais par minute et par IP).
+  let throttled = false;
+  for (let i = 0; i < 6 && !throttled; i++) throttled = (await unlock({ password: `faux-${i}` }, jar.copy((k) => k !== "pf-backup-unlock"))).text.includes('"reauth":"throttled"');
+  ok("A10p mots de passe faux en boucle : freinés (« Trop d'essais »)", throttled);
+  writeDb(dirA, "update session set created_at = ?", Date.now());
+}
+// Audit de sécurité P3 : sessions et mot de passe (écran « Sécurité du compte », API Better Auth, durée absolue).
+{
+  const xff = "203.0.113.77";
+  const tokenOf = (j) => decodeURIComponent([...j.cookies].find(([k]) => k.includes("session_token"))?.[1] ?? "").split(".")[0];
+  const other = new Jar();
+  ok("A19s un second appareil se connecte", (await signIn(other, ADMIN.email, ADMIN.password, xff)).ok);
+  const compte = await http("/admin/compte", { jar });
+  const html = await compte.text();
+  ok("A19s écran « Sécurité du compte » : 200, sessions listées, pas de jeton de session dans la page", compte.status === 200 && html.includes("Appareils connectés") && !html.includes(tokenOf(other) || "§"), `${compte.status}`);
+  ok("A19s sans session : redirection vers la connexion", [302, 303, 307].includes((await http("/admin/compte")).status));
+  const change = (j, args) => callActionJson(j, ids.changePasswordAction, [args], "/admin/compte");
+  let r = await change(jar, { currentPassword: "pas-le-bon", newPassword: "nouveau-mot-de-passe-A19", confirm: "nouveau-mot-de-passe-A19" });
+  ok("A19s mauvais mot de passe actuel : refusé, l'autre appareil reste connecté", r.text.includes("Mot de passe actuel incorrect") && (await http("/admin", { jar: other })).status === 200, r.text.slice(0, 160));
+  r = await change(jar, { currentPassword: ADMIN.password, newPassword: "nouveau-mot-de-passe-A19", confirm: "pas-pareil" });
+  ok("A19s confirmation différente : refusée côté serveur", r.text.includes("identiques"), r.text.slice(0, 160));
+  r = await change(jar, { currentPassword: ADMIN.password, newPassword: "nouveau-mot-de-passe-A19", confirm: "nouveau-mot-de-passe-A19" });
+  ok("A19s mot de passe changé par l'écran", r.text.includes('"ok":true'), r.text.slice(0, 160));
+  ok("A19s l'autre appareil est DÉCONNECTÉ (ancien cookie → connexion)", (await http("/admin", { jar: other })).status !== 200 && (await http("/api/auth/get-session", { jar: other }).then((x) => x.text())) === "null");
+  ok("A19s la session en cours reste ouverte (nouveau cookie posé)", (await http("/admin", { jar })).status === 200);
+  // Appel DIRECT de l'API Better Auth en demandant de garder les autres sessions : forcé à les couper (crochet before).
+  const third = new Jar();
+  ok("A19s un troisième appareil se connecte avec le nouveau mot de passe", (await signIn(third, ADMIN.email, "nouveau-mot-de-passe-A19", "203.0.113.78")).ok);
+  const api = await http("/api/auth/change-password", { jar, method: "POST", body: { currentPassword: "nouveau-mot-de-passe-A19", newPassword: ADMIN.password, revokeOtherSessions: false } });
+  ok("A19s /api/auth/change-password avec revokeOtherSessions: false : autres sessions coupées quand même", api.ok && (await http("/api/auth/get-session", { jar: third }).then((x) => x.text())) === "null" && (await http("/admin", { jar })).status === 200, `${api.status}`);
+  // Déconnecter les autres sessions.
+  const fourth = new Jar();
+  await signIn(fourth, ADMIN.email, ADMIN.password, "203.0.113.79");
+  r = await callActionJson(jar, ids.revokeOtherSessionsAction, [], "/admin/compte");
+  ok("A19s « Déconnecter les autres sessions » : l'autre coupé, celle-ci gardée", r.text.includes('"revoked":1') && (await http("/api/auth/get-session", { jar: fourth }).then((x) => x.text())) === "null" && (await http("/admin", { jar })).status === 200, r.text.slice(0, 160));
+  // Durée absolue : une session de plus de 7 jours est refusée et supprimée, même encore « valable » pour Better Auth.
+  const old = new Jar();
+  await signIn(old, ADMIN.email, ADMIN.password, "203.0.113.80");
+  const oldToken = tokenOf(old);
+  writeDb(dirA, "update session set created_at = ? where token = ?", Date.now() - 8 * 86_400_000, oldToken);
+  ok("A19s session de plus de 7 jours : refusée (connexion) puis supprimée en base", (await http("/admin", { jar: old })).status !== 200 && !query(dirA, "select 1 x from session where token = ?", oldToken));
+  ok("A19s durée d'inactivité explicite : expiration à environ 3 jours", (() => {
+    const row = query(dirA, "select expires_at e, created_at c from session order by created_at desc limit 1");
+    return row && Math.abs(row.e - row.c - 3 * 86_400_000) < 120_000;
+  })());
 }
 // Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
 // cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en
@@ -737,6 +987,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED5 vue brouillon d'abord, cache froid : le brouillon et ses repères d'édition", html.includes(SECRET_TITLE) && html.includes('data-edit-block="n1"') && html.includes('data-inline="title"'));
   ok("ED5a vue brouillon : méta-titre du brouillon, surcouche appliquée", html.includes(`<title>${SECRET_META}`) && !html.includes(slot.key) && html.includes(ADDED_TITLE), (/<title>[^<]*/.exec(html) ?? [""])[0]);
   ok("ED5b vue brouillon : frame-ancestors 'self', jamais mise en cache (no-store)", (r.headers.get("content-security-policy") ?? "").includes("frame-ancestors 'self'") && /(^|[ ,])no-store([ ,]|$)/.test(r.headers.get("cache-control") ?? ""), `${r.headers.get("content-security-policy")} · ${r.headers.get("cache-control")}`);
+  ok("ED5c vue brouillon (toile) : même CSP minimale que le site public", (r.headers.get("content-security-policy") ?? "") === "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", r.headers.get("content-security-policy") ?? "");
   r = await http("/fr");
   html = await r.text();
   ok("ED5c … puis le visiteur : MISS propre (la vue brouillon n'a rien mis en cache)", r.headers.get("x-nextjs-cache") === "MISS" && !html.includes(SECRET_TITLE) && !html.includes(ADDED_TITLE) && html.includes(slot.key), r.headers.get("x-nextjs-cache") ?? "");
@@ -1651,6 +1902,10 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("U13 côté de plus de 32 768 px → refusé dès l'en-tête", up.status === 422 && /32\u202f?768|32 768|32768/.test(up.json?.message ?? ""), `${up.status} ${up.text.slice(0, 140)}`);
 }
 await postForm(jar, "/admin/apercu", { id: "pro" }); // pour vérifier la fin d'aperçu à la déconnexion
+// Cookies de l'app posés pendant la séance (vue brouillon, écran de retour de l'aperçu) : la déconnexion doit tous les effacer (N19).
+jar.cookies.set("page-draft", "1");
+jar.cookies.set("preview-from", "/admin/themes");
+const hintBefore = jar.cookies.has("portfolio-admin");
 
 // Déconnexion par la server action : fin de session ET d'aperçu
 const sessionCookies = jar.copy();
@@ -1659,6 +1914,11 @@ ok(
   "A9 déconnexion → /admin/connexion, draft mode et cookie d'aperçu effacés",
   r.status === 303 && r.headers.get("location")?.endsWith("/admin/connexion") && !jar.cookies.has("__prerender_bypass") && !jar.cookies.has("theme-preview"),
   `${r.status} ${r.headers.get("location")}`,
+);
+ok(
+  "A9c déconnexion : portfolio-admin, page-draft et preview-from effacés aussi",
+  hintBefore && !jar.cookies.has("portfolio-admin") && !jar.cookies.has("page-draft") && !jar.cookies.has("preview-from"),
+  [...jar.cookies.keys()].join(","),
 );
 r = await http("/admin", { jar: sessionCookies });
 ok("A9b ancien cookie révoqué : /admin redirige de nouveau", r.status === 307, String(r.status));
@@ -1683,12 +1943,28 @@ ok("A10c l'admin légitime (autre IP) se connecte pendant l'attaque", r.status =
   const home = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   writeDb(dirA, "insert into blocks (page_id, position, type, props) values (?, 99, 'contact', ?)", home, JSON.stringify(form));
   const values = { femail: "a@b.fr", fmessage: "bonjour" };
-  const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
+  // Jeton signé (GET /api/contact/token, no-store) et délai minimal avant l'envoi (docs/SECURITE.md §2.3) :
+  // les jetons sont demandés d'avance, puis on attend une seule fois la fin du délai.
+  const tokenRes = await http("/api/contact/token?form=ftestauth01");
+  ok("C0 jeton du formulaire : 200 no-store", tokenRes.status === 200 && tokenRes.headers.get("cache-control") === "no-store", `${tokenRes.status} ${tokenRes.headers.get("cache-control")}`);
+  const tokens = [(await tokenRes.json()).token];
+  for (let i = 0; i < 12; i++) tokens.push((await (await http("/api/contact/token?form=ftestauth01")).json()).token);
+  const fresh = (await (await http("/api/contact/token?form=ftestauth01")).json()).token;
+  r = await http("/api/contact", { method: "POST", body: { form: "ftestauth01", locale: "fr", values, token: fresh }, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.45" } });
+  const early = await r.json().catch(() => ({}));
+  ok("C6 envoi juste après l'affichage (jeton tout neuf) → 429 code early", r.status === 429 && early.code === "early", `${r.status} ${early.code}`);
+  await sleep(3300);
+  const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body: body.token === null ? { ...body, token: undefined } : { token: tokens.shift(), ...body }, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
+  r = await post({ form: "ftestauth01", locale: "fr", values, token: null }, "198.51.100.46");
+  ok("C7 envoi sans jeton → 403", r.status === 403, String(r.status));
   const codesC = [];
   for (let i = 0; i < 7; i++) codesC.push((await post({ form: "ftestauth01", locale: "fr", values }, `10.8.${i}.1, 198.51.100.40`)).status);
   ok("C1 contact : partie gauche de XFF tournée, même client réel → 429 au 6e", codesC.slice(0, 5).every((c) => c === 200) && codesC[5] === 429, codesC.join(","));
   r = await post({ form: "ftestauth01", locale: "fr", values }, "10.8.9.9, 198.51.100.41");
   ok("C1b un autre client n'est pas bloqué", r.status === 200, String(r.status));
+  r = await post({ form: "ftestauth01", locale: "fr", values, token: fresh }, "198.51.100.47");
+  const reuse = await post({ form: "ftestauth01", locale: "fr", values, token: fresh }, "198.51.100.48");
+  ok("C8 jeton refusé trop tôt puis valable une seule fois (200, puis 403)", r.status === 200 && reuse.status === 403, `${r.status} ${reuse.status}`);
   r = await post({ form: "ftestauth01", locale: "fr", values: { ...values, admin: "1" } }, "198.51.100.42");
   ok("C2 champ inconnu → 400", r.status === 400, String(r.status));
   r = await post({ form: "ftestauth01", locale: "fr", values }, "198.51.100.43", { "sec-fetch-site": "cross-site" });
@@ -1751,6 +2027,59 @@ ok(
   JSON.stringify(attack.byCode),
 );
 
+// docs/SECURITE.md §2.4, P4 : IPv6 par /64, frein de /change-password, délai par compte (toutes IP, borné), 12 caractères.
+{
+  // Compteurs en mémoire remis à zéro (redémarrage) : les échecs de l'attaque I2b ne comptent pas ici.
+  await stop(s);
+  s = startServer(dirA, baseEnv);
+  ok("A13a redémarrage (compteurs en mémoire vides)", await s.ready);
+  const v6 = [];
+  for (let i = 1; i <= 6; i++) {
+    const res = await signIn(new Jar(), ADMIN.email, "mauvais", `2001:db8:77:1::${i.toString(16)}`);
+    v6.push(res.status === 429 ? (await res.json().catch(() => ({}))).code : String(res.status));
+  }
+  ok("A13 IPv6 : 6 adresses du même /64 → 429 au 6e essai (compté par /64)", v6.slice(0, 5).every((c) => c === "401") && v6[5] === "IP_RATE_LIMITED", v6.join(","));
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "2001:db8:77:2::1");
+  ok("A13b un autre /64 n'est pas bloqué", r.status === 200, String(r.status));
+
+  const cpJar = new Jar();
+  await signIn(cpJar, ADMIN.email, ADMIN.password, "203.0.113.10");
+  const changePassword = (currentPassword, newPassword, xff) =>
+    http("/api/auth/change-password", { jar: cpJar, method: "POST", body: { currentPassword, newPassword }, headers: { "x-forwarded-for": xff } });
+  const cp = [];
+  for (let i = 0; i < 6; i++) cp.push((await changePassword(`essai-${i}`, "nouveau-mot-de-passe-solide", "198.51.100.150")).status);
+  ok("A14 /change-password avec un mauvais mot de passe actuel → 429 au 6e essai (même frein que la connexion)", cp.slice(0, 5).every((c) => c === 400) && cp[5] === 429, cp.join(","));
+  ok("A14b échecs de /change-password comptés pour le compte (délai par couple en base)", query(dirA, "select failures n from auth_throttle where email = ?", `${ADMIN.email}|198.51.100.150`)?.n === 5);
+  r = await changePassword(ADMIN.password, "court-11car", "203.0.113.10");
+  const short = await r.json().catch(() => ({}));
+  ok("A14c nouveau mot de passe de 11 caractères → refusé (12 au moins)", r.status === 400 && short.code === "PASSWORD_TOO_SHORT", `${r.status} ${short.code}`);
+
+  // Botnet : un échec par IP, aucune limite par IP ni par couple ne joue ; le compte, lui, est freiné (borne 30 s).
+  for (let i = 0; i < 12; i++) await signIn(new Jar(), ADMIN.email, "mauvais", `198.51.100.${160 + i}`);
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "198.51.100.190");
+  const acc = await r.json().catch(() => ({}));
+  ok("A15 échecs depuis 12 IP différentes → une IP inconnue attend (429 ACCOUNT_THROTTLED, ≤ 30 s)", r.status === 429 && acc.code === "ACCOUNT_THROTTLED" && acc.retryAfter <= 30, `${r.status} ${acc.code} ${acc.retryAfter}`);
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "203.0.113.10");
+  ok("A15b pendant ce temps, l'IP habituelle de l'artiste se connecte (jamais enfermée dehors)", r.status === 200, String(r.status));
+
+  // Compte existant au mot de passe court (créé avant la règle des 12 caractères) : la connexion marche toujours.
+  const { hashPassword } = await import("better-auth/crypto");
+  const userId = query(dirA, "select id from user where email = ?", ADMIN.email).id;
+  const previous = query(dirA, "select password from account where user_id = ? and provider_id = 'credential'", userId).password;
+  writeDb(dirA, "update account set password = ? where user_id = ? and provider_id = 'credential'", await hashPassword("court-8c"), userId);
+  r = await signIn(new Jar(), ADMIN.email, "court-8c", "203.0.113.10");
+  ok("A16 compte existant au mot de passe de 8 caractères : connexion toujours acceptée", r.status === 200, String(r.status));
+  writeDb(dirA, "update account set password = ? where user_id = ? and provider_id = 'credential'", previous, userId);
+}
+
+// N20 : 20 échecs sur un même compte (IP différentes) déclenchent l'alerte par compte, adresse masquée.
+{
+  for (let i = 0; i < 20; i++) await signIn(new Jar(), "cible.n20@example.test", "faux", `198.18.20.${i + 1}`);
+  await sleep(300);
+  const lines = s.text().split("\n");
+  ok("A99 N20 alerte « échecs sur le compte » journalisée avec l'adresse masquée", lines.some((l) => l.includes("[auth] ALERTE") && l.includes("c***@example.test") && !l.includes("cible.n20")), lines.filter((l) => l.includes("ALERTE")).slice(0, 1).join(""));
+  ok("A99b N20 aucune ligne [auth] ne contient une adresse en clair", !lines.some((l) => l.includes("[auth]") && /[^\s*]@example\.test/.test(l)), lines.filter((l) => l.includes("[auth]") && /[^\s*]@example\.test/.test(l)).slice(0, 2).join(" | "));
+}
 await stop(s);
 
 console.log("\n== B. amorçage idempotent");
@@ -1785,7 +2114,7 @@ const oidcEnv = {
   AUTH_OIDC_ISSUER: issuer,
   AUTH_OIDC_CLIENT_ID: "portfolio",
   AUTH_OIDC_CLIENT_SECRET: "secret-du-client",
-  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test",
+  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test,kate@example.test",
   AUTH_ADMIN_GROUP: "admins-portfolio",
   AUTH_ADMIN_SUBS: "u-sub-autorise",
 };
@@ -1848,6 +2177,16 @@ ok(
   /Ce compte Authentik n(&#x27;|')est pas autorisé à administrer le site/.test(takeoverHtml) && !takeoverHtml.includes("mot de passe :"),
 );
 
+// N15 (docs/SECURITE.md) : « \u212Aate@… » (signe Kelvin U+212A, pas un K) devient « kate@… » après toLowerCase().
+// Une identité distincte, e-mail « vérifié » par le fournisseur, ne doit pas passer pour l'adresse listée.
+before = userCount(dirD);
+const kelvin = await oidcFlow({ sub: "u-kelvin", email: "\u212Aate@example.test", email_verified: true });
+ok("D6d e-mail non ASCII (« K » Kelvin pour « kate@ » listée), vérifié → refusé, aucun compte", kelvin.final.includes("error=admin_not_allowed") && userCount(dirD) === before, kelvin.final.split("?")[1]?.slice(0, 40));
+const homoglyph = await oidcFlow({ sub: "u-cyrillique", email: "\u0430utorise@example.test", email_verified: true });
+ok("D6e e-mail avec un homoglyphe cyrillique (« а ») → refusé", homoglyph.final.includes("error=admin_not_allowed") && userCount(dirD) === before, homoglyph.final.split("?")[1]?.slice(0, 40));
+const kate = await oidcFlow({ sub: "u-kate", email: "Kate@Example.test", email_verified: true });
+ok("D6f la vraie adresse listée (ASCII, casse différente) → session admin", kate.final.endsWith("/admin"), kate.final);
+
 const byGroup = await oidcFlow({ sub: "u-groupe", email: "membre@example.test", email_verified: false, groups: ["admins-portfolio"] });
 ok("D7 groupe autorisé → session admin", byGroup.final.endsWith("/admin"), byGroup.final);
 const bySub = await oidcFlow({ sub: "u-sub-autorise", email: "sub@example.test", email_verified: false });
@@ -1874,14 +2213,14 @@ r = await http("/api/auth/set-password", { jar: byGroup.jar, method: "POST", bod
 ok("D10b /set-password fermé (403) ou inexistant (404)", r.status === 403 || r.status === 404, String(r.status));
 
 // Sessions : l'accès est revérifié à chaque requête (I3)
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D11 session ${label} valide avant le retrait`, r.status === 200, String(r.status));
 }
 await stop(s);
 s = startServer(dirD, { ...oidcEnv, AUTH_ADMIN_GROUP: "autre-groupe", ADMIN_EMAILS: "quelquun@example.test", AUTH_ADMIN_SUBS: "" });
 await s.ready;
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D12 accès ${label} retiré + redémarrage → ancienne session refusée`, r.status === 307, String(r.status));
 }
@@ -1896,6 +2235,19 @@ s = startServer(`${TMP}/e1`, { ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.p
 ok("E1 sans BETTER_AUTH_SECRET → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"), s.text().match(/\[auth\] ÉCHEC[^\n]*/)?.[0]?.slice(0, 80) ?? "");
 s = startServer(`${TMP}/e2`, { BETTER_AUTH_SECRET: "trop-court" });
 ok("E2 secret trop court → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("trop court"));
+// docs/SECURITE.md §2.5 : les facilités du développement ne dépendent plus de NODE_ENV seul, mais de PORTFOLIO_DEV=1 (hors production).
+s = startServer(`${TMP}/e3`, { NODE_ENV: "development", ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password });
+ok("E3 NODE_ENV ≠ production SANS PORTFOLIO_DEV, sans secret → arrêt (aucun secret de dev)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"), s.text().match(/\[auth\][^\n]*/)?.[0]?.slice(0, 100) ?? "");
+s = startServer(`${TMP}/e4`, { PORTFOLIO_DEV: "1", ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password });
+ok("E4 PORTFOLIO_DEV=1 mais NODE_ENV=production, sans secret → arrêt (le drapeau seul ne suffit pas)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"));
+s = startServer(`${TMP}/e5`, { ...baseEnv, NODE_ENV: "development" });
+if (await s.ready) {
+  r = await http("/api/theme-preview?id=pro&redirect=/fr");
+  ok("E5 NODE_ENV ≠ production sans PORTFOLIO_DEV : aperçu de thème fermé aux anonymes (404)", r.status === 404, String(r.status));
+  r = await http("/admin/connexion");
+  ok("E5b … et CSP de l'admin sans unsafe-eval ni ws:", !/unsafe-eval|ws:/.test(r.headers.get("content-security-policy") ?? ""), r.headers.get("content-security-policy")?.slice(0, 80));
+} else ok("E5 serveur NODE_ENV=development démarré", false, s.text().slice(-300));
+await stop(s);
 }
 
 if (run("F")) console.log("\n== F. mémoire du traitement d'images (VmHWM du serveur, un serveur neuf par image)");
@@ -2231,6 +2583,65 @@ const qc = await fetch(`${BASE}/admin/api/upload/${qid}/chunk?offset=0`, { metho
 const qcb = await qc.json();
 ok("V15 quota dépassé en cours d'envoi → morceau refusé (507), rien d'écrit", qi.status === 200 && qc.status === 507 && /espace de stockage est plein/.test(qcb.message ?? "") && query(dirQ, "select offset from uploads where id = ?", qid)?.offset === 0, `${qi.status} ${qc.status}`);
 await stop(q.server);
+
+{
+  // ---- Quota réservé sans course, envois ouverts bornés, disque presque plein (docs/SECURITE.md §2.9, N14) -------------
+  // Occupation telle que la compte storageUsage (quota.ts) : originaux, variantes, envois ouverts.
+  const usageOf = (dir) =>
+    query(
+      dir,
+      `select coalesce((select sum(case when json_valid(variants) and json_extract(variants, '$.originalRemoved') = 1 then 0 else size end) from media), 0)
+        + coalesce((select sum(json_extract(f.value, '$.size')) from media m, json_each(m.variants, '$.files') f where json_valid(m.variants)), 0)
+        + coalesce((select sum(size) from uploads), 0) n`,
+    ).n;
+  const dirR = `${TMP}/v-quota-n14`; // dossier propre (vr sert à P20)
+  let rq = await freshAdmin(dirR);
+  await stop(rq.server);
+  const MB = 1024 * 1024;
+  const usedR = usageOf(dirR);
+  rq = await freshAdmin(dirR, { MEDIA_MAX_TOTAL_GB: String((usedR + 5.5 * MB) / 1024 ** 3) });
+  const initR = (size, name, jar = rq.jar) =>
+    fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: jar.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name, size, type: "video/mp4" }) });
+  const parallel = await Promise.all(Array.from({ length: 10 }, (_, i) => initR(MB, `course-${i}.mp4`)));
+  const accepted = parallel.filter((r) => r.status === 200).length;
+  const openR = query(dirR, "select count(*) n from uploads").n;
+  ok(
+    "V16 10 init simultanés de 1 Mo pour 5,5 Mo de place → 5 acceptés, les autres 507 (contrôle et réservation dans la même transaction)",
+    accepted === 5 && openR === 5 && parallel.every((r) => r.status === 200 || r.status === 507),
+    `${parallel.map((r) => r.status).join(",")} ; ${openR} envois ouverts`,
+  );
+  await stop(rq.server);
+  // Envois ouverts : 10 au plus par administrateur (sans quota).
+  rq = { server: startServer(dirR, baseEnvF), jar: rq.jar };
+  await rq.server.ready;
+  const more = [];
+  for (let i = 0; i < 6; i++) more.push((await initR(1000, `ouvert-${i}.mp4`)).status);
+  const over = await initR(1000, "de-trop.mp4");
+  const overBody = await over.json();
+  ok("V17 11ᵉ envoi ouvert du même administrateur → 429, message clair, rien de réservé", more.slice(0, 5).every((s) => s === 200) && more[5] === 429 && over.status === 429 && /envois en cours ou interrompus/.test(overBody.message ?? "") && query(dirR, "select count(*) n from uploads").n === 10, `${more.join(",")} ${over.status} ${overBody.message}`);
+  const oneId = query(dirR, "select id from uploads order by created_at limit 1").id;
+  const cancelled = await fetch(`${BASE}/admin/api/upload/${oneId}`, { method: "DELETE", headers: { cookie: rq.jar.header(), origin: BASE } });
+  const after = await initR(1000, "apres-annulation.mp4");
+  ok("V18 un envoi annulé libère sa place", cancelled.status === 200 && after.status === 200, `${cancelled.status} ${after.status}`);
+  const lastId = (await after.json()).upload?.id;
+  await stop(rq.server);
+  // Disque presque plein (statfs) : marge libre demandée plus grande que le disque → init, morceau et envoi direct refusés.
+  rq = { server: startServer(dirR, { ...baseEnvF, UPLOAD_MIN_FREE_MB: String(1024 * 1024 * 1024) }), jar: rq.jar };
+  await rq.server.ready;
+  const openBefore = query(dirR, "select count(*) n from uploads").n;
+  const diskInit = await initR(1000, "disque.mp4");
+  const diskInitBody = await diskInit.json();
+  const diskChunk = await fetch(`${BASE}/admin/api/upload/${lastId}/chunk?offset=0`, { method: "PUT", headers: { cookie: rq.jar.header(), origin: BASE, "content-length": "1000" }, body: Buffer.alloc(1000) });
+  const fdDisk = new FormData();
+  fdDisk.append("file", new Blob([await pngOf(64, 64, 8, 2)], { type: "image/png" }), "petit.png");
+  const diskDirect = await fetch(`${BASE}/admin/api/upload`, { method: "POST", headers: { cookie: rq.jar.header(), origin: BASE }, body: fdDisk });
+  ok(
+    "V19 disque presque plein (UPLOAD_MIN_FREE_MB) → init, morceau et envoi direct refusés (507, « disque »), rien d'écrit",
+    diskInit.status === 507 && /disque du serveur est presque plein/.test(diskInitBody.message ?? "") && diskChunk.status === 507 && diskDirect.status === 507 && query(dirR, "select count(*) n from uploads").n === openBefore && query(dirR, "select offset from uploads where id = ?", lastId)?.offset === 0,
+    `${diskInit.status} ${diskChunk.status} ${diskDirect.status}`,
+  );
+  await stop(rq.server);
+}
 
 // ---- Passe 5b : protocole d'envoi, propriété, codecs, conversion -------------------------
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "mjpeg", "-f", "mov", src("mjpeg.mov")]);
@@ -2680,6 +3091,7 @@ ok(
   first.ready && dl.status === 200 && zipKit.subarray(0, 2).toString("latin1") === "PK" && /attachment; filename="kit-galerie-lumineuse\.zip"/.test(dl.headers.get("content-disposition") ?? "") && ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"].every((n) => kitFiles[n]?.subarray(0, 4).toString("latin1") === "8BPS") && Boolean(kitFiles["LISEZ-MOI.txt"]),
   JSON.stringify(first),
 );
+ok("TK3c téléchargement du kit journalisé (cible, compte interne)", !first.ready || logRows(dirK, "action = 'download:kit' and target = 'galerie-lumineuse' and user is not null").length >= 1);
 const line = serverLog(kv.server, /\[kit\] thème galerie-lumineuse : kit [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${line}`);
 ok("TK3b processus enfant (kit v4, décor 5760 × 3200) : pic mémoire sous 600 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 600 && /oom 1000/.test(line), line);
@@ -3071,6 +3483,7 @@ const before = themeCount();
 const exp = await fetch(`${BASE}/admin/api/themes/galerie-lumineuse/export`, { headers: { cookie: tv.jar.header() } });
 const expBody = Buffer.from(await exp.arrayBuffer());
 const badIds = await Promise.all(["inconnu", "..%2F..%2Fetc", "A_MAJ"].map(async (id) => (await fetch(`${BASE}/admin/api/themes/${id}/export`, { headers: { cookie: tv.jar.header() } })).status));
+ok("TH2b export de thème journalisé (téléchargement, cible)", logRows(dirT, "action = 'download:theme-export' and target = 'galerie-lumineuse' and user is not null").length >= 1);
 ok("TH2 export : ZIP (theme.json) en pièce jointe ; identifiant inconnu ou invalide → 404", exp.status === 200 && expBody.subarray(0, 4).toString("hex") === "504b0304" && expBody.includes("theme.json") && /attachment; filename="theme-galerie-lumineuse\.zip"/.test(exp.headers.get("content-disposition") ?? "") && badIds.every((s) => s === 404), `${exp.status} ${badIds}`);
 
 // Ré-import de l'export brut : copie « (importé) », non livrée, non active.
