@@ -50,6 +50,8 @@ jobs:
       # Garde-fous du moteur de thèmes : aucune couleur en dur hors src/themes/, contraste AA.
       - run: npm run check:tokens
       - run: npm run check:contrast
+      - name: Paquets système (ffmpeg, poppler)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg poppler-utils file
       - run: npm test
       # Contexte Docker : chaque fichier dont `npm run build` a besoin n'est pas exclu par .dockerignore.
       - run: node scripts/check-docker-context.mjs

@@ -96,6 +96,8 @@ jobs:
       - name: theme:check
         if: ${{ !cancelled() }}
         run: npm run theme:check
+      - name: Paquets système (ffmpeg, poppler)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg poppler-utils file
       - name: npm test
         if: ${{ !cancelled() }}
         run: npm test
