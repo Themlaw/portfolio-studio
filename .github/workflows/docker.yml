@@ -56,6 +56,8 @@ jobs:
       # Contexte Docker : chaque fichier dont `npm run build` a besoin n'est pas exclu par .dockerignore.
       - run: node scripts/check-docker-context.mjs
       # Le standalone (ce qui part dans l'image) ne contient ni sources, ni données, ni configuration.
+      # npm test laisse un dossier data/ (bases de test) : il ne doit pas entrer dans le standalone.
+      - run: rm -rf data
       - run: npm run build
       - run: node scripts/check-standalone.mjs --require
 
