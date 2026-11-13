@@ -254,7 +254,7 @@ export default function VisualEditor({
   hasDraft: boolean;
   /** Adresses publiées de la page (la toile doit les afficher). */
   paths: Record<Locale, string>;
-  pages: { id: number; title: string }[];
+  pages: { id: number; title: string; titleEn?: string }[];
   catalog: BlockCatalogEntry[];
   editors: Record<string, React.ReactNode>;
   context: EditorContext;
@@ -3209,17 +3209,18 @@ export default function VisualEditor({
                 ? { tone: "draft", text: tv("statusUnpublished") }
                 : { tone: "ok", text: tv("statusLive") };
 
-  const wide = !mobile && device === "wide";
-  const frameWidth = mobile || wide ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
-  // Grand écran : la toile garde sa largeur de 1440 px (le contenu se met en page comme sur un grand écran), réduite par un zoom
-  // pour tenir dans la place disponible ; la hauteur de la fenêtre suit (hauteur de la toile = hauteur de la boîte / zoom).
+  // Généralisation de la mécanique du Grand écran à tous les appareils (hors vrai téléphone) : la toile garde la largeur
+  // exacte de l'appareil choisi, réduite par un zoom pour tenir dans la place disponible (jamais agrandie au-delà de 100 %).
+  const zoomed = !mobile && !(mode === "preview" && device === "desktop");
+  const devicePx = DEVICES.find((d) => d.id === device)?.width ?? WIDE_PX;
+  const frameWidth = mobile || zoomed ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
   const canvasRef = useRef<HTMLElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap || !wide) return;
+    if (!canvas || !wrap || !zoomed) return;
     const measure = () => {
       const cs = getComputedStyle(canvas);
       const w = canvas.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
@@ -3230,8 +3231,8 @@ export default function VisualEditor({
     ro.observe(canvas);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [wide, mode]);
-  const zoom = wide && box.w > 0 ? Math.min(1, box.w / WIDE_PX) : 1;
+  }, [zoomed, mode]);
+  const zoom = zoomed && box.w > 0 ? Math.min(1, box.w / devicePx) : 1;
   const zoomRef = useRef(1);
   useEffect(() => {
     zoomRef.current = zoom;
@@ -3760,7 +3761,7 @@ export default function VisualEditor({
             <select className="a-input" value={pageId} onChange={(e) => void goToPage(Number(e.target.value))}>
               {pages.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title}
+                  {locale === "en" && p.titleEn ? p.titleEn : p.title}
                 </option>
               ))}
             </select>
@@ -3977,16 +3978,16 @@ export default function VisualEditor({
               </button>
             </div>
           )}
-          {wide && (
+          {zoomed && zoom < 1 && (
             <p className="ve-zoom-note" data-testid="zoom-note">
-              {tv("zoomNote", { width: WIDE_PX, percent: Math.round(zoom * 100) })}
+               {tv("zoomNote", { width: devicePx, percent: Math.round(zoom * 100) })}
             </p>
           )}
           <div
             ref={wrapRef}
             className="ve-frame-wrap"
-            data-wide={wide || undefined}
-            style={wide ? { width: Math.round(WIDE_PX * zoom), maxWidth: "none", flex: "1 1 0" } : { maxWidth: mode === "preview" && device === "desktop" ? undefined : (frameWidth ?? undefined) }}
+            data-wide={zoomed || undefined}
+            style={zoomed ? { width: Math.round(devicePx * zoom), maxWidth: "none", flex: "1 1 0" } : { maxWidth: mode === "preview" && device === "desktop" ? undefined : (frameWidth ?? undefined) }}
           >
             {!frameReady && <div className="ve-loading">{tv("loadingPage")}</div>}
             <iframe
@@ -3994,7 +3995,7 @@ export default function VisualEditor({
               ref={frameRef}
               className="ve-frame"
               onLoad={restoreLangScroll}
-              style={wide ? { position: "absolute", top: 0, left: 0, width: WIDE_PX, height: Math.round(box.h / zoom), transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
+              style={zoomed ? { position: "absolute", top: 0, left: 0, width: devicePx, height: Math.round(box.h / zoom), transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
               src={frameSrc}
               title={mode === "preview" ? tv("framePreview") : tv("frameEditing")}
             />

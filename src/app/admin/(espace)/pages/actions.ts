@@ -12,12 +12,14 @@ import {
   createPage,
   deletePage,
   reorderMenu,
+  renamePage,
   restorePage,
   setInMenu,
   setPublished,
   type PageReference,
 } from "@/lib/edit/pages";
 import { publishWarnings } from "@/lib/edit/warnings";
+import { reorderPages } from "@/lib/edit/pages-order";
 import { pasteBlocks, pasteStyle } from "@/lib/edit/paste";
 import type { ClipBlock } from "@/lib/edit/clip";
 import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
@@ -233,6 +235,23 @@ export const reorderMenuAction = audited("reorderMenuAction", async function reo
   const t = adminT("actions");
   const result = reorderMenu(ids);
   if (result.ok) revalidateNav();
+  return result;
+});
+
+export const renamePageAction = audited("renamePageAction", async function renamePageAction(id: unknown, input: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const t = adminT("actions");
+  const pid = pageId(id);
+  if (!pid) return fail(t("unknownPage"));
+  const result = renamePage(pid, input);
+  if (result.ok) revalidatePage(pid, { structure: true });
+  return result;
+});
+
+export const reorderPagesAction = audited("reorderPagesAction", async function reorderPagesAction(ids: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const result = reorderPages(ids);
+  if (result.ok) revalidateSettings();
   return result;
 });
 
