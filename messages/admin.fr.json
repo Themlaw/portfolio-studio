@@ -2900,7 +2900,7 @@
     "pagesOrderHelp": "Choisis l'ordre des pages ici : c'est aussi l'ordre du sélecteur de page dans l'éditeur visuel. L'ordre du menu du site ne change pas.",
     "pagesOrderDirty": "Nouvel ordre non enregistré",
     "pagesOrderSaved": "Ordre enregistré",
-    "savePagesOrder": "Enregistrer l'ordre",
+    "savePagesOrder": "Enregistrer l’ordre des pages",
     "pagesOrderToast": "Ordre des pages enregistré"
   },
   "palette": {

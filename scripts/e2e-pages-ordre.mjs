@@ -83,7 +83,7 @@ await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
 // ordre attendu par défaut : idA puis idB (par identifiant). On déplace idB au-dessus de idA.
 const rowB = page.locator("tr", { hasText: titleB });
 await rowB.getByTestId("page-up").click();
-await page.getByRole("button", { name: "Enregistrer l'ordre" }).click();
+await page.getByRole("button", { name: "Enregistrer l’ordre des pages" }).click();
 await page.waitForTimeout(1000);
 await page.reload({ waitUntil: "networkidle" });
 const rows = page.locator("tbody tr");

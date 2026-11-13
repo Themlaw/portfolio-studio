@@ -2900,7 +2900,7 @@
     "pagesOrderHelp": "Choose the order of the pages here: it is also the order of the page selector in the visual editor. The site menu order does not change.",
     "pagesOrderDirty": "New order not saved",
     "pagesOrderSaved": "Order saved",
-    "savePagesOrder": "Save the order",
+    "savePagesOrder": "Save page order",
     "pagesOrderToast": "Page order saved"
   },
   "palette": {
