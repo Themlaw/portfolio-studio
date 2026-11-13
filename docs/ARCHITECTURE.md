@@ -7,7 +7,7 @@ chaque phase s'y réfère. Toute déviation se discute et met ce fichier à jour
 
 | Sujet | Décision |
 |---|---|
-| Build & distribution | GitHub (dépôt `Themlaw/portfolio`) → Actions → `ghcr.io/themlaw/portfolio` (visibilité réglée sur GitHub) |
+| Build & distribution | GitHub (dépôt `Themlaw/portfolio-studio`) → Actions → `ghcr.io/themlaw/portfolio-studio` (visibilité réglée sur GitHub) |
 | Prod | hôte de prod, stack Komodo (`<dossier de la stack>/compose.yaml`, image `latest`), `pull_policy: always`, réseau `traefik` partagé avec Newt, aucun port publié |
 | Dev | vm-dev, `npm run dev -- -p 3001` ; hôte Proxmox en surallocation RAM → une charge lourde à la fois, pas de build d'image en local |
 | Contenu | SQLite (better-sqlite3 + Drizzle ORM, WAL), fichier `/data/portfolio.db` |

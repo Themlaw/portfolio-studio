@@ -5,7 +5,7 @@
 # Variables : .env à côté de ce fichier (modèle commenté : .env.example).
 services:
   portfolio:
-    image: ghcr.io/themlaw/portfolio:${PORTFOLIO_TAG:-latest}
+    image: ghcr.io/themlaw/portfolio-studio:${PORTFOLIO_TAG:-latest}
     pull_policy: always              # chaque redeploy tire l'image ; seules les couches modifiées sont téléchargées
     container_name: portfolio
     user: "1000:1000"                # jamais root ; l'image n'a ni shell, ni apt/dpkg, ni binaire setuid

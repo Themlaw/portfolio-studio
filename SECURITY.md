@@ -1,28 +1,29 @@
-# Sécurité
+# Security Policy
 
-## Signaler une faille
+## Supported versions
 
-Merci de **ne pas ouvrir de ticket public** pour une faille de sécurité. Utilisez le signalement privé de GitHub
-(onglet *Security* → *Report a vulnerability*) ou écrivez au mainteneur du dépôt (adresse sur son profil GitHub).
-Indiquez la version (étiquette `vX.Y.Z` ou SHA), les étapes pour reproduire et l'impact observé. Une réponse
-est donnée sous une semaine ; une correction est publiée dès qu'elle est prête, avec mention (si souhaitée).
+Security fixes are released for the latest minor version only. To stay protected, keep your instance on the latest release.
 
-## Périmètre
+## Reporting a vulnerability
 
-- l'application (routes publiques, `/admin`, API d'envoi de médias, import de thèmes et de kits Photoshop) ;
-- l'image Docker et son fichier `docker-compose.yml` ;
-- les workflows GitHub Actions de ce dépôt.
+Please **do not open a public issue** for a security problem. Instead, use GitHub's private vulnerability reporting (*Security* tab → *Report a vulnerability*).
 
-Hors périmètre : une instance mal configurée par son exploitant (secret faible, `PUBLIC_BASE_URL` absente…).
+Include the affected version (`vX.Y.Z` tag or commit), the steps to reproduce and the impact you observed. You will get an answer within a week, and a fix will be released as soon as it is ready. We are happy to credit you in the release notes if you wish.
 
-## Ce que le dépôt ne contient pas
+## Scope
 
-Aucun secret, aucune donnée de production, aucune œuvre réelle : les fixtures et le jeu de démonstration sont
-synthétiques. Un contrôle automatique (`npm run audit:public`, job `hygiene` de la CI) vérifie tout l'historique ;
-si vous trouvez malgré tout un secret ou une donnée privée, signalez-le comme une faille (ci-dessus).
+- the application (public routes, `/admin`, media upload API, theme and Photoshop kit import);
+- the Docker image and the provided `docker-compose.yml`;
+- the GitHub Actions workflows of this repository.
 
-## Bonnes pratiques de configuration
+Out of scope: instances misconfigured by their operator (weak secret, missing `PUBLIC_BASE_URL`, etc.).
 
-- `BETTER_AUTH_SECRET` : au moins 32 caractères aléatoires, propre à chaque instance (jamais celui d'un exemple).
-- Définir `PUBLIC_BASE_URL` (https) en production, et limiter l'administration à des comptes ou groupes connus.
-- Garder l'image à jour (`pull_policy: always` dans `docker-compose.yml`) et activer les alertes Dependabot.
+## Configuration best practices
+
+- Use a random `BETTER_AUTH_SECRET` of at least 32 characters, unique to your instance.
+- Set `PUBLIC_BASE_URL` to your HTTPS address in production.
+- Set `AUTH_TRUSTED_PROXY_HOPS` to the number of reverse proxies in front of the app, then check in *Admin → Settings → Diagnostics* that the detected IP address is yours.
+- Restrict administration to known accounts or to an OpenID Connect group.
+- Keep the image up to date and enable Dependabot alerts on your fork.
+
+This repository contains no secrets, production data or real artwork: fixtures and demo content are synthetic. If you ever find a secret or personal data in it, please report it as a vulnerability.
