@@ -250,7 +250,6 @@ export const renamePageAction = audited("renamePageAction", async function renam
 
 export const reorderPagesAction = audited("reorderPagesAction", async function reorderPagesAction(ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
-  const t = adminT("actions");
   const result = reorderPages(ids);
   if (result.ok) revalidateSettings();
   return result;
