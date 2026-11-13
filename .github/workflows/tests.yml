@@ -156,7 +156,7 @@ jobs:
         run: bash scripts/test-all-local.sh build
       - name: Journal du build (échec)
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: echec-build
           path: ${{ runner.temp }}/battery-build
@@ -167,7 +167,7 @@ jobs:
           # les fichiers cachés (.next/standalone/.batt-stamp) doivent partir dans l'archive
           test -s .next/standalone/.batt-stamp
           tar -cf "$RUNNER_TEMP/next-build.tar" --exclude=.next/cache --exclude=.next/dev .next
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: next-build
           path: ${{ runner.temp }}/next-build.tar
@@ -237,7 +237,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Journaux et captures de l'échec
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: echec-${{ matrix.shard.name }}
           path: |
