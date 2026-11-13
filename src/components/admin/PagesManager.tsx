@@ -341,7 +341,7 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
                 <tr key={p.id}>
                   <td data-label={t("colPage")}>
                     {renamingId === p.id ? (
-                      <div className="a-form-grid" style={{ gap: "0.25rem" }}>
+                      <div className="pm-rename" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "0.35rem", maxWidth: "28rem" }}>
                         <input
                           className="a-input"
                           data-testid="rename-fr"
