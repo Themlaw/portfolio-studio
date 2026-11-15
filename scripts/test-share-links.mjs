@@ -38,6 +38,9 @@ for (const rest of ["l/", "l/CV", "l/a/b", "lx/cv", "l/%2e%2e"]) {
 
 test("normalize : CV -> cv", () => {
   assert.equal(normalizeShareSlug("CV"), "cv");
+  assert.equal(normalizeShareSlug("demo-", { typing: true }), "demo-");
+  assert.equal(normalizeShareSlug("demo ", { typing: true }), "demo-");
+  assert.equal(normalizeShareSlug("demo-"), "demo");
 });
 test("normalize : bande_demo -> bande-demo", () => {
   assert.equal(normalizeShareSlug("bande_demo"), "bande-demo");

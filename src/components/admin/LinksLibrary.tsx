@@ -299,7 +299,8 @@ export default function LinksLibrary({ initial, media }: Props) {
                   ref={slugInputRef}
                   className="a-input"
                   value={slug}
-                  onChange={(e) => setSlug(normalizeShareSlug(e.target.value))}
+                  onChange={(e) => setSlug(normalizeShareSlug(e.target.value, { typing: true }))}
+                  onBlur={() => setSlug(normalizeShareSlug(slug))}
                   data-testid="link-slug"
                 />
                 {origin && <p className="muted mono">{`${origin}/l/${slug}`}</p>}

@@ -16,15 +16,16 @@ export function isShareLinkPath(rest: string): boolean {
  * minuscules, accents retirés, espaces et « _ » → « - », tout autre caractère retiré,
  * tirets multiples fusionnés et extrémités nettoyées, 60 caractères au plus.
  */
-export function normalizeShareSlug(input: unknown): string {
+export function normalizeShareSlug(input: unknown, { typing = false }: { typing?: boolean } = {}): string {
   if (typeof input !== "string") return "";
   let s = input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   s = s.toLowerCase();
   s = s.replace(/[\s_]+/g, "-");
   s = s.replace(/[^a-z0-9-]/g, "");
   s = s.replace(/-+/g, "-");
-  s = s.replace(/^-+|-+$/g, "");
+  s = s.replace(/^-+/, "");
   s = s.slice(0, 60);
-  s = s.replace(/-+$/g, "");
-  return s;
+  // Pendant la frappe, un tiret final est gardé (sinon « demo- » perdrait son tiret et « demo-reel » serait impossible à taper) ;
+  // il est retiré à la sortie du champ et côté serveur.
+  return typing ? s : s.replace(/-+$/, "");
 }
