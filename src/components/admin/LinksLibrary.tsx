@@ -188,7 +188,7 @@ export default function LinksLibrary({ initial, media }: Props) {
             <div className="a-field">
               <span className="a-field-label">{t("media")}</span>
               <div className="a-media-field">
-                <span className="a-media-field-name">{mediaById.get(mediaId)?.name ?? t("noMedia")}</span>
+                <span className="a-media-field-name">{(mediaId !== undefined ? mediaById.get(mediaId) : undefined)?.name ?? t("noMedia")}</span>
                 <button type="button" className="a-btn a-btn-small" onClick={() => setMediaOpen(true)} data-testid="link-pick-media">
                   {t("chooseMedia")}
                 </button>
