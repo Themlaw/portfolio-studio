@@ -95,7 +95,7 @@ for (const [slug, expectDl] of [[slugPdf, true], [slugImg, false], [slugVid, tru
   ok(`${slug} : 200`, res.status === 200, String(res.status));
   ok(`${slug} : noindex`, /noindex/.test(html));
   ok(`${slug} : titre présent`, html.includes("test"));
-  ok(`${slug} : bouton téléchargement ${expectDl ? "présent" : "absent"}`, expectDl ? /Télécharger/.test(html) : !/Télécharger/.test(html));
+  ok(`${slug} : bouton téléchargement ${expectDl ? "présent" : "absent"}`, expectDl ? html.includes(`data-testid="share-download"`) : !html.includes(`data-testid="share-download"`));
 }
 
 // désactivation

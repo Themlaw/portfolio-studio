@@ -62,7 +62,7 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
           <CvPages pages={media.pdf.pages} alt={media.alt?.[locale] || title} texts={{ page: tcv("page"), open: tcv("open"), pages: tcv("pages") }} />
           {link.allowDownload && (
             <div className="mt-6">
-              <a className="btn" href={`${media.pdf.href}?name=${downloadName(link.slug)}`} download={`${downloadName(link.slug)}.pdf`}>
+              <a className="btn" data-testid="share-download" href={`${media.pdf.href}?name=${downloadName(link.slug)}`} download={`${downloadName(link.slug)}.pdf`}>
                 {t("download")}
               </a>
             </div>
@@ -92,7 +92,7 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
           <VideoCard item={item} look="plain" mode="player" texts={{ eyebrow: "", title, description: "" }} solo />
           {link.allowDownload && (
             <div className="mt-6">
-              <a className="btn" href={media.video.sources.mp4[0]?.src ?? media.url} download={downloadName(link.slug)}>
+              <a className="btn" data-testid="share-download" href={media.video.sources.mp4[0]?.src ?? media.url} download={downloadName(link.slug)}>
                 {t("download")}
               </a>
             </div>
@@ -106,7 +106,7 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
         <Picture src={media.url} sources={media.sources} alt={media.alt?.[locale] || title} width={media.width ?? 1200} height={media.height ?? 800} sizes="100vw" className="block-image-media" />
         {link.allowDownload && (
           <div className="mt-6">
-            <a className="btn" href={media.url} download={downloadName(link.slug)}>
+            <a className="btn" data-testid="share-download" href={media.url} download={downloadName(link.slug)}>
               {t("download")}
             </a>
           </div>
