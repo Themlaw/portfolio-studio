@@ -28,8 +28,10 @@ export function backfillTaken(limit = 20): Promise<{ done: TakenFill[]; remainin
     const storage = getStorage();
     const done: TakenFill[] = [];
     for (const m of todo) {
-      const file = m.kind === "pdf" ? null : await storage.localPath(m.key).catch(() => null);
-      const takenAt = file ? await readTakenAt(m.kind, m.mime, file) : null;
+      // Date de création : images et vidéos seulement (PDF, fichiers et sons des liens : aucune).
+      const kind = m.kind === "image" || m.kind === "video" ? m.kind : null;
+      const file = kind ? await storage.localPath(m.key).catch(() => null) : null;
+      const takenAt = kind && file ? await readTakenAt(kind, m.mime, file) : null;
       db.update(schema.media).set({ takenAt, takenChecked: 1 }).where(and(eq(schema.media.id, m.id), isNull(schema.media.takenChecked))).run();
       done.push({ id: m.id, takenAt });
     }

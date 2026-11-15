@@ -30,6 +30,8 @@ export async function retryMedia(id: number): Promise<ActionResult<null>> {
   const media = db.select().from(schema.media).where(eq(schema.media.id, id)).get();
   if (!media) return fail("Ce média n'existe plus.");
   if (media.status !== "failed") return fail("Ce média n'est pas en échec.");
+  // Fichiers et sons des liens partageables : stockés tels quels, aucun traitement à relancer.
+  if (media.kind === "file" || media.kind === "audio") return fail("Ce fichier n'a pas de traitement à relancer.");
   if (!(await getStorage().stat(media.key))) return fail("Le fichier d'origine n'est plus disponible : supprime ce média et renvoie le fichier.");
   db.transaction((tx) => {
     tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, id)).run();

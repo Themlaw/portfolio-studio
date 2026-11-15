@@ -29,6 +29,8 @@ export async function healRestoredMedia(): Promise<void> {
   let requeued = 0;
   let lost = 0;
   for (const m of db.select().from(schema.media).all()) {
+    // Fichiers et sons des liens partageables : stockés tels quels, aucune variante à régénérer.
+    if (m.kind === "file" || m.kind === "audio") continue;
     if (m.status !== "ready" || !m.key.startsWith("originals/")) continue;
     const files = ((m.variants ?? null) as VariantFiles | null)?.files ?? [];
     let missing = false;
