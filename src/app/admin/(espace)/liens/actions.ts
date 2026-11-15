@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
-import { createShareLink, deleteShareLink, updateShareLink } from "@/lib/edit/share-links";
+import { createShareLink, deleteShareLink, setShareLinkEnabled, updateShareLink } from "@/lib/edit/share-links";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidatePath } from "next/cache";
 import { audited } from "@/lib/journal/audit";
@@ -31,6 +31,17 @@ export const deleteShareLinkAction = audited("deleteShareLinkAction", async func
   const parsed = Id.safeParse(id);
   if (!parsed.success) return fail("Lien inconnu.");
   const result = deleteShareLink(parsed.data);
+  if (result.ok) revalidatePath("/[locale]/l/[slug]", "page");
+  return result;
+});
+
+export const setShareLinkEnabledAction = audited("setShareLinkEnabledAction", async function setShareLinkEnabledAction(id: unknown, enabled: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsedId = Id.safeParse(id);
+  if (!parsedId.success) return fail("Lien inconnu.");
+  const parsedEnabled = z.boolean().safeParse(enabled);
+  if (!parsedEnabled.success) return fail("Valeur invalide.");
+  const result = setShareLinkEnabled(parsedId.data, parsedEnabled.data);
   if (result.ok) revalidatePath("/[locale]/l/[slug]", "page");
   return result;
 });
