@@ -290,6 +290,7 @@ export function legacyFeaturedPages(): { pageId: number; pageTitle: string }[] {
 
 export type AdminMediaRow = {
   id: number;
+  key: string;
   name: string;
   mime: string;
   size: number;
@@ -340,6 +341,7 @@ function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: numb
   const largest = variants?.files.filter((f) => f.format === "webp" && (f.page ?? 1) === 1).sort((a, b) => b.w - a.w)[0];
   return {
     id: m.id,
+    key: m.key,
     name: m.originalName ?? m.key,
     mime: m.mime,
     size: m.size,
