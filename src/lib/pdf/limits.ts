@@ -140,12 +140,6 @@ export function fileDownloadName(value: unknown, extOverride?: unknown): string 
   return ext ? `${slug}.${ext}` : slug;
 }
 
-/** Alias historiques / possibles. */
-export const downloadFileName = fileDownloadName;
-export const safeFileName = fileDownloadName;
-export const safeDownloadName = fileDownloadName;
-export const attachmentFileName = fileDownloadName;
-export const fileNameForDownload = fileDownloadName;
 
 /** En-tête Content-Disposition pour un fichier générique (attachment, nom + filename*). */
 export const fileAttachmentHeader = (name: unknown, originalName?: unknown) => {
