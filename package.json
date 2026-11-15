@@ -100,6 +100,6 @@
     "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "tsx": "4.23.15",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }
