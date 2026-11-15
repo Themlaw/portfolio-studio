@@ -63,7 +63,7 @@ export function getShareLinkBySlug(slug: string): ShareLinkRow | null {
 
 function validateMedia(mediaId: number, errors: Record<string, string>) {
   const row = getDb().select().from(schema.media).where(eq(schema.media.id, mediaId)).get();
-  if (!row || row.deletedAt || !["image", "video", "pdf", "file"].includes(row.kind)) {
+  if (!row || row.deletedAt || !["image", "video", "pdf", "file", "audio"].includes(row.kind)) {
     errors.mediaId = "Ce média n'existe pas ou n'est pas utilisable.";
   }
 }
@@ -143,5 +143,5 @@ export function readPublicShareLink(slug: string): ShareLinkRow | null {
     .from(schema.media)
     .where(and(eq(schema.media.id, link.mediaId), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
     .get();
-  return m && ["image", "video", "pdf", "file"].includes(m.kind) ? link : null;
+  return m && ["image", "video", "pdf", "file", "audio"].includes(m.kind) ? link : null;
 }
