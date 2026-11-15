@@ -2787,7 +2787,8 @@
     "dropOne": "Drop a file here, or choose it",
     "chooseIt": "Choose it",
     "pickerHelp": "Click an image to choose it. The small magnifier enlarges it without choosing it.",
-    "kindFile": "Files"
+    "kindFile": "Files",
+    "kindAudio": "Audio"
   },
   "messages": {
     "title": "Messages",
