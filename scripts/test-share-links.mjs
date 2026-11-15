@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 
-import { isShareLinkPath } from "../src/lib/share-links.ts";
+import { isShareLinkPath, normalizeShareSlug } from "../src/lib/share-links.ts";
 import { ShareLinkSchema } from "../src/lib/edit/share-links.ts";
 
 let passed = 0;
@@ -35,5 +35,27 @@ for (const rest of ["l/", "l/CV", "l/a/b", "lx/cv", "l/%2e%2e"]) {
     assert.equal(isShareLinkPath(rest), false);
   });
 }
+
+test("normalize : CV -> cv", () => {
+  assert.equal(normalizeShareSlug("CV"), "cv");
+  assert.equal(normalizeShareSlug("demo-", { typing: true }), "demo-");
+  assert.equal(normalizeShareSlug("demo ", { typing: true }), "demo-");
+  assert.equal(normalizeShareSlug("demo-"), "demo");
+});
+test("normalize : bande_demo -> bande-demo", () => {
+  assert.equal(normalizeShareSlug("bande_demo"), "bande-demo");
+});
+test("normalize : Démo Reel 2026 ! -> demo-reel-2026", () => {
+  assert.equal(normalizeShareSlug("Démo Reel 2026 !"), "demo-reel-2026");
+});
+test("normalize : --a--b-- -> a-b", () => {
+  assert.equal(normalizeShareSlug("--a--b--"), "a-b");
+});
+test("normalize : 80 caractères -> 60", () => {
+  assert.equal(normalizeShareSlug("a".repeat(80)).length, 60);
+});
+test("normalize : chaîne vide -> vide", () => {
+  assert.equal(normalizeShareSlug(""), "");
+});
 
 console.log(`\n${passed} tests passés`);

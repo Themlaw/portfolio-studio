@@ -29,5 +29,15 @@
   "deleteBody": "Ce lien ne fonctionnera plus.",
   "uploadFile": "Envoyer un fichier",
   "fileAlwaysDownload": "Le téléchargement est toujours proposé pour un fichier.",
-  "fileUploaded": "Fichier envoyé"
+  "fileUploaded": "Fichier envoyé",
+  "preview": "Aperçu",
+  "openPublicPage": "Ouvrir la page publique",
+  "typeImage": "Image",
+  "typeVideo": "Vidéo",
+  "typePdf": "PDF",
+  "typeAudio": "Audio",
+  "typeFile": "Fichier",
+  "replaceFile": "Remplacer le fichier",
+  "changeFile": "Changer",
+  "fileReplaced": "Fichier remplacé"
 }

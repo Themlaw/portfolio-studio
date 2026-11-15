@@ -2606,7 +2606,17 @@
     "deleteBody": "This link will no longer work.",
     "uploadFile": "Upload a file",
     "fileAlwaysDownload": "Download is always offered for a file.",
-    "fileUploaded": "File uploaded"
+    "fileUploaded": "File uploaded",
+    "preview": "Preview",
+    "openPublicPage": "Open public page",
+    "typeImage": "Image",
+    "typeVideo": "Video",
+    "typePdf": "PDF",
+    "typeAudio": "Audio",
+    "typeFile": "File",
+    "replaceFile": "Replace file",
+    "changeFile": "Change",
+    "fileReplaced": "File replaced"
   },
   "login": {
     "title": "Sign in",

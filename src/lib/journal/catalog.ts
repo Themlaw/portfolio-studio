@@ -86,6 +86,8 @@ export const SPECS: Record<string, Spec> = {
   createShareLinkAction: { label: "Lien partageable créé", type: "creation", state: "publié" },
   updateShareLinkAction: { label: "Lien partageable modifié", type: "modification", state: "publié" },
   deleteShareLinkAction: { label: "Lien partageable supprimé", type: "suppression", state: "publié" },
+  setShareLinkEnabledAction: { label: "Activation d'un lien partageable modifiée", type: "modification", state: "publié" },
+  replaceShareLinkMediaAction: { label: "Fichier d'un lien partageable remplacé", type: "modification", state: "publié" },
   deletePageAction: { label: "Page mise à la corbeille", type: "suppression", page: 0 },
   restorePageAction: { label: "Page restaurée depuis la corbeille", type: "restauration", page: 0 },
   installFontAction: { label: "Police installée", type: "import" },
