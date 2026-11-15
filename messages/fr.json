@@ -94,5 +94,9 @@
     "title": "Page introuvable",
     "body": "Cette adresse ne mène à aucune page. Elle a peut-être changé, ou n'a jamais existé.",
     "back": "Retour à l'accueil"
+  },
+  "share": {
+    "download": "Télécharger",
+    "back": "Retour à l'accueil"
   }
 }

@@ -94,5 +94,9 @@
     "title": "Page not found",
     "body": "This address doesn't lead to any page. It may have moved, or never existed.",
     "back": "Back to the home page"
+  },
+  "share": {
+    "download": "Download",
+    "back": "Back to the home page"
   }
 }
