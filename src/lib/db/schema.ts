@@ -119,6 +119,20 @@ export const wallpapers = sqliteTable("wallpapers", {
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
+export const shareLinks = sqliteTable("share_links", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(),
+  /** Titre court (optionnel) ; null = nom original du média ou le slug. */
+  title: text("title", { mode: "json" }).$type<Localized | null>(),
+  mediaId: integer("media_id")
+    .notNull()
+    .references(() => media.id),
+  allowDownload: integer("allow_download", { mode: "boolean" }).notNull().default(true),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 export const pages = sqliteTable(
   "pages",
   {
