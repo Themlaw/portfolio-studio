@@ -10,3 +10,21 @@ export function isShareLinkPath(rest: string): boolean {
   const slug = parts[1];
   return /^[a-z0-9-]{1,60}$/.test(slug);
 }
+
+/**
+ * Normalise un nom court (slug) pendant la frappe et côté serveur avant validation :
+ * minuscules, accents retirés, espaces et « _ » → « - », tout autre caractère retiré,
+ * tirets multiples fusionnés et extrémités nettoyées, 60 caractères au plus.
+ */
+export function normalizeShareSlug(input: unknown): string {
+  if (typeof input !== "string") return "";
+  let s = input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  s = s.toLowerCase();
+  s = s.replace(/[\s_]+/g, "-");
+  s = s.replace(/[^a-z0-9-]/g, "");
+  s = s.replace(/-+/g, "-");
+  s = s.replace(/^-+|-+$/g, "");
+  s = s.slice(0, 60);
+  s = s.replace(/-+$/g, "");
+  return s;
+}

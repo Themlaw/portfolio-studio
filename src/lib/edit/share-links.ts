@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/lib/db";
+import { normalizeShareSlug } from "@/lib/share-links";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 
 export type ShareLinkRow = {
@@ -75,8 +76,15 @@ function validateSlug(slug: string, exceptId: number | null, errors: Record<stri
   }
 }
 
+function normalizeInput(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const obj = input as Record<string, unknown>;
+  if (typeof obj.slug === "string") return { ...obj, slug: normalizeShareSlug(obj.slug) };
+  return obj;
+}
+
 export function createShareLink(input: unknown): ActionResult<{ id: number }> {
-  const parsed = ShareLinkSchema.safeParse(input);
+  const parsed = ShareLinkSchema.safeParse(normalizeInput(input));
   if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   const data = parsed.data;
   const errors: Record<string, string> = {};
@@ -101,7 +109,7 @@ export function updateShareLink(id: number, input: unknown): ActionResult<null> 
   const db = getDb();
   const existing = db.select().from(schema.shareLinks).where(eq(schema.shareLinks.id, id)).get();
   if (!existing) return fail("Ce lien n'existe plus. Recharge la liste.");
-  const parsed = ShareLinkSchema.safeParse(input);
+  const parsed = ShareLinkSchema.safeParse(normalizeInput(input));
   if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   const data = parsed.data;
   const errors: Record<string, string> = {};
@@ -117,6 +125,17 @@ export function updateShareLink(id: number, input: unknown): ActionResult<null> 
       enabled: data.enabled,
       updatedAt: new Date(),
     })
+    .where(eq(schema.shareLinks.id, id))
+    .run();
+  return done(null);
+}
+
+export function setShareLinkEnabled(id: number, enabled: boolean): ActionResult<null> {
+  const db = getDb();
+  const existing = db.select().from(schema.shareLinks).where(eq(schema.shareLinks.id, id)).get();
+  if (!existing) return fail("Ce lien n'existe plus. Recharge la liste.");
+  db.update(schema.shareLinks)
+    .set({ enabled: Boolean(enabled), updatedAt: new Date() })
     .where(eq(schema.shareLinks.id, id))
     .run();
   return done(null);
