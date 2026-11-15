@@ -74,8 +74,10 @@ async function createLink(slug, title, mediaName, allowDownload = true, enabled 
   await page.waitForTimeout(800);
   const cbDl = form.getByTestId("link-allow-download");
   if (allowDownload) await cbDl.check(); else await cbDl.uncheck();
-  const cbEn = form.getByTestId("link-enabled");
-  if (enabled) await cbEn.check(); else await cbEn.uncheck();
+  const swEn = form.getByTestId("link-enabled-switch");
+  const enState = await swEn.getAttribute("aria-checked");
+  if (enabled && enState !== "true") await swEn.click();
+  if (!enabled && enState === "true") await swEn.click();
   await form.getByTestId("link-save").click();
   await page.waitForTimeout(1500);
 }
@@ -104,7 +106,8 @@ await page.goto(`${BASE}/admin/liens`, { waitUntil: "networkidle" });
 const row = page.locator("[data-testid='link-row']", { hasText: slugPdf });
 await row.getByTestId("link-edit").click();
 const form = page.getByTestId("link-form");
-await form.getByTestId("link-enabled").uncheck();
+const swDis = form.getByTestId("link-enabled-switch");
+if (await swDis.getAttribute("aria-checked") === "true") await swDis.click();
 await form.getByTestId("link-save").click();
 await page.waitForTimeout(1500);
 const resDisabled = await fetch(`${BASE}/fr/l/${slugPdf}`);
@@ -170,8 +173,8 @@ async function createAudioLink(slug, allowDownload) {
   await page.waitForTimeout(1000);
   const cbDl = form.getByTestId("link-allow-download");
   if (allowDownload) await cbDl.check().catch(() => {}); else await cbDl.uncheck().catch(() => {});
-  const cbEn = form.getByTestId("link-enabled");
-  await cbEn.check();
+  const swEn = form.getByTestId("link-enabled-switch");
+  if (await swEn.getAttribute("aria-checked") !== "true") await swEn.click();
   await form.getByTestId("link-save").click();
   await page.waitForTimeout(1500);
 }
@@ -205,6 +208,51 @@ ok("audio media : Range -> 206", rRange.status === 206, String(rRange.status));
 const rDl = await fetch(`${mediaUrl}?name=mon-audio&dl=1`);
 ok("audio media dl : attachment", (rDl.headers.get("content-disposition") || "").includes("attachment"), rDl.headers.get("content-disposition") || "");
 
+
+// ---- Nouveaux comportements (modale, aperçu, interrupteur) ------------------
+await page.goto(`${BASE}/admin/liens`, { waitUntil: "networkidle" });
+await page.getByTestId("link-create").click();
+ok("formulaire dans dialog[open]", await page.locator("dialog[open][data-testid='link-form']").count() === 1);
+await page.getByTestId("link-cancel").click();
+await page.waitForTimeout(300);
+
+// normalisation du slug pendant la frappe
+await page.getByTestId("link-create").click();
+const fNorm = page.getByTestId("link-form");
+await fNorm.getByTestId("link-slug").fill("Bande_Demo");
+const slugNorm = await fNorm.getByTestId("link-slug").inputValue();
+ok("slug normalisé pendant la frappe", slugNorm === "bande-demo", slugNorm);
+const addrText = (await fNorm.locator("p.mono").first().textContent()) || "";
+ok("adresse finale affichée", addrText.endsWith("/l/bande-demo"), addrText);
+await fNorm.getByTestId("link-cancel").click();
+await page.waitForTimeout(300);
+
+// aucune balise média dans la liste par défaut
+const mediaInList = await page.locator("[data-testid='link-row'] img, [data-testid='link-row'] video, [data-testid='link-row'] audio").count();
+ok("aucun média dans la liste par défaut", mediaInList === 0);
+
+// aperçu s'ouvre et se ferme
+const firstRow = page.locator("[data-testid='link-row']").first();
+await firstRow.getByTestId("link-preview").click();
+await page.waitForTimeout(500);
+ok("aperçu ouvert", await page.locator("[data-testid='link-preview-dialog'][open]").count() === 1);
+await page.keyboard.press("Escape");
+await page.waitForTimeout(500);
+ok("aperçu fermé", await page.locator("[data-testid='link-preview-dialog'][open]").count() === 0);
+
+// interrupteur de ligne : coupe puis rallume sans recharger
+const switchRow = page.locator("[data-testid='link-row']", { hasText: slugImg }).first();
+const rowSwitch = switchRow.getByTestId("link-enabled-switch");
+if (await rowSwitch.getAttribute("aria-checked") !== "true") await rowSwitch.click();
+await page.waitForTimeout(500);
+await rowSwitch.click();
+await page.waitForTimeout(1200);
+const rOff = await fetch(`${BASE}/fr/l/${slugImg}`);
+ok("interrupteur ligne désactivé -> 404", rOff.status === 404, String(rOff.status));
+await rowSwitch.click();
+await page.waitForTimeout(1200);
+const rOn = await fetch(`${BASE}/fr/l/${slugImg}`);
+ok("interrupteur ligne réactivé -> 200", rOn.status === 200, String(rOn.status));
 
 await browser.close();
 console.log(`\n${failures === 0 ? "OK" : failures + " ECHEC(S)"}`);
