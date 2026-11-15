@@ -31,7 +31,7 @@ import { createKitImport, KitImportBatchError, MAX_IMPORT_FILES } from "@/lib/ki
 import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
 import { extractEntry, KitZipError, listZip } from "@/lib/kit/zip-archive";
 
-import { ingestImage, type IngestedMedia } from "./ingest";
+import { ingestFile, ingestImage, type IngestedMedia } from "./ingest";
 import { diskProblem, quotaProblem } from "./quota";
 import { cleanFilename, sniffImage, sniffPdf, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
 import { ingestPdf } from "@/lib/pdf/ingest";
@@ -49,12 +49,15 @@ const InitSchema = z.strictObject({
   tags: z.unknown().optional(),
   /** Kit de thème (PSD) : jamais un média, rangé pour l'import du thème visé. */
   purpose: z
-    .strictObject({
-      kind: z.literal("kit"),
-      themeId: z.string().regex(/^[a-z0-9-]{1,80}$/),
-      /** Plusieurs PSD envoyés l'un après l'autre (identifiant choisi par le client) : le dernier (`last`) lance l'import. */
-      batch: z.strictObject({ id: z.string().uuid(), last: z.boolean() }).optional(),
-    })
+    .union([
+      z.strictObject({
+        kind: z.literal("kit"),
+        themeId: z.string().regex(/^[a-z0-9-]{1,80}$/),
+        /** Plusieurs PSD envoyés l'un après l'autre (identifiant choisi par le client) : le dernier (`last`) lance l'import. */
+        batch: z.strictObject({ id: z.string().uuid(), last: z.boolean() }).optional(),
+      }),
+      z.literal("file"),
+    ])
     .optional(),
 });
 
@@ -142,7 +145,7 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
   if (!parsed.success) throw new UploadError(400, "Requête invalide.");
   const { size, type, purpose } = parsed.data;
   const name = cleanFilename(parsed.data.name);
-  if (purpose) {
+  if (purpose && purpose !== "file") {
     const problem = kitProblem(name, size, purpose.themeId);
     if (problem) throw problem;
     const disk = await diskProblem(size, pendingBytes());
@@ -151,6 +154,22 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
     reserveUpload({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: kitTarget(purpose.themeId, purpose.batch), offset: 0, userId, tags: [] });
     await createPart(id);
     return { id, name, size, offset: 0, kind: "kit", chunkSize: CHUNK_BYTES };
+  }
+  if (purpose === "file") {
+    const maxBytes = (Number(process.env.MAX_FILE_MB || 500) || 500) * 1024 * 1024;
+    if (size > maxBytes) {
+      throw new UploadError(413, `Ce fichier dépasse ${Math.round(maxBytes / 1024 / 1024)} Mo : réduis-le avant de l'envoyer.`);
+    }
+    const tags = parseTagLabels(parsed.data.tags ?? []);
+    if (!tags.ok) throw new UploadError(400, tags.message);
+    const tagsFull = tagCapacityProblem(tags.labels);
+    if (tagsFull) throw new UploadError(422, tagsFull);
+    const disk = await diskProblem(size, pendingBytes());
+    if (disk) throw new UploadError(507, disk);
+    const id = randomUUID();
+    reserveUpload({ id, name, size, declaredType: type.slice(0, 100), kind: "image", offset: 0, userId, tags: tags.labels, purpose: "file" });
+    await createPart(id);
+    return { id, name, size, offset: 0, kind: "image", chunkSize: CHUNK_BYTES };
   }
   const tags = parseTagLabels(parsed.data.tags ?? []);
   if (!tags.ok) throw new UploadError(400, tags.message);
@@ -247,7 +266,7 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
  * Fin d'envoi. `tagsInput` : tags courants du client (une reprise a pu les
  * changer depuis init), validés comme à init ; absents : ceux d'init.
  */
-export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video" | "pdf"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
+export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video" | "pdf" | "file"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
 
 export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<CompletedUpload> {
   const r = row(id, userId);
@@ -336,7 +355,7 @@ async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string
   }
 }
 
-async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" }> {
+async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" | "file" }> {
   if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
   const file = partPath(r.id);
   // L'envoi est clos : sa réservation disparaît, le contenu fait foi.
@@ -361,6 +380,9 @@ async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<I
       throw new UploadError(413, `Cette image dépasse ${Math.round(maxImageBytes() / 1024 / 1024)} Mo : réduis-la avant de l'envoyer.`);
     }
     return { ...(await ingestImage(received)), kind: "image" };
+  }
+  if (r.purpose === "file") {
+    return { ...(await ingestFile(received)), kind: "file" };
   }
   await rm(file, { force: true });
   throw new UploadError(415, VIDEO_REJECTED_MESSAGE);

@@ -2,12 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { createShareLinkAction, deleteShareLinkAction, updateShareLinkAction } from "@/app/admin/(espace)/liens/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import type { ShareLinkRow } from "@/lib/edit/share-links";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
+import { uploadChunked } from "@/components/admin/uploads";
 import { ConfirmDialog, toast } from "@/components/admin/editing";
 
 type Props = { initial: ShareLinkRow[]; media: AdminMediaRow[] };
@@ -31,6 +32,9 @@ export default function LinksLibrary({ initial, media }: Props) {
   const [enabled, setEnabled] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [deleting, setDeleting] = useState<ShareLinkRow | null>(null);
   const [busy, start] = useTransition();
 
@@ -78,6 +82,19 @@ export default function LinksLibrary({ initial, media }: Props) {
       }
       document.body.removeChild(ta);
     }
+  }
+
+  async function uploadFile(file: File) {
+    setUploading(true);
+    setUploadProgress(0);
+    const res = await uploadChunked(file, (sent, total) => {
+      setUploadProgress(total > 0 ? Math.round((sent / total) * 100) : 0);
+    }, undefined, [], "file");
+    setUploading(false);
+    if (!res.ok) return toast(res.message, "error");
+    setMediaId(res.media.id);
+    toast(t("fileUploaded"));
+    router.refresh();
   }
 
   function submit() {
@@ -192,13 +209,38 @@ export default function LinksLibrary({ initial, media }: Props) {
                 <button type="button" className="a-btn a-btn-small" onClick={() => setMediaOpen(true)} data-testid="link-pick-media">
                   {t("chooseMedia")}
                 </button>
+                <button type="button" className="a-btn a-btn-small" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="link-upload-file">
+                  {t("uploadFile")}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadFile(f);
+                    e.target.value = "";
+                  }}
+                />
               </div>
+              {uploading && <p className="muted">{uploadProgress}%</p>}
               {errors.mediaId && <p className="a-field-error">{errors.mediaId}</p>}
             </div>
-            <label className="a-toggle">
-              <input type="checkbox" checked={allowDownload} onChange={(e) => setAllowDownload(e.target.checked)} data-testid="link-allow-download" />
-              <span>{t("allowDownload")}</span>
-            </label>
+            {(() => {
+              const sel = mediaId !== undefined ? mediaById.get(mediaId) : undefined;
+              const isFileMedia = sel?.kind === "file";
+              return (
+                <>
+                  {!isFileMedia && (
+                    <label className="a-toggle">
+                      <input type="checkbox" checked={allowDownload} onChange={(e) => setAllowDownload(e.target.checked)} data-testid="link-allow-download" />
+                      <span>{t("allowDownload")}</span>
+                    </label>
+                  )}
+                  {isFileMedia && <p className="muted">{t("fileAlwaysDownload")}</p>}
+                </>
+              );
+            })()}
             <label className="a-toggle">
               <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} data-testid="link-enabled" />
               <span>{t("enabled")}</span>
@@ -217,7 +259,7 @@ export default function LinksLibrary({ initial, media }: Props) {
 
       <MediaPickerDialog
         open={mediaOpen}
-        media={media.filter((m) => m.status === "ready" && (m.kind === "image" || m.kind === "video" || m.kind === "pdf"))}
+        media={media.filter((m) => m.status === "ready" && (m.kind === "image" || m.kind === "video" || m.kind === "pdf" || m.kind === "file"))}
         title={t("chooseMedia")}
         onClose={() => setMediaOpen(false)}
         onPick={(m) => {

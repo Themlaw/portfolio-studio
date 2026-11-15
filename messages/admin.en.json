@@ -2603,7 +2603,10 @@
     "saved": "Link saved",
     "deleted": "Link deleted",
     "deleteTitle": "Delete “{slug}”?",
-    "deleteBody": "This link will no longer work."
+    "deleteBody": "This link will no longer work.",
+    "uploadFile": "Upload a file",
+    "fileAlwaysDownload": "Download is always offered for a file.",
+    "fileUploaded": "File uploaded"
   },
   "login": {
     "title": "Sign in",
@@ -2783,7 +2786,8 @@
     "pickImage": "Choose an image",
     "dropOne": "Drop a file here, or choose it",
     "chooseIt": "Choose it",
-    "pickerHelp": "Click an image to choose it. The small magnifier enlarges it without choosing it."
+    "pickerHelp": "Click an image to choose it. The small magnifier enlarges it without choosing it.",
+    "kindFile": "Files"
   },
   "messages": {
     "title": "Messages",

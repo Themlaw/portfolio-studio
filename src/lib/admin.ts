@@ -310,7 +310,7 @@ export type AdminMediaRow = {
   preview: string | null;
   color: string | null;
   uses: number;
-  kind: "image" | "video" | "pdf";
+  kind: "image" | "video" | "pdf" | "file";
   /** Vidéo : durée (s), son, avancement de la conversion (0–100), fichier lisible. */
   duration: number | null;
   hasAudio: boolean | null;

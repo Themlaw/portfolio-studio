@@ -100,6 +100,25 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
         </>
       );
     }
+    // fichier générique (téléchargement seul)
+    if (!media.pdf && !media.video && media.mime === "application/octet-stream") {
+      const sizeMb = media.size / 1024 / 1024;
+      const sizeLabel = sizeMb >= 1
+        ? `${sizeMb.toLocaleString(locale, { maximumFractionDigits: 1 })} ${locale === "fr" ? "Mo" : "MB"}`
+        : `${Math.max(1, Math.round(media.size / 1024)).toLocaleString(locale)} ${locale === "fr" ? "Ko" : "KB"}`;
+      const fileName = media.originalName ?? "fichier";
+      return (
+        <>
+          <p className="muted">{fileName}</p>
+          <p className="muted">{sizeLabel}</p>
+          <div className="mt-6">
+            <a className="btn" data-testid="share-download" href={`${media.url}?name=${downloadName(link.slug)}`} download={fileName}>
+              {t("download")}
+            </a>
+          </div>
+        </>
+      );
+    }
     // image
     return (
       <>

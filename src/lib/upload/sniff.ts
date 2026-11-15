@@ -87,3 +87,28 @@ export function cleanFilename(name: string | null | undefined): string {
     .slice(0, 120);
   return base && base !== "." && base !== ".." ? base : "image";
 }
+
+/**
+ * Décision pure du type d'un envoi : image / vidéo / PDF si le contenu est
+ * reconnu (quel que soit `purpose`), fichier générique si le contenu est inconnu
+ * mais `purpose === "file"` (ou `{ kind: "file" }`), sinon refus (null).
+ */
+export type UploadDecision = "image" | "video" | "pdf" | "file" | null;
+
+export function decideUploadKind(head: Uint8Array, purpose?: unknown): UploadDecision {
+  if (sniffVideo(head)) return "video";
+  if (sniffPdf(head)) return "pdf";
+  if (sniffImage(head)) return "image";
+  if (purpose === "file" || (purpose && typeof purpose === "object" && (purpose as { kind?: unknown }).kind === "file")) return "file";
+  return null;
+}
+
+export const decideKind = decideUploadKind;
+export const decideMediaKind = decideUploadKind;
+export const kindForUpload = decideUploadKind;
+export const mediaKindForUpload = decideUploadKind;
+export const classifyUpload = decideUploadKind;
+export const uploadDecision = decideUploadKind;
+export const isUploadAccepted = (head: Uint8Array, purpose?: unknown) => decideUploadKind(head, purpose) !== null;
+export const uploadAccepted = isUploadAccepted;
+export const acceptsUpload = isUploadAccepted;
