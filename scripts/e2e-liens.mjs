@@ -92,7 +92,7 @@ await createLink(slugVid, "Vidéo test", vidRow.original_name, true, true);
 for (const [slug, expectDl] of [[slugPdf, true], [slugImg, false], [slugVid, true]]) {
   const res = await fetch(`${BASE}/fr/l/${slug}`);
   const html = await res.text();
-  ok(`${slug} : 200`, res.status() === 200, String(res.status));
+  ok(`${slug} : 200`, res.status === 200, String(res.status));
   ok(`${slug} : noindex`, /noindex/.test(html));
   ok(`${slug} : titre présent`, html.includes("test"));
   ok(`${slug} : bouton téléchargement ${expectDl ? "présent" : "absent"}`, expectDl ? /Télécharger/.test(html) : !/Télécharger/.test(html));
@@ -119,9 +119,10 @@ const resDeleted = await fetch(`${BASE}/fr/l/${slugPdf}`);
 ok("lien supprimé : 404", resDeleted.status === 404, String(resDeleted.status));
 
 // slug déjà pris
+const before = q1("select count(*) n from share_links").n;
 await createLink(slugImg, "doublon", imgRow.original_name, true, true);
-// if duplicate, form should still be open or error; check no new unique? We'll just ok
-ok("slug déjà pris : pas de crash", true);
+ok("slug déjà pris : message d'erreur", await page.getByText("déjà pris").first().isVisible());
+ok("slug déjà pris : aucun lien ajouté", q1("select count(*) n from share_links").n === before);
 
 // redirection sans langue
 const r = await fetch(`${BASE}/l/${slugImg}`, { redirect: "manual" });
