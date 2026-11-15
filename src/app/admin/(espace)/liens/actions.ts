@@ -51,7 +51,7 @@ export const replaceShareLinkMediaAction = audited("replaceShareLinkMediaAction"
   const parsedId = Id.safeParse(id);
   if (!parsedId.success) return fail("Lien inconnu.");
   const parsedMedia = z.number().int().positive().safeParse(mediaId);
-  if (!parsedMedia.success) return fail("Média invalide.");
+  if (!parsedMedia.success) return fail("Valeur invalide.");
   const result = replaceShareLinkMedia(parsedId.data, parsedMedia.data);
   if (result.ok) revalidatePath("/[locale]/l/[slug]", "page");
   return result;
