@@ -48,7 +48,7 @@ import { useUploadQueue } from "./UploadQueue";
 import { useMediaWatch, useSizeFormat } from "./uploads";
 
 type Filter = "all" | "unused" | "noalt";
-type KindFilter = "any" | "image" | "video" | "pdf";
+type KindFilter = "any" | "image" | "video" | "pdf" | "file" | "audio";
 
 type T = ReturnType<typeof useTranslations>;
 
@@ -82,6 +82,7 @@ export function MediaGrid({
   onZoom?: (m: AdminMediaRow) => void;
 }) {
   const t = useTranslations("media");
+  const { formatBytes } = useSizeFormat();
   return (
     <ul className="a-media-grid2" aria-label={label} data-selecting={checked ? true : undefined}>
       {items.map((m) => (
@@ -99,7 +100,11 @@ export function MediaGrid({
               </span>
             )}
             <span className="a-media-thumb">
-              {m.thumb ? (
+              {m.kind === "file" ? (
+                <span className="a-media-fileicon" aria-hidden="true">📄</span>
+              ) : m.kind === "audio" ? (
+                <span className="a-media-fileicon" aria-hidden="true">🎵</span>
+              ) : m.thumb ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.thumb} alt="" loading="lazy" />
               ) : (
@@ -125,6 +130,10 @@ export function MediaGrid({
             <span className="a-media-meta">
               {m.status !== "ready" ? (
                 <span className={m.status === "failed" ? "a-danger-text" : ""}>{stateLabel(m, t)}</span>
+              ) : m.kind === "file" ? (
+                <span>{formatBytes(m.size)}</span>
+              ) : m.kind === "audio" ? (
+                <span>{formatBytes(m.size)}</span>
               ) : (
                 <span>{t("usedTimes", { count: m.uses })}</span>
               )}
@@ -210,6 +219,8 @@ function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[], initialFilter
             ["image", t("kindImages")],
             ["video", t("kindVideos")],
             ["pdf", t("kindPdf")],
+            ["file", t("kindFile")],
+            ["audio", t("kindAudio")],
           ] as const
         ).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>

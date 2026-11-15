@@ -102,3 +102,47 @@ export const pdfToPpmArgs = (file: string, outPrefix: string, pages: number, px:
   file,
   outPrefix,
 ];
+
+/**
+ * Nom de téléchargement d'un fichier générique : base réduite à [a-z0-9-] (comme
+ * `downloadName`), suivie de l'extension d'origine réduite à [a-z0-9]{1,10}
+ * (minuscules). Sans base valide : « fichier » ; sans extension valide : aucune.
+ * `extOverride` (optionnel) : extension tirée d'un autre nom (ex. original du média).
+ */
+export function fileDownloadName(value: unknown, extOverride?: unknown): string {
+  let input = String(value ?? "");
+  let ext = "";
+  if (extOverride != null) {
+    const c = String(extOverride).split(".").pop() ?? "";
+    if (/^[a-z0-9]{1,10}$/i.test(c)) ext = c.toLowerCase();
+  } else {
+    const parts = input.split(".");
+    if (parts.length > 1) {
+      const c = parts.pop() ?? "";
+      if (/^[a-z0-9]{1,10}$/i.test(c)) {
+        ext = c.toLowerCase();
+      }
+      input = parts.join(".");
+    }
+  }
+  const slug = String(input ?? "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/, "");
+  if (!slug) {
+    if (ext) return `fichier.${ext}`;
+    return "fichier";
+  }
+  return ext ? `${slug}.${ext}` : slug;
+}
+
+
+/** En-tête Content-Disposition pour un fichier générique (attachment, nom + filename*). */
+export const fileAttachmentHeader = (name: unknown, originalName?: unknown) => {
+  const filename = fileDownloadName(name, originalName);
+  return `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+};

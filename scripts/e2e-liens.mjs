@@ -3,6 +3,7 @@ import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
 import Database from "better-sqlite3";
 import path from "node:path";
+import fs from "node:fs";
 import { makePdf } from "./lib/medias-setup.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
@@ -133,6 +134,77 @@ ok("redirection vers /fr/l/slug", loc.includes(`/fr/l/${slugImg}`), loc);
 // média lié apparaît comme utilisé : vérifier share_links table
 const cnt = q1("select count(*) n from share_links").n;
 ok("liens en base", cnt >= 2, String(cnt));
+
+
+
+// ---- Audio (lecteur intégré) ----------------------------------------------
+const wavName = `audio-test-${suffix}.wav`;
+const wavPath = path.join("/tmp/opencode", wavName);
+// WAV 1 s de silence, en-tête RIFF écrit à la main.
+const sampleRate = 8000;
+const numSamples = sampleRate;
+const dataSize = numSamples * 2;
+const buf = Buffer.alloc(44 + dataSize);
+buf.write("RIFF", 0); buf.writeUInt32LE(36 + dataSize, 4); buf.write("WAVE", 8);
+buf.write("fmt ", 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22);
+buf.writeUInt32LE(sampleRate, 24); buf.writeUInt32LE(sampleRate * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34);
+buf.write("data", 36); buf.writeUInt32LE(dataSize, 40);
+fs.mkdirSync(path.dirname(wavPath), { recursive: true });
+fs.writeFileSync(wavPath, buf);
+
+const slugAudioNoDl = `audio-nodl-${suffix}`;
+const slugAudioDl = `audio-dl-${suffix}`;
+
+async function createAudioLink(slug, allowDownload) {
+  await page.goto(`${BASE}/admin/liens`, { waitUntil: "networkidle" });
+  await page.getByTestId("link-create").click();
+  const form = page.getByTestId("link-form");
+  await form.getByTestId("link-slug").fill(slug);
+  await form.getByTestId("link-title-fr").fill("Audio test");
+  await form.locator('input[type="file"]').first().setInputFiles(wavPath);
+  for (let i = 0; i < 60; i++) {
+    const r = q1("select id, status from media where original_name = ? order by id desc", wavName);
+    if (r?.status === "ready") break;
+    await page.waitForTimeout(2000);
+  }
+  await page.waitForTimeout(1000);
+  const cbDl = form.getByTestId("link-allow-download");
+  if (allowDownload) await cbDl.check().catch(() => {}); else await cbDl.uncheck().catch(() => {});
+  const cbEn = form.getByTestId("link-enabled");
+  await cbEn.check();
+  await form.getByTestId("link-save").click();
+  await page.waitForTimeout(1500);
+}
+
+await createAudioLink(slugAudioNoDl, false);
+await createAudioLink(slugAudioDl, true);
+
+// Page sans téléchargement : lecteur audio, pas de bouton
+const resNoDl = await fetch(`${BASE}/fr/l/${slugAudioNoDl}`);
+const htmlNoDl = await resNoDl.text();
+ok("audio no-dl : 200", resNoDl.status === 200, String(resNoDl.status));
+ok("audio no-dl : <audio>", /<audio/.test(htmlNoDl));
+ok("audio no-dl : pas de bouton", !htmlNoDl.includes('data-testid="share-download"'));
+
+// Page avec téléchargement : bouton présent
+const resDl = await fetch(`${BASE}/fr/l/${slugAudioDl}`);
+const htmlDl = await resDl.text();
+ok("audio dl : bouton présent", htmlDl.includes('data-testid="share-download"'));
+
+// Service du média : audio/wav, pas attachment, Range -> 206
+const audioRow = q1("select key from media where original_name = ? and kind = 'audio' order by id desc", wavName);
+const mediaUrl = `${BASE}/media/${audioRow.key}`;
+const rHead = await fetch(mediaUrl);
+ok("audio media : 200", rHead.status === 200, String(rHead.status));
+ok("audio media : Content-Type audio/wav", (rHead.headers.get("content-type") || "").includes("audio/wav"), rHead.headers.get("content-type") || "");
+ok("audio media : pas attachment", !(rHead.headers.get("content-disposition") || "").includes("attachment"));
+const rRange = await fetch(mediaUrl, { headers: { Range: "bytes=0-99" } });
+ok("audio media : Range -> 206", rRange.status === 206, String(rRange.status));
+
+// Téléchargement forcé
+const rDl = await fetch(`${mediaUrl}?name=mon-audio&dl=1`);
+ok("audio media dl : attachment", (rDl.headers.get("content-disposition") || "").includes("attachment"), rDl.headers.get("content-disposition") || "");
+
 
 await browser.close();
 console.log(`\n${failures === 0 ? "OK" : failures + " ECHEC(S)"}`);

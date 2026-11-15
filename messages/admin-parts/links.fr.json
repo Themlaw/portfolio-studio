@@ -26,5 +26,8 @@
   "saved": "Lien enregistré",
   "deleted": "Lien supprimé",
   "deleteTitle": "Supprimer « {slug} » ?",
-  "deleteBody": "Ce lien ne fonctionnera plus."
+  "deleteBody": "Ce lien ne fonctionnera plus.",
+  "uploadFile": "Envoyer un fichier",
+  "fileAlwaysDownload": "Le téléchargement est toujours proposé pour un fichier.",
+  "fileUploaded": "Fichier envoyé"
 }

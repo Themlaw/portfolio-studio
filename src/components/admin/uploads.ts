@@ -84,7 +84,7 @@ function putChunk(id: string, offset: number, blob: Blob, onBytes: (n: number) =
  * délai croissant, l'offset est relu sur le serveur), progression réelle.
  * `resumeId` : reprendre un envoi interrompu (même fichier).
  */
-export async function uploadChunked(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = []): Promise<UploadResult> {
+export async function uploadChunked(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = [], purpose?: unknown): Promise<UploadResult> {
   let id = resumeId;
   let offset = 0;
   let chunkSize = 8 * 1024 * 1024;
@@ -98,7 +98,7 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
     const init = await api<{ upload: { id: string; chunkSize: number } }>("/admin/api/upload/init", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "application/octet-stream", tags }),
+      body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "application/octet-stream", tags, ...(purpose !== undefined ? { purpose } : {}) }),
     });
     if (!init.ok) return { ok: false, message: init.message, status: init.status, definitive: init.status !== 0 && init.status < 500 && init.status !== 409 };
     id = init.data.upload.id;
@@ -211,8 +211,8 @@ export async function uploadKit(files: File[], themeId: string, onProgress: (sen
 }
 
 /** Envoi d'un fichier : direct (petite image) ou par morceaux (vidéo, grande image). */
-export function sendFile(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = []): Promise<UploadResult> {
-  if (resumeId || isVideo(file) || file.size > CHUNKED_ABOVE) return uploadChunked(file, onProgress, resumeId, tags);
+export function sendFile(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = [], purpose?: unknown): Promise<UploadResult> {
+  if (purpose !== undefined || resumeId || isVideo(file) || file.size > CHUNKED_ABOVE) return uploadChunked(file, onProgress, resumeId, tags, purpose);
   return uploadFile(file, (ratio) => onProgress(Math.round(ratio * file.size), file.size), tags);
 }
 

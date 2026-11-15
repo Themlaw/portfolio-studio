@@ -148,5 +148,7 @@
   "pickImage": "Choisir une image",
   "dropOne": "Dépose un fichier, ou choisis-le",
   "chooseIt": "Le choisir",
-  "pickerHelp": "Clique une image pour la choisir. La petite loupe l'agrandit sans la choisir."
+  "pickerHelp": "Clique une image pour la choisir. La petite loupe l'agrandit sans la choisir.",
+  "kindFile": "Fichiers",
+  "kindAudio": "Audio"
 }

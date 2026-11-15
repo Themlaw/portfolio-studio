@@ -11,6 +11,7 @@ import VideoCard from "@/components/VideoCard";
 import { getMedia } from "@/lib/media";
 import { readPublicShareLink } from "@/lib/edit/share-links";
 import { downloadName } from "@/lib/pdf/limits";
+import { formatDuration } from "@/lib/video/limits";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +98,41 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
               </a>
             </div>
           )}
+        </>
+      );
+    }
+    // audio : lecteur intégré
+    if (!media.pdf && !media.video && media.mime.startsWith("audio/")) {
+      return (
+        <>
+          <audio controls preload="metadata" src={media.url} className="w-full" />
+          {media.duration ? <p className="muted mt-2">{formatDuration(media.duration)}</p> : null}
+          {link.allowDownload && (
+            <div className="mt-6">
+              <a className="btn" data-testid="share-download" href={`${media.url}?name=${downloadName(link.slug)}&dl=1`} download={media.originalName ?? "audio"}>
+                {t("download")}
+              </a>
+            </div>
+          )}
+        </>
+      );
+    }
+    // fichier générique (téléchargement seul)
+    if (!media.pdf && !media.video && media.mime === "application/octet-stream") {
+      const sizeMb = media.size / 1024 / 1024;
+      const sizeLabel = sizeMb >= 1
+        ? `${sizeMb.toLocaleString(locale, { maximumFractionDigits: 1 })} ${locale === "fr" ? "Mo" : "MB"}`
+        : `${Math.max(1, Math.round(media.size / 1024)).toLocaleString(locale)} ${locale === "fr" ? "Ko" : "KB"}`;
+      const fileName = media.originalName ?? "fichier";
+      return (
+        <>
+          <p className="muted">{fileName}</p>
+          <p className="muted">{sizeLabel}</p>
+          <div className="mt-6">
+            <a className="btn" data-testid="share-download" href={`${media.url}?name=${downloadName(link.slug)}`} download={fileName}>
+              {t("download")}
+            </a>
+          </div>
         </>
       );
     }

@@ -28,7 +28,7 @@ import { getStorage } from "@/lib/storage";
 import { quotaProblem } from "./quota";
 import type { Received } from "./receive";
 import { UploadError } from "./receive";
-import { REJECTED_MESSAGE, sniffImage } from "./sniff";
+import { REJECTED_MESSAGE, sniffAudio, sniffImage } from "./sniff";
 
 /** `importedAt` (ms) : renvoi d'un contenu déjà présent, date notée comme dernier envoi (lot 112). */
 export type IngestedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean; importedAt?: number };
@@ -128,6 +128,123 @@ export async function ingestImage(file: Received): Promise<IngestedMedia> {
       }
       throw error;
     }
+  } finally {
+    await rm(file.tmpPath, { force: true });
+  }
+}
+
+/**
+ * Enregistrement d'un fichier générique (lien partageable) : aucun traitement,
+ * l'original est stocké tel quel, mime application/octet-stream, status ready
+ * immédiatement. Déduplication par sha256 comme les autres médias.
+ */
+export async function ingestFile(file: Received): Promise<IngestedMedia> {
+  const db = getDb();
+  const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
+  if (known) {
+    const importedAt = reviveIfTrashed(known);
+    return { ...(known.status === "failed" ? retryFailed(known) : asIngested(known, true)), importedAt };
+  }
+
+  const full = quotaProblem(file.size);
+  if (full) throw new UploadError(507, full);
+
+  const hash16 = file.sha256.slice(0, 16);
+  const key = `files/${hash16}/file`;
+  const storage = getStorage();
+  await storage.put(key, createReadStream(file.tmpPath));
+
+  try {
+    const id = db.transaction((tx) => {
+      const row = tx
+        .insert(schema.media)
+        .values({
+          key,
+          sha256: file.sha256,
+          kind: "file",
+          mime: "application/octet-stream",
+          originalName: file.filename,
+          size: file.size,
+          width: null,
+          height: null,
+          status: "ready",
+          alt: { fr: "", en: "" },
+          lastImportAt: Date.now(),
+        })
+        .returning({ id: schema.media.id })
+        .get();
+      return row.id;
+    });
+    return { id, status: "ready", width: null, height: null, name: file.filename, reused: false };
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      const winner = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
+      if (winner) return asIngested(winner, true);
+    }
+    if (!db.select({ id: schema.media.id }).from(schema.media).where(eq(schema.media.key, key)).get()) {
+      await storage.delete(key).catch(() => {});
+    }
+    throw error;
+  } finally {
+    await rm(file.tmpPath, { force: true });
+  }
+}
+
+/**
+ * Enregistrement d'un fichier audio (lien partageable) : aucun traitement,
+ * l'original est stocké tel quel, mime = type détecté, status ready immédiatement.
+ * Déduplication par sha256 comme les autres médias.
+ */
+export async function ingestAudio(file: Received): Promise<IngestedMedia> {
+  const type = sniffAudio(file.head);
+  if (!type) throw new UploadError(415, "Ce type de fichier n'est pas accepté.");
+
+  const db = getDb();
+  const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
+  if (known) {
+    const importedAt = reviveIfTrashed(known);
+    return { ...(known.status === "failed" ? retryFailed(known) : asIngested(known, true)), importedAt };
+  }
+
+  const full = quotaProblem(file.size);
+  if (full) throw new UploadError(507, full);
+
+  const hash16 = file.sha256.slice(0, 16);
+  const key = `audio/${hash16}/file`;
+  const storage = getStorage();
+  await storage.put(key, createReadStream(file.tmpPath));
+
+  try {
+    const id = db.transaction((tx) => {
+      const row = tx
+        .insert(schema.media)
+        .values({
+          key,
+          sha256: file.sha256,
+          kind: "audio",
+          mime: type.mime,
+          originalName: file.filename,
+          size: file.size,
+          width: null,
+          height: null,
+          status: "ready",
+          alt: { fr: "", en: "" },
+          lastImportAt: Date.now(),
+        })
+        .returning({ id: schema.media.id })
+        .get();
+      return row.id;
+    });
+    return { id, status: "ready", width: null, height: null, name: file.filename, reused: false };
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      const winner = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
+      if (winner) return asIngested(winner, true);
+    }
+    if (!db.select({ id: schema.media.id }).from(schema.media).where(eq(schema.media.key, key)).get()) {
+      await storage.delete(key).catch(() => {});
+    }
+    throw error;
   } finally {
     await rm(file.tmpPath, { force: true });
   }

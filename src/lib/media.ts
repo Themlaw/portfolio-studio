@@ -21,6 +21,9 @@ export type MediaInfo = {
   /** PDF (bloc CV) : pages en images et fichier téléchargeable, sinon null. */
   pdf: PdfView | null;
   mime: string;
+  size: number;
+  duration: number | null;
+  originalName: string | null;
   width: number | null;
   height: number | null;
   alt: L | null;
@@ -89,6 +92,9 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
       video: videoView(row),
       pdf: row.kind === "pdf" ? pdfViewOf(row) : null,
       mime: row.mime,
+      size: row.size,
+      duration: row.duration ?? null,
+      originalName: row.originalName ?? null,
       width: anim ? anim.fw : row.width,
       height: anim ? anim.fh : row.height,
       alt: row.alt ?? null,
@@ -118,25 +124,25 @@ const isOriginalKey = (key: string) => key.startsWith(ORIGINALS_PREFIX);
  *   jointe seulement, voir la route /media) ;
  * - autre clé : média du seed servi tel quel (SVG, par sa clé exacte).
  */
-export function findMediaByKey(key: string): { mime: string; status: string } | null {
+export function findMediaByKey(key: string): { mime: string; status: string; kind?: string; originalName?: string | null } | null {
   if (key.startsWith(ORIGINALS_PREFIX)) return null;
   const hash16 = hashOfVariantKey(key);
   const db = getDb();
   if (hash16) {
     const row = db
-      .select({ status: schema.media.status, variants: schema.media.variants })
+      .select({ status: schema.media.status, variants: schema.media.variants, kind: schema.media.kind })
       .from(schema.media)
       .where(and(like(schema.media.sha256, `${hash16}%`), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
       .get();
     const file = row ? parseVariants(row.variants)?.files.find((f) => f.key === key) : undefined;
     if (!row || !file) return null;
-    return { mime: variantMime(key), status: row.status };
+    return { mime: variantMime(key), status: row.status, kind: row.kind };
   }
   if (key.startsWith(VARIANTS_PREFIX) || key.startsWith(VIDEO_PREFIX) || key.startsWith(DOC_PREFIX)) return null;
   const row = db
-    .select({ mime: schema.media.mime, status: schema.media.status })
+    .select({ mime: schema.media.mime, status: schema.media.status, kind: schema.media.kind, originalName: schema.media.originalName })
     .from(schema.media)
     .where(and(eq(schema.media.key, key), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
     .get();
-  return row ?? null;
+  return row ? { ...row, kind: row.kind, originalName: row.originalName } : null;
 }

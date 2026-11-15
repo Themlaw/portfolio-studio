@@ -26,5 +26,8 @@
   "saved": "Link saved",
   "deleted": "Link deleted",
   "deleteTitle": "Delete “{slug}”?",
-  "deleteBody": "This link will no longer work."
+  "deleteBody": "This link will no longer work.",
+  "uploadFile": "Upload a file",
+  "fileAlwaysDownload": "Download is always offered for a file.",
+  "fileUploaded": "File uploaded"
 }
