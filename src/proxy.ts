@@ -326,8 +326,6 @@ export default async function proxy(request: NextRequest) {
   return intl(request);
 }
 
-export { isShareLinkPath } from "./lib/share-links";
-
 export const config = {
   // Toutes les routes sauf les fichiers statiques Next. L'API, les médias et les
   // fichiers à extension ne sont lus ici que pour la redirection de l'ancien

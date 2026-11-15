@@ -13,8 +13,6 @@ import { parseJson } from "./json";
 /** Slug réservé de la page 404 (jamais un slug de page : « _ » interdit en tête). */
 export { NOT_FOUND_SLUG } from "./special-pages";
 
-export { isShareLinkPath } from "./share-links";
-
 export function publishedSlugExists(locale: string, slug: string, { includeDrafts = false } = {}): boolean {
   // Une page à la corbeille n'existe plus, ni en public ni en aperçu.
   const query = getDb().select({ slug: schema.pages.slug }).from(schema.pages);

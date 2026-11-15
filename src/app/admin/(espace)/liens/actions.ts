@@ -3,11 +3,10 @@
 import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
-import { deleteShareLink, updateShareLink, createShareLink, type ShareLinkRow } from "@/lib/edit/share-links";
+import { createShareLink, deleteShareLink, updateShareLink } from "@/lib/edit/share-links";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidatePath } from "next/cache";
 import { audited } from "@/lib/journal/audit";
-import { adminT } from "@/i18n/admin-msg";
 
 const Id = z.number().int().positive();
 

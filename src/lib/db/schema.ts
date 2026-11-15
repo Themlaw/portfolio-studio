@@ -108,9 +108,8 @@ export const media = sqliteTable("media", {
 export const wallpapers = sqliteTable("wallpapers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
-  mediaId: integer("media_id")
-    .notNull()
-    .references(() => media.id),
+  /** Média lié (identifiant, sans clé étrangère comme les autres références : purge de la corbeille libre). */
+  mediaId: integer("media_id").notNull(),
   /** Largeur d'une tuile à l'écran, en px (le téléphone la réduit). */
   size: integer("size").notNull().default(300),
   opacity: real("opacity").notNull().default(1),

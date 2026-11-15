@@ -5,7 +5,6 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { getDb, schema } from "@/lib/db";
-import { parseJson } from "@/lib/json";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 
 export type ShareLinkRow = {
@@ -70,13 +69,10 @@ function validateMedia(mediaId: number, errors: Record<string, string>) {
 }
 
 function validateSlug(slug: string, exceptId: number | null, errors: Record<string, string>) {
-  const others = getDb().select({ id: schema.shareLinks.id }).from(schema.shareLinks).all();
-  // uniqueness
   const taken = getDb().select({ id: schema.shareLinks.id }).from(schema.shareLinks).where(eq(schema.shareLinks.slug, slug)).get();
   if (taken && taken.id !== exceptId) {
     errors.slug = "Ce nom court est déjà pris.";
   }
-  void others;
 }
 
 export function createShareLink(input: unknown): ActionResult<{ id: number }> {
@@ -134,7 +130,18 @@ export function deleteShareLink(id: number): ActionResult<null> {
   return done(null);
 }
 
-/** Lecture publique (pas de cache) : null si absent. */
-export function readShareLink(slug: string): ShareLinkRow | null {
-  return getShareLinkBySlug(slug);
+/**
+ * Lecture publique (pas de cache) : le lien seulement s'il est actif et que son média est prêt, hors corbeille et
+ * d'un type affichable ; null sinon (la page répond alors le 404 du site).
+ */
+export function readPublicShareLink(slug: string): ShareLinkRow | null {
+  if (!/^[a-z0-9-]{1,60}$/.test(slug)) return null;
+  const link = getShareLinkBySlug(slug);
+  if (!link || !link.enabled) return null;
+  const m = getDb()
+    .select({ kind: schema.media.kind })
+    .from(schema.media)
+    .where(and(eq(schema.media.id, link.mediaId), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
+    .get();
+  return m && ["image", "video", "pdf"].includes(m.kind) ? link : null;
 }

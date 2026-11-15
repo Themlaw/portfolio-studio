@@ -7,8 +7,7 @@ CREATE TABLE `share_links` (
 	`allow_download` integer DEFAULT 1 NOT NULL,
 	`enabled` integer DEFAULT 1 NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`media_id`) REFERENCES `media`(`id`) ON UPDATE no action ON DELETE no action
+	`updated_at` integer DEFAULT (unixepoch()) NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `share_links_slug_unique` ON `share_links` (`slug`);
