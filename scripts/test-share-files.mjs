@@ -32,7 +32,7 @@ test("decision : contenu inconnu sans purpose -> refus", () => {
 });
 test("decision : contenu inconnu avec purpose file -> file", () => {
   assert.equal(decideUploadKind(headUnknown, "file"), "file");
-  assert.equal(decideUploadKind(headUnknown, { kind: "file" }), "file");
+  assert.equal(decideUploadKind(headUnknown, { kind: "kit", themeId: "x" }), null);
 });
 test("decision : PDF avec purpose file -> pdf", () => {
   assert.equal(decideUploadKind(headPdf, "file"), "pdf");
@@ -61,6 +61,7 @@ test("audio : M4A detecte", () => { assert.equal(sniffAudio(headM4a).mime, "audi
 test("audio : HTML n est pas audio", () => { assert.equal(sniffAudio(headHtml), null); });
 test("audio : MP4 video reste video", () => { assert.equal(b.sniffVideo(headMp4Video) !== null, true); assert.equal(sniffAudio(headMp4Video), null); });
 test("decision : audio avec purpose file -> audio", () => { assert.equal(b.decideUploadKind(headWav, "file"), "audio"); });
+test("decision : audio sans purpose (médiathèque) -> refus", () => { assert.equal(b.decideUploadKind(headWav), null); });
 test("decision : HTML avec purpose file -> file", () => { assert.equal(b.decideUploadKind(headHtml, "file"), "file"); });
 
 console.log(`\n${passed} tests passes`);

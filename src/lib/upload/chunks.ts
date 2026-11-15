@@ -381,10 +381,10 @@ async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<I
     }
     return { ...(await ingestImage(received)), kind: "image" };
   }
-  if (sniffAudio(received.head)) {
-    return { ...(await ingestAudio(received)), kind: "audio" };
-  }
+  // Écran Liens seulement (purpose « file ») : audio lu dans la page, sinon fichier à télécharger. La médiathèque et
+  // l'éditeur gardent leur refus de tout ce qui n'est ni image, ni vidéo, ni PDF.
   if (r.purpose === "file") {
+    if (sniffAudio(received.head)) return { ...(await ingestAudio(received)), kind: "audio" };
     return { ...(await ingestFile(received)), kind: "file" };
   }
   await rm(file, { force: true });
