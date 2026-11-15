@@ -139,7 +139,7 @@ export function specialPageProblem(
 type L = { fr: string; en: string };
 const LOCALES = ["fr", "en"] as const;
 
-export const RESERVED_SLUGS = ["admin", "api", "media", "_next", "_404"];
+export const RESERVED_SLUGS = ["admin", "api", "media", "_next", "_404", "l"];
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Message d'erreur d'un slug, ou null s'il est valable. */

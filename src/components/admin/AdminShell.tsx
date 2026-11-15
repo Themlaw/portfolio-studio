@@ -19,6 +19,7 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/admin/cadres", label: "navFrames", sub: true },
   { href: "/admin/pages", label: "navPages" },
   { href: "/admin/medias", label: "navMedia" },
+  { href: "/admin/liens", label: "navLinks" },
   { href: "/admin/messages", label: "navMessages" },
   { href: "/admin/reglages", label: "navSettings" },
   { href: "/admin/sauvegardes", label: "navBackups", sub: true },

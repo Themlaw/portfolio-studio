@@ -67,6 +67,8 @@ export function mediaUsagesByMedia(): Map<number, Usage[]> {
       draftPageId: p.page,
     }));
   const index = mediaUsageIndex({ slots, blocks: allBlocks(), layouts });
+  // Liens partageables (lot « Liens ») : un média utilisé par un lien compte comme utilisé (corbeille, compteur).
+  for (const [mediaId, usages] of shareLinkUsages()) index.set(mediaId, [...(index.get(mediaId) ?? []), ...usages]);
   // Logo du site (lot 26) : une image de la médiathèque hors de toute rubrique. Elle compte comme un usage, sur la page
   // d'accueil (logo publié) ou sur la page qui tient le brouillon du site : sans cela, la corbeille et le compteur
   // de la médiathèque la diraient libre.
@@ -117,6 +119,22 @@ function logoUsages(): Map<number, Usage> {
     const pageId = home;
     if (typeof mediaId === "number" && pageId !== undefined && !out.has(mediaId)) {
       out.set(mediaId, { kind: "block", blockId: -1, pageId, type: LOGO_USAGE_TYPE, path: "media" });
+    }
+  }
+  return out;
+}
+
+export const SHARE_LINK_USAGE_TYPE = "Lien partageable";
+
+function shareLinkUsages(): Map<number, Usage[]> {
+  const db = getDb();
+  const out = new Map<number, Usage[]>();
+  const home = db.select({ id: schema.pages.id }).from(schema.pages).orderBy(schema.pages.id).get()?.id;
+  if (home === undefined) return out;
+  for (const row of db.select().from(schema.shareLinks).all()) {
+    const list = out.get(row.mediaId) ?? [];
+    if (!list.some((u) => u.kind === "block" && u.pageId === home && u.type === SHARE_LINK_USAGE_TYPE)) {
+      out.set(row.mediaId, [...list, { kind: "block", blockId: -1, pageId: home, type: SHARE_LINK_USAGE_TYPE, path: "media" }]);
     }
   }
   return out;

@@ -34,6 +34,7 @@ import { adminGateAllows, isAdminRequest } from "./lib/auth/guard";
 import { isDevMode } from "./lib/dev-mode";
 import { readRedirectConfig, redirectionFor } from "./lib/domain";
 import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
+import { isShareLinkPath } from "./lib/share-links";
 
 const intl = createMiddleware(routing);
 
@@ -311,6 +312,8 @@ export default async function proxy(request: NextRequest) {
     slug = null; // encodage invalide (/fr/%E0…)
   }
   if (slug === null || slug === NOT_FOUND_SLUG) return notFoundResponse(request, locale);
+  // Liens partageables : l/<slug> passe vers la page, qui fait elle-même le 404.
+  if (isShareLinkPath(rest)) return intl(request);
   if (!publishedSlugExists(locale, slug)) {
     // Page non publiée : seulement pour un aperçu admin vérifié ; sinon un vrai
     // 404, identique à celui d'une adresse qui n'existe pas.

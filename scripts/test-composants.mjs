@@ -320,6 +320,8 @@ live.exec("ALTER TABLE media DROP COLUMN deleted_at; ALTER TABLE pages DROP COLU
 live.exec("ALTER TABLE projects DROP COLUMN layout; ALTER TABLE projects DROP COLUMN draft_layout; ALTER TABLE projects DROP COLUMN draft_layout_page_id;");
 // 0031 (lot 112, tri des médias) : trois colonnes de media à rejouer aussi (ajout seulement : jamais de réécriture de ligne).
 live.exec("ALTER TABLE media DROP COLUMN last_import_at; ALTER TABLE media DROP COLUMN taken_at; ALTER TABLE media DROP COLUMN taken_checked;");
+// 0032 (liens partageables) : table rejouée aussi.
+live.exec("DROP TABLE IF EXISTS share_links;");
 // 0029 (lot 60, Mon thème) : rejouée aussi.
 live.exec("DROP INDEX IF EXISTS themes_one_mine; DROP TABLE IF EXISTS theme_versions; ALTER TABLE themes DROP COLUMN mine; ALTER TABLE themes DROP COLUMN based_on; ALTER TABLE themes DROP COLUMN version; ALTER TABLE themes DROP COLUMN published_version; ALTER TABLE themes DROP COLUMN live_data;");
 const legacy = seedLegacyPage(live);
