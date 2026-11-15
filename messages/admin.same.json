@@ -56,6 +56,7 @@
     "fonts.styles",
     "favicon.color_primary",
     "journal.type_modification",
-    "journal.type_publication"
+    "journal.type_publication",
+    "media.kindAudio"
   ]
 }

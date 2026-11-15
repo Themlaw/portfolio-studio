@@ -31,6 +31,7 @@ export async function healRestoredMedia(): Promise<void> {
   for (const m of db.select().from(schema.media).all()) {
     // Fichiers et sons des liens partageables : stockés tels quels, aucune variante à régénérer.
     if (m.kind === "file" || m.kind === "audio") continue;
+    const kind = m.kind;
     if (m.status !== "ready" || !m.key.startsWith("originals/")) continue;
     const files = ((m.variants ?? null) as VariantFiles | null)?.files ?? [];
     let missing = false;
@@ -48,7 +49,7 @@ export async function healRestoredMedia(): Promise<void> {
     db.transaction((tx) => {
       tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, m.id)).run();
       tx.delete(schema.jobs).where(eq(schema.jobs.mediaId, m.id)).run();
-      tx.insert(schema.jobs).values({ kind: m.kind, mediaId: m.id }).run();
+      tx.insert(schema.jobs).values({ kind, mediaId: m.id }).run();
     });
     requeued++;
   }

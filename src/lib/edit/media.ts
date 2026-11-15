@@ -32,11 +32,12 @@ export async function retryMedia(id: number): Promise<ActionResult<null>> {
   if (media.status !== "failed") return fail("Ce média n'est pas en échec.");
   // Fichiers et sons des liens partageables : stockés tels quels, aucun traitement à relancer.
   if (media.kind === "file" || media.kind === "audio") return fail("Ce fichier n'a pas de traitement à relancer.");
+  const kind = media.kind;
   if (!(await getStorage().stat(media.key))) return fail("Le fichier d'origine n'est plus disponible : supprime ce média et renvoie le fichier.");
   db.transaction((tx) => {
     tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, id)).run();
     tx.delete(schema.jobs).where(eq(schema.jobs.mediaId, id)).run();
-    tx.insert(schema.jobs).values({ kind: media.kind, mediaId: id }).run();
+    tx.insert(schema.jobs).values({ kind, mediaId: id }).run();
   });
   return done(null);
 }
