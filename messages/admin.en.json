@@ -2613,7 +2613,10 @@
     "typeVideo": "Video",
     "typePdf": "PDF",
     "typeAudio": "Audio",
-    "typeFile": "File"
+    "typeFile": "File",
+    "replaceFile": "Replace file",
+    "changeFile": "Change",
+    "fileReplaced": "File replaced"
   },
   "login": {
     "title": "Sign in",

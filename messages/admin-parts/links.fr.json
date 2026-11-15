@@ -36,5 +36,8 @@
   "typeVideo": "Vidéo",
   "typePdf": "PDF",
   "typeAudio": "Audio",
-  "typeFile": "Fichier"
+  "typeFile": "Fichier",
+  "replaceFile": "Remplacer le fichier",
+  "changeFile": "Changer",
+  "fileReplaced": "Fichier remplacé"
 }

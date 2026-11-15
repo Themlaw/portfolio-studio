@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
-import { createShareLink, deleteShareLink, setShareLinkEnabled, updateShareLink } from "@/lib/edit/share-links";
+import { createShareLink, deleteShareLink, replaceShareLinkMedia, setShareLinkEnabled, updateShareLink } from "@/lib/edit/share-links";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidatePath } from "next/cache";
 import { audited } from "@/lib/journal/audit";
@@ -42,6 +42,17 @@ export const setShareLinkEnabledAction = audited("setShareLinkEnabledAction", as
   const parsedEnabled = z.boolean().safeParse(enabled);
   if (!parsedEnabled.success) return fail("Valeur invalide.");
   const result = setShareLinkEnabled(parsedId.data, parsedEnabled.data);
+  if (result.ok) revalidatePath("/[locale]/l/[slug]", "page");
+  return result;
+});
+
+export const replaceShareLinkMediaAction = audited("replaceShareLinkMediaAction", async function replaceShareLinkMediaAction(id: unknown, mediaId: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsedId = Id.safeParse(id);
+  if (!parsedId.success) return fail("Lien inconnu.");
+  const parsedMedia = z.number().int().positive().safeParse(mediaId);
+  if (!parsedMedia.success) return fail("Média invalide.");
+  const result = replaceShareLinkMedia(parsedId.data, parsedMedia.data);
   if (result.ok) revalidatePath("/[locale]/l/[slug]", "page");
   return result;
 });

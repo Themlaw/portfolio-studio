@@ -141,6 +141,20 @@ export function setShareLinkEnabled(id: number, enabled: boolean): ActionResult<
   return done(null);
 }
 
+export function replaceShareLinkMedia(id: number, mediaId: number): ActionResult<null> {
+  const db = getDb();
+  const existing = db.select().from(schema.shareLinks).where(eq(schema.shareLinks.id, id)).get();
+  if (!existing) return fail("Ce lien n'existe plus. Recharge la liste.");
+  const errors: Record<string, string> = {};
+  validateMedia(mediaId, errors);
+  if (Object.keys(errors).length) return fail("Ce média ne convient pas.", errors);
+  db.update(schema.shareLinks)
+    .set({ mediaId, updatedAt: new Date() })
+    .where(eq(schema.shareLinks.id, id))
+    .run();
+  return done(null);
+}
+
 export function deleteShareLink(id: number): ActionResult<null> {
   const db = getDb();
   const existing = db.select().from(schema.shareLinks).where(eq(schema.shareLinks.id, id)).get();

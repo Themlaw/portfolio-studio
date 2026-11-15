@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { createShareLinkAction, deleteShareLinkAction, setShareLinkEnabledAction, updateShareLinkAction } from "@/app/admin/(espace)/liens/actions";
+import { createShareLinkAction, deleteShareLinkAction, replaceShareLinkMediaAction, setShareLinkEnabledAction, updateShareLinkAction } from "@/app/admin/(espace)/liens/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import type { ShareLinkRow } from "@/lib/edit/share-links";
 import { normalizeShareSlug } from "@/lib/share-links";
@@ -41,6 +41,7 @@ export default function LinksLibrary({ initial, media }: Props) {
   const previewDialogRef = useRef<HTMLDialogElement>(null);
   const [deleting, setDeleting] = useState<ShareLinkRow | null>(null);
   const [preview, setPreview] = useState<ShareLinkRow | null>(null);
+  const [replacing, setReplacing] = useState<ShareLinkRow | null>(null);
   const [busy, start] = useTransition();
 
   const mediaById = new Map(media.map((m) => [m.id, m]));
@@ -67,6 +68,18 @@ export default function LinksLibrary({ initial, media }: Props) {
     setEnabled(link.enabled);
     setErrors({});
     setShowForm(true);
+  }
+
+  async function replaceMedia(link: ShareLinkRow, m: AdminMediaRow) {
+    start(async () => {
+      const r = await replaceShareLinkMediaAction(link.id, m.id);
+      if (!r.ok) {
+        toast(r.message, "error");
+        return;
+      }
+      toast(t("fileReplaced"));
+      router.refresh();
+    });
   }
 
   function closeForm() {
@@ -244,6 +257,9 @@ export default function LinksLibrary({ initial, media }: Props) {
                   <button type="button" className="a-btn a-btn-small" onClick={() => setPreview(link)} data-testid="link-preview">
                     {t("preview")}
                   </button>
+                  <button type="button" className="a-btn a-btn-small" onClick={() => setReplacing(link)} data-testid="link-replace">
+                    {t("replaceFile")}
+                  </button>
                   <button type="button" className="a-btn a-btn-small" onClick={() => copyLink(link.slug)} data-testid="link-copy">
                     {t("copy")}
                   </button>
@@ -309,8 +325,11 @@ export default function LinksLibrary({ initial, media }: Props) {
                 <span className="a-field-label">{t("media")}</span>
                 <div className="a-media-field">
                   <span className="a-media-field-name">{(mediaId !== undefined ? mediaByIdMap.get(mediaId) : undefined)?.name ?? t("noMedia")}</span>
+                  {mediaId !== undefined && mediaByIdMap.get(mediaId) && (
+                    <span className="a-badge">{typeLabel(mediaByIdMap.get(mediaId)?.kind)}</span>
+                  )}
                   <button type="button" className="a-btn a-btn-small" onClick={() => setMediaOpen(true)} data-testid="link-pick-media">
-                    {t("chooseMedia")}
+                    {mediaId !== undefined ? t("changeFile") : t("chooseMedia")}
                   </button>
                   <button type="button" className="a-btn a-btn-small" onClick={() => fileInputRef.current?.click()} disabled={uploading} data-testid="link-upload-file">
                     {t("uploadFile")}
@@ -443,6 +462,17 @@ export default function LinksLibrary({ initial, media }: Props) {
         onPick={(m) => {
           setMediaId(m.id);
           setMediaOpen(false);
+        }}
+      />
+
+      <MediaPickerDialog
+        open={replacing !== null}
+        media={media.filter((m) => m.status === "ready" && (m.kind === "image" || m.kind === "video" || m.kind === "pdf" || m.kind === "file" || m.kind === "audio"))}
+        title={t("chooseMedia")}
+        onClose={() => setReplacing(null)}
+        onPick={(m) => {
+          if (replacing) void replaceMedia(replacing, m);
+          setReplacing(null);
         }}
       />
 

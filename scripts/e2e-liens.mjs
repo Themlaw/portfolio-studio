@@ -240,6 +240,22 @@ await page.keyboard.press("Escape");
 await page.waitForTimeout(500);
 ok("aperçu fermé", await page.locator("[data-testid='link-preview-dialog'][open]").count() === 0);
 
+// ---- Remplacement du fichier d'un lien -------------------------------------
+const slugPdfReplace = `pdf-replace-${suffix}`;
+await createLink(slugPdfReplace, "Titre PDF remplace", pdfName, true, true);
+
+const replaceRow = page.locator("[data-testid='link-row']", { hasText: slugPdfReplace }).first();
+await replaceRow.getByTestId("link-replace").click();
+await page.waitForTimeout(800);
+await page.locator("dialog[open]").getByTitle(imgRow.original_name).click();
+await page.waitForTimeout(2000);
+
+const resReplace = await fetch(`${BASE}/fr/l/${slugPdfReplace}`);
+const htmlReplace = await resReplace.text();
+ok("remplacement : 200", resReplace.status === 200, String(resReplace.status));
+ok("remplacement : image affichée", /<img|<picture/.test(htmlReplace));
+ok("remplacement : titre conservé", htmlReplace.includes("remplace"));
+
 // interrupteur de ligne : coupe puis rallume sans recharger
 const switchRow = page.locator("[data-testid='link-row']", { hasText: slugImg }).first();
 const rowSwitch = switchRow.getByTestId("link-enabled-switch");
