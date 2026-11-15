@@ -11,6 +11,7 @@ import VideoCard from "@/components/VideoCard";
 import { getMedia } from "@/lib/media";
 import { readPublicShareLink } from "@/lib/edit/share-links";
 import { downloadName } from "@/lib/pdf/limits";
+import { formatDuration } from "@/lib/video/limits";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,22 @@ export default async function ShareLinkPage({ params }: { params: Params }) {
           {link.allowDownload && (
             <div className="mt-6">
               <a className="btn" data-testid="share-download" href={media.video.sources.mp4[0]?.src ?? media.url} download={downloadName(link.slug)}>
+                {t("download")}
+              </a>
+            </div>
+          )}
+        </>
+      );
+    }
+    // audio : lecteur intégré
+    if (!media.pdf && !media.video && media.mime.startsWith("audio/")) {
+      return (
+        <>
+          <audio controls preload="metadata" src={media.url} className="w-full" />
+          {media.duration ? <p className="muted mt-2">{formatDuration(media.duration)}</p> : null}
+          {link.allowDownload && (
+            <div className="mt-6">
+              <a className="btn" data-testid="share-download" href={`${media.url}?name=${downloadName(link.slug)}&dl=1`} download={media.originalName ?? "audio"}>
                 {t("download")}
               </a>
             </div>

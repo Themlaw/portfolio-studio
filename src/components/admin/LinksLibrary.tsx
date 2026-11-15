@@ -259,7 +259,7 @@ export default function LinksLibrary({ initial, media }: Props) {
 
       <MediaPickerDialog
         open={mediaOpen}
-        media={media.filter((m) => m.status === "ready" && (m.kind === "image" || m.kind === "video" || m.kind === "pdf" || m.kind === "file"))}
+        media={media.filter((m) => m.status === "ready" && (m.kind === "image" || m.kind === "video" || m.kind === "pdf" || m.kind === "file" || m.kind === "audio"))}
         title={t("chooseMedia")}
         onClose={() => setMediaOpen(false)}
         onPick={(m) => {

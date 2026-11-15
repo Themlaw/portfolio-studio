@@ -115,6 +115,7 @@ async function serve(request: Request, { params }: Params, head: boolean) {
   if (!kit && (!row || row.status !== "ready")) return notFound();
   const mime = kit ? KIT_MIME[kit[1]] : row!.mime;
   const isFile = !kit && row?.kind === "file";
+  const isAudio = !kit && row?.kind === "audio";
 
   const storage = getStorage();
   const stat = await storage.stat(key);
@@ -142,6 +143,16 @@ async function serve(request: Request, { params }: Params, head: boolean) {
     headers.set("Content-Disposition", fileAttachmentHeader(rawName, row?.originalName ?? null));
     headers.set("X-Frame-Options", "DENY");
     headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  }
+  if (isAudio) {
+    const url = new URL(request.url);
+    const dl = url.searchParams.get("dl") === "1" || url.searchParams.get("download") === "1";
+    if (dl) {
+      const rawName = url.searchParams.get("name") ?? "";
+      headers.set("Content-Disposition", fileAttachmentHeader(rawName, row?.originalName ?? null));
+      headers.set("X-Frame-Options", "DENY");
+      headers.set("Cross-Origin-Resource-Policy", "same-origin");
+    }
   }
 
   const inm = request.headers.get("if-none-match");

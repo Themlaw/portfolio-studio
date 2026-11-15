@@ -2315,7 +2315,7 @@ export default function VisualEditor({
     }
     const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
     if (block && m.status === "ready" && m.kind !== "pdf") {
-      const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf" && m.kind !== "file"));
+      const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf" && m.kind !== "file" && m.kind !== "audio"));
       if (field) return placeMedia({ kind: "media", uid: block.uid, field: field.field as "mediaId" | "backgroundMediaId" | "portraitMediaId" }, m.id, m.kind);
       if (block.type === "grid") return placeMedia({ kind: "cell", uid: block.uid }, m.id, m.kind);
       // Planche libre (lot 42) : l'image se pose vers le centre de la zone (le glisser sur la toile choisit l'endroit).

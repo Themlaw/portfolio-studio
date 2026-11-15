@@ -68,6 +68,8 @@ export function sniffVideo(head: Uint8Array): VideoType | null {
     const image = ["avif", "avis", "heic", "heix", "mif1", "msf1"];
     if (brands.every((x) => image.includes(x))) return null;
     if (image.includes(brands[0])) return null;
+    // M4A/M4B : audio, pas vidéo (géré par sniffAudio).
+    if (brands[0] === "M4A " || brands[0] === "M4B ") return null;
     const qt = brands[0] === "qt  ";
     return { container: "mov", mime: qt ? "video/quicktime" : "video/mp4", ext: qt ? "mov" : "mp4", label: qt ? "MOV" : "MP4" };
   }
@@ -93,12 +95,13 @@ export function cleanFilename(name: string | null | undefined): string {
  * reconnu (quel que soit `purpose`), fichier générique si le contenu est inconnu
  * mais `purpose === "file"` (ou `{ kind: "file" }`), sinon refus (null).
  */
-export type UploadDecision = "image" | "video" | "pdf" | "file" | null;
+export type UploadDecision = "image" | "video" | "pdf" | "file" | "audio" | null;
 
 export function decideUploadKind(head: Uint8Array, purpose?: unknown): UploadDecision {
   if (sniffVideo(head)) return "video";
   if (sniffPdf(head)) return "pdf";
   if (sniffImage(head)) return "image";
+  if (sniffAudio(head)) return "audio";
   if (purpose === "file" || (purpose && typeof purpose === "object" && (purpose as { kind?: unknown }).kind === "file")) return "file";
   return null;
 }
@@ -112,3 +115,40 @@ export const uploadDecision = decideUploadKind;
 export const isUploadAccepted = (head: Uint8Array, purpose?: unknown) => decideUploadKind(head, purpose) !== null;
 export const uploadAccepted = isUploadAccepted;
 export const acceptsUpload = isUploadAccepted;
+
+
+export type AudioType = { mime: string; ext: string; label: string };
+
+/**
+ * Audio d'après la signature : MP3 (ID3 ou synchro de trame), WAV, OGG, FLAC,
+ * M4A/M4B (ftyp avec marque M4A / M4B). Retourne le type MIME exact.
+ */
+export function sniffAudio(head: Uint8Array): AudioType | null {
+  const b = head;
+  // MP3 : en-tête ID3, ou synchro de trame (11 bits à 1).
+  if (b.length >= 3 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) {
+    return { mime: "audio/mpeg", ext: "mp3", label: "MP3" };
+  }
+  if (b.length >= 2 && b[0] === 0xff && (b[1] & 0xe0) === 0xe0) {
+    return { mime: "audio/mpeg", ext: "mp3", label: "MP3" };
+  }
+  // WAV : RIFF .... WAVE
+  if (b.length >= 12 && String.fromCharCode(...b.subarray(0, 4)) === "RIFF" && String.fromCharCode(...b.subarray(8, 12)) === "WAVE") {
+    return { mime: "audio/wav", ext: "wav", label: "WAV" };
+  }
+  // OGG (Opus/Vorbis) : OggS
+  if (b.length >= 4 && String.fromCharCode(...b.subarray(0, 4)) === "OggS") {
+    return { mime: "audio/ogg", ext: "ogg", label: "OGG" };
+  }
+  // FLAC
+  if (b.length >= 4 && String.fromCharCode(...b.subarray(0, 4)) === "fLaC") {
+    return { mime: "audio/flac", ext: "flac", label: "FLAC" };
+  }
+  // M4A / M4B : ftyp avec marque M4A / M4B
+  if (b.length >= 12 && String.fromCharCode(...b.subarray(4, 8)) === "ftyp") {
+    const brand = String.fromCharCode(...b.subarray(8, 12));
+    if (brand === "M4A " || brand === "M4B ") return { mime: "audio/mp4", ext: "m4a", label: "M4A" };
+  }
+  return null;
+}
+

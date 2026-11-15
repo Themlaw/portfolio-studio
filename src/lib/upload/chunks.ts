@@ -31,9 +31,9 @@ import { createKitImport, KitImportBatchError, MAX_IMPORT_FILES } from "@/lib/ki
 import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
 import { extractEntry, KitZipError, listZip } from "@/lib/kit/zip-archive";
 
-import { ingestFile, ingestImage, type IngestedMedia } from "./ingest";
+import { ingestAudio, ingestFile, ingestImage, type IngestedMedia } from "./ingest";
 import { diskProblem, quotaProblem } from "./quota";
-import { cleanFilename, sniffImage, sniffPdf, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
+import { cleanFilename, sniffAudio, sniffImage, sniffPdf, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
 import { ingestPdf } from "@/lib/pdf/ingest";
 import { pdfLimits } from "@/lib/pdf/limits";
 import { maxImageBytes, UploadError } from "./receive";
@@ -266,7 +266,7 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
  * Fin d'envoi. `tagsInput` : tags courants du client (une reprise a pu les
  * changer depuis init), validés comme à init ; absents : ceux d'init.
  */
-export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video" | "pdf" | "file"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
+export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video" | "pdf" | "file" | "audio"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
 
 export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<CompletedUpload> {
   const r = row(id, userId);
@@ -355,7 +355,7 @@ async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string
   }
 }
 
-async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" | "file" }> {
+async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" | "file" | "audio" }> {
   if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
   const file = partPath(r.id);
   // L'envoi est clos : sa réservation disparaît, le contenu fait foi.
@@ -380,6 +380,9 @@ async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<I
       throw new UploadError(413, `Cette image dépasse ${Math.round(maxImageBytes() / 1024 / 1024)} Mo : réduis-la avant de l'envoyer.`);
     }
     return { ...(await ingestImage(received)), kind: "image" };
+  }
+  if (sniffAudio(received.head)) {
+    return { ...(await ingestAudio(received)), kind: "audio" };
   }
   if (r.purpose === "file") {
     return { ...(await ingestFile(received)), kind: "file" };

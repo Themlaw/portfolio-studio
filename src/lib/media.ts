@@ -22,6 +22,7 @@ export type MediaInfo = {
   pdf: PdfView | null;
   mime: string;
   size: number;
+  duration: number | null;
   originalName: string | null;
   width: number | null;
   height: number | null;
@@ -92,6 +93,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
       pdf: row.kind === "pdf" ? pdfViewOf(row) : null,
       mime: row.mime,
       size: row.size,
+      duration: row.duration ?? null,
       originalName: row.originalName ?? null,
       width: anim ? anim.fw : row.width,
       height: anim ? anim.fh : row.height,
